@@ -70,6 +70,13 @@ type CameraStreamResponse = {
   stream_type: string;
 };
 
+type CameraPingResponse = {
+  camera_id: string;
+  pong: boolean;
+  status: string;
+  checked_at: string;
+};
+
 type ValidationDetailItem = {
   loc?: Array<string | number>;
   msg?: string;
@@ -283,6 +290,12 @@ export async function createCamera(token: string, payload: CameraCreatePayload) 
   return requestWithToken<CameraResponse>('/cameras', token, {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export async function pingCamera(token: string, cameraId: string) {
+  return requestWithToken<CameraPingResponse>(`/cameras/${cameraId}/ping`, token, {
+    method: 'POST',
   });
 }
 
