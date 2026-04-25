@@ -13,6 +13,16 @@ type TokenResponse = {
   token_type: string;
 };
 
+export type WorkspaceResponse = {
+  id: string;
+  name: string;
+  slug: string;
+  timezone: string;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type UserResponse = {
   id: string;
   email: string;
@@ -20,6 +30,43 @@ type UserResponse = {
   phone: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CameraResponse = {
+  id: string;
+  workspace_id: string;
+  name: string;
+  external_id: string | null;
+  connection_type: string;
+  stream_url: string;
+  status: string;
+  is_active: boolean;
+  metadata: Record<string, unknown>;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type WorkspaceCreatePayload = {
+  name: string;
+  slug: string;
+  timezone?: string;
+};
+
+type CameraCreatePayload = {
+  workspace_id: string;
+  name: string;
+  external_id?: string;
+  connection_type?: string;
+  stream_url: string;
+  status?: string;
+  is_active?: boolean;
+  metadata?: Record<string, unknown>;
+};
+
+type CameraStreamResponse = {
+  playlist_url: string;
+  stream_type: string;
 };
 
 type ValidationDetailItem = {
@@ -48,6 +95,10 @@ function resolveApiBaseUrl() {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return requestWithToken<T>(path, undefined, init);
+}
+
+async function requestWithToken<T>(path: string, token?: string, init?: RequestInit): Promise<T> {
   const url = `${resolveApiBaseUrl()}${path}`;
   let response: Response;
 
@@ -55,6 +106,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init?.headers ?? {}),
       },
       ...init,
@@ -206,9 +258,53 @@ export async function register(payload: RegisterPayload) {
 }
 
 export async function getMe(token: string) {
-  return request<UserResponse>('/auth/me', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+  return requestWithToken<UserResponse>('/auth/me', token);
+}
+
+export async function listWorkspaces(token: string) {
+  return requestWithToken<WorkspaceResponse[]>('/workspaces', token);
+}
+
+export async function createWorkspace(token: string, payload: WorkspaceCreatePayload) {
+  return requestWithToken<WorkspaceResponse>('/workspaces', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
+}
+
+export async function listCameras(token: string, workspaceId: string) {
+  const query = new URLSearchParams({ workspace_id: workspaceId });
+  return requestWithToken<CameraResponse[]>(`/cameras?${query.toString()}`, token);
+}
+
+export async function createCamera(token: string, payload: CameraCreatePayload) {
+  return requestWithToken<CameraResponse>('/cameras', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function startCameraHlsStream(token: string, cameraId: string) {
+  return requestWithToken<CameraStreamResponse>(`/camera-streams/${cameraId}/hls`, token, {
+    method: 'POST',
+  });
+}
+
+export function buildIntelbrasIm4RtspUrl(host: string, accessKey: string) {
+  const normalizedHost = host.trim();
+  const normalizedAccessKey = accessKey.trim();
+
+  return `rtsp://admin:${encodeURIComponent(normalizedAccessKey)}@${normalizedHost}:554/cam/realmonitor?channel=1&subtype=0`;
+}
+
+export function buildDefaultWorkspaceSlug(nameOrEmail: string) {
+  const base = nameOrEmail
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+
+  return `${base || 'vard'}-${Date.now().toString().slice(-6)}`;
 }

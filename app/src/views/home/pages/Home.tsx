@@ -2,9 +2,9 @@ import { RouteProp, useRoute } from '@react-navigation/native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
-import { RootStackParamList } from '../../../navigation/types';
+import { AppTabParamList } from '../../../navigation/types';
 
-type HomeRoute = RouteProp<RootStackParamList, 'Home'>;
+type HomeRoute = RouteProp<AppTabParamList, 'Home'>;
 
 export function Home() {
   const route = useRoute<HomeRoute>();

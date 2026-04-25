@@ -138,7 +138,16 @@ export function AuthScreen() {
 
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Home', params: { userName: resolvedName } }],
+        routes: [
+          {
+            name: 'AppTabs',
+            params: {
+              accessToken: authResponse.access_token,
+              userEmail: me.email,
+              userName: resolvedName,
+            },
+          },
+        ],
       });
 
       if (mode === 'login') {
