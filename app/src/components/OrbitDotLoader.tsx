@@ -1,18 +1,6 @@
-import { useEffect } from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, View, ViewStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import Animated, {
-  Easing,
-  useAnimatedProps,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
-
-const AnimatedView = Animated.createAnimatedComponent(View);
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export interface OrbitDotLoaderProps {
   dotColor?: string;
@@ -33,53 +21,68 @@ export function OrbitDotLoader({
   numDots = 4,
   style,
 }: OrbitDotLoaderProps) {
-  const rotation = useSharedValue(0);
-  const centerScale = useSharedValue(1);
+  const rotation = useRef(new Animated.Value(0)).current;
+  const centerScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    rotation.value = withRepeat(
-      withTiming(360, {
+    const rotateAnimation = Animated.loop(
+      Animated.timing(rotation, {
+        toValue: 1,
         duration,
         easing: Easing.linear,
-      }),
-      -1
+        useNativeDriver: true,
+      })
     );
-  }, [duration, rotation]);
-
-  useEffect(() => {
-    centerScale.value = withRepeat(
-      withSequence(
-        withTiming(1.3, { duration: 400, easing: Easing.out(Easing.ease) }),
-        withTiming(1, { duration: 400, easing: Easing.in(Easing.ease) })
-      ),
-      -1
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(centerScale, {
+          toValue: 1.3,
+          duration: 400,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(centerScale, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.in(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
     );
-  }, [centerScale]);
 
-  const rotateStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
+    rotateAnimation.start();
+    pulseAnimation.start();
 
-  const centerProps = useAnimatedProps(() => ({
-    r: centerRadius * centerScale.value,
-  }));
+    return () => {
+      rotateAnimation.stop();
+      pulseAnimation.stop();
+      rotation.setValue(0);
+      centerScale.setValue(1);
+    };
+  }, [centerScale, duration, rotation]);
+
+  const rotate = rotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   const center = size / 2;
   const orbitY = center - size * 0.3;
 
   return (
     <View style={[styles.container, { width: size, height: size }, style]}>
-      <Svg width={size} height={size}>
-        <AnimatedCircle
-          cx={center}
-          cy={center}
-          r={centerRadius}
-          fill={dotColor}
-          animatedProps={centerProps}
-        />
-      </Svg>
+      <Animated.View style={{ transform: [{ scale: centerScale }] }}>
+        <Svg width={size} height={size}>
+          <Circle
+            cx={center}
+            cy={center}
+            r={centerRadius}
+            fill={dotColor}
+          />
+        </Svg>
+      </Animated.View>
 
-      <AnimatedView style={[styles.spinner, rotateStyle]}>
+      <Animated.View style={[styles.spinner, { transform: [{ rotate }] }]}>
         <Svg width={size} height={size}>
           {Array.from({ length: numDots }).map((_, index) => {
             const angle = (360 / numDots) * index;
@@ -96,7 +99,7 @@ export function OrbitDotLoader({
             );
           })}
         </Svg>
-      </AnimatedView>
+      </Animated.View>
     </View>
   );
 }
