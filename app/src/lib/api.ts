@@ -1,5 +1,3 @@
-import { NativeModules, Platform } from 'react-native';
-
 type AuthPayload = {
   email: string;
   password: string;
@@ -33,7 +31,7 @@ type ApiErrorPayload = {
   detail?: string | ValidationDetailItem[];
 };
 
-const FALLBACK_LAN_HOST = '10.193.247.220';
+const API_BASE_URL = 'http://185.135.137.249:8000';
 
 export class ApiRequestError extends Error {
   fieldErrors?: Record<string, string>;
@@ -46,18 +44,7 @@ export class ApiRequestError extends Error {
 }
 
 function resolveApiBaseUrl() {
-  const scriptUrl = NativeModules.SourceCode?.scriptURL as string | undefined;
-  const scriptHost = scriptUrl?.match(/https?:\/\/([^/:]+)/)?.[1];
-
-  if (scriptHost) {
-    return `http://${scriptHost}:8000`;
-  }
-
-  if (Platform.OS === 'android') {
-    return `http://${FALLBACK_LAN_HOST}:8000`;
-  }
-
-  return `http://${FALLBACK_LAN_HOST}:8000`;
+  return API_BASE_URL;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
