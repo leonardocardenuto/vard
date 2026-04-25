@@ -101,6 +101,13 @@ class CameraResponse(BaseModel):
     updated_at: datetime
 
 
+class CameraPingResponse(BaseModel):
+    camera_id: uuid.UUID
+    pong: bool
+    status: str
+    checked_at: datetime
+
+
 class InviteCreate(BaseModel):
     workspace_id: uuid.UUID
     email: EmailStr
