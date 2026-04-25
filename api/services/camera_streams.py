@@ -4,6 +4,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
+from urllib.parse import urlparse
 
 from api.core.config import get_settings
 from api.models import Camera
@@ -45,6 +46,36 @@ def _cleanup_stream_directory(camera_id: uuid.UUID) -> None:
             path.unlink()
 
 
+def _build_input_options(camera: Camera) -> list[str]:
+    parsed = urlparse(camera.stream_url)
+    scheme = (parsed.scheme or camera.connection_type or "").lower()
+
+    if scheme == "rtsp":
+        return [
+            "-rtsp_transport",
+            "tcp",
+            "-fflags",
+            "nobuffer",
+            "-flags",
+            "low_delay",
+        ]
+
+    if scheme in {"http", "https"}:
+        options = [
+            "-reconnect",
+            "1",
+            "-reconnect_streamed",
+            "1",
+            "-reconnect_delay_max",
+            "2",
+        ]
+        if scheme == "https":
+            options.extend(["-tls_verify", "0"])
+        return options
+
+    return []
+
+
 def _start_ffmpeg(camera: Camera) -> CameraStreamProcess:
     stream_dir = get_stream_directory(camera.id)
     playlist_path = stream_dir / "index.m3u8"
@@ -59,12 +90,7 @@ def _start_ffmpeg(camera: Camera) -> CameraStreamProcess:
         "-hide_banner",
         "-loglevel",
         "warning",
-        "-rtsp_transport",
-        "tcp",
-        "-fflags",
-        "nobuffer",
-        "-flags",
-        "low_delay",
+        *_build_input_options(camera),
         "-i",
         camera.stream_url,
         "-an",

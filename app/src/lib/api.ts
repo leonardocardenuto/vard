@@ -41,7 +41,8 @@ export type CameraResponse = {
   stream_url: string;
   status: string;
   is_active: boolean;
-  metadata: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  metadata_json?: Record<string, unknown>;
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
@@ -78,7 +79,8 @@ type ApiErrorPayload = {
   detail?: string | ValidationDetailItem[];
 };
 
-const API_BASE_URL = 'http://185.135.137.249:8000';
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || 'http://127.0.0.1:8000';
 
 export class ApiRequestError extends Error {
   fieldErrors?: Record<string, string>;
@@ -91,7 +93,7 @@ export class ApiRequestError extends Error {
 }
 
 function resolveApiBaseUrl() {
-  return API_BASE_URL;
+  return API_BASE_URL.replace(/\/+$/, '');
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
