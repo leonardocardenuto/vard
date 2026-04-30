@@ -13,6 +13,7 @@ import { Home } from './src/views/home/pages/Home';
 import { Insights } from './src/views/insights/pages/Insights';
 import { Settings } from './src/views/settings/pages/Settings';
 import { Workspace } from './src/views/workspace/pages/Workspace';
+import { Header } from './src/components/Header';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<AppTabParamList>();
@@ -26,7 +27,7 @@ function AppTabs({ route }: AppTabsProps) {
 
   return (
     <Tabs.Navigator
-      screenOptions={{ headerShown: false, animation: 'none' }}
+      screenOptions={{ headerShown: true, animation: 'none', header: () => <Header notificationFunction={() => {console.log('placeholder notification')}} /> }}
       tabBar={(props) => <BottomNavigationBar {...props} />}
     >
       <Tabs.Screen
