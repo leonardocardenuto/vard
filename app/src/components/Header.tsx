@@ -9,7 +9,7 @@ type HeaderProps = {
 
 export function Header({ notificationFunction }: HeaderProps) {
   return (
-    <SafeAreaView backgroundColor="#FBF5EC">
+    <SafeAreaView edges={["top"]} style={{ backgroundColor: "#FFFFFF" }}>
       <View style={styles.container}>
         <View style={styles.left}>
           <Image
@@ -33,11 +33,11 @@ export function Header({ notificationFunction }: HeaderProps) {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 18,
-    paddingTop: 20,
-    paddingBottom: 12,
-    backgroundColor: "#FBF5EC",
+    paddingTop:8,
+    paddingBottom: 24,
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#E8DDCE",
+    borderBottomColor: "#caccd1",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
