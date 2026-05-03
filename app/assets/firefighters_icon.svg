@@ -1,0 +1,10 @@
+﻿<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M9.425 1.2C10.075 3.25 11.75 4.3 12.875 5.55C13.9 6.675 14.75 7.95 14.75 9.875C14.75 13.225 12.175 16.25 9 16.25C5.825 16.25 3.25 13.225 3.25 9.875C3.25 7.775 4.35 5.875 5.85 4.575C5.75 5.775 6.15 6.75 6.875 7.45C7.1 5.1 7.95 3.05 9.425 1.2ZM9.125 14.55C10.85 14.55 12.25 12.925 12.25 11.075C12.25 9.925 11.75 9.05 11.05 8.25C10.525 9.15 9.8 9.8 8.8 10.175C8.95 9.05 8.65 8.075 8.075 7.25C6.95 8.3 5.95 9.55 5.95 11.075C5.95 12.925 7.35 14.55 9.125 14.55Z" fill="url(#paint0_linear_firefighters)"/>
+<defs>
+<linearGradient id="paint0_linear_firefighters" x1="14.75" y1="1.2" x2="2.05" y2="2.8" gradientUnits="userSpaceOnUse">
+<stop offset="0.08" stop-color="#03CDF4"/>
+<stop offset="0.38" stop-color="#019BDE"/>
+<stop offset="1" stop-color="#01EBD0"/>
+</linearGradient>
+</defs>
+</svg>
