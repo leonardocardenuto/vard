@@ -16,7 +16,7 @@ export function LayoutWithNavbar({ children }: LayoutWithNavbarProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FBF5EC',
+    backgroundColor: '#F6FAFE',
   },
   content: {
     flex: 1,

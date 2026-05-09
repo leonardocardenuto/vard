@@ -12,7 +12,14 @@ import {
   View,
 } from 'react-native';
 
-import { ApiRequestError, CameraResponse, listCameras, startCameraHlsStream, WorkspaceResponse } from '../../../lib/api';
+import {
+  ApiRequestError,
+  CameraResponse,
+  listCameras,
+  pingCamera,
+  startCameraHlsStream,
+  WorkspaceResponse,
+} from '../../../lib/api';
 import { SettingsStackParamList } from '../types';
 import { resolvePrimaryWorkspace } from '../utils/resolveWorkspace';
 
@@ -105,6 +112,7 @@ export function CameraSettingsPanel({
   const [cameras, setCameras] = useState<CameraResponse[]>([]);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isStartingStreamId, setIsStartingStreamId] = useState<string | null>(null);
+  const [pingingCameraIds, setPingingCameraIds] = useState<Record<string, boolean>>({});
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
   const [streamUrl, setStreamUrl] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -147,6 +155,41 @@ export function CameraSettingsPanel({
 
       setWorkspace(resolvedWorkspace);
       setCameras(workspaceCameras);
+      setPingingCameraIds(
+        workspaceCameras.reduce<Record<string, boolean>>((acc, camera) => {
+          acc[camera.id] = true;
+          return acc;
+        }, {})
+      );
+      setIsBootstrapping(false);
+
+      await Promise.all(
+        workspaceCameras.map(async (camera) => {
+          try {
+            const ping = await pingCamera(accessToken, camera.id);
+            setCameras((current) =>
+              current.map((currentCamera) =>
+                currentCamera.id === camera.id
+                  ? { ...currentCamera, status: ping.status }
+                  : currentCamera
+              )
+            );
+          } catch {
+            setCameras((current) =>
+              current.map((currentCamera) =>
+                currentCamera.id === camera.id
+                  ? { ...currentCamera, status: 'offline' }
+                  : currentCamera
+              )
+            );
+          } finally {
+            setPingingCameraIds((current) => ({
+              ...current,
+              [camera.id]: false,
+            }));
+          }
+        })
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof ApiRequestError ? error.message : 'Nao foi possivel carregar os ajustes.'
@@ -256,6 +299,7 @@ export function CameraSettingsPanel({
             cameras.map((camera) => {
               const isSelected = selectedCameraId === camera.id;
               const isStarting = isStartingStreamId === camera.id;
+              const isPinging = Boolean(pingingCameraIds[camera.id]);
 
               return (
                 <Pressable
@@ -290,7 +334,11 @@ export function CameraSettingsPanel({
                             : styles.statusTextOffline,
                         ]}
                       >
-                        {isStarting ? 'Conectando...' : getCameraStatusLabel(camera)}
+                        {isPinging && !isStarting
+                          ? 'Testando...'
+                          : isStarting
+                            ? 'Conectando...'
+                            : getCameraStatusLabel(camera)}
                       </Text>
                     </View>
                   </View>
