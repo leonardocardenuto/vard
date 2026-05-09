@@ -99,11 +99,13 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
       const host = form.host.trim();
 
       if (!host) {
-        setErrorMessage('Informe o IP da camera local.');
+        setErrorMessage('Informe o IP ou URL da camera local.');
         return;
       }
 
-      streamUrl = `https://${host}:8080`;
+      streamUrl = host.startsWith('http://') || host.startsWith('https://')
+        ? host
+        : `http://${host}:8080/browserfs.html`;
       metadata = {
         host,
         protocol: 'local-webview',
