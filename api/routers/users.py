@@ -5,20 +5,23 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from api.cache import CachePolicy, CacheScope, CachedAPIRoute, cache_response
 from api.db import get_db
 from api.deps import get_current_user
 from api.models import AppUser
 from api.schemas import UserResponse, UserUpdate
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/users", tags=["users"], route_class=CachedAPIRoute)
 
 
 @router.get("", response_model=list[UserResponse])
+@cache_response(CachePolicy(key="users:list", tags=("users",), scope=CacheScope.USER))
 def list_users(db: Session = Depends(get_db), _: AppUser = Depends(get_current_user)) -> list[AppUser]:
     return list(db.scalars(select(AppUser).order_by(AppUser.created_at.desc())).all())
 
 
 @router.get("/{user_id}", response_model=UserResponse)
+@cache_response(CachePolicy(key="users:get", tags=("users",), scope=CacheScope.USER))
 def get_user(user_id: uuid.UUID, db: Session = Depends(get_db), _: AppUser = Depends(get_current_user)) -> AppUser:
     user = db.get(AppUser, user_id)
     if not user:
