@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from api.cache import CachePolicy, CacheScope, CachedAPIRoute, cache_response
 from api.core.security import (
     create_access_token,
     hash_password,
@@ -12,7 +13,7 @@ from api.deps import get_current_user
 from api.models import AppUser, UserCredential
 from api.schemas import LoginRequest, RegisterRequest, TokenResponse, UserResponse
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"], route_class=CachedAPIRoute)
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -50,5 +51,6 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
 
 
 @router.get("/me", response_model=UserResponse)
+@cache_response(CachePolicy(key="auth:me", tags=("users",), scope=CacheScope.USER))
 def me(current_user: AppUser = Depends(get_current_user)) -> AppUser:
     return current_user

@@ -97,6 +97,33 @@ Swagger:
 
 [http://localhost:8000/docs](http://localhost:8000/docs)
 
+## Rodar Postgres e Redis com Docker Compose
+
+Suba Postgres e Redis:
+
+```bash
+docker compose up -d
+```
+
+Com os containers ativos, rode as migrations e a API localmente:
+
+```bash
+python -m scripts.migrate
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+- API: [http://localhost:8000](http://localhost:8000)
+- Swagger: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Postgres: `localhost:5432` (`vard` / `vard` / `vard`)
+- Redis: `localhost:6379`
+
+### Cache de resposta
+
+Os endpoints `GET` autenticados usam Redis para cache por usuário, sem expiração por tempo por padrão. A invalidação acontece automaticamente por tags quando dados relacionados são alterados no banco. Em desenvolvimento, as respostas incluem:
+
+- `X-Response-Cache: HIT` ou `MISS`
+- `X-Response-Cache-Key`
+
 ## Estrutura
 
 ```text

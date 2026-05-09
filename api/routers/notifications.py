@@ -4,15 +4,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from api.cache import CachePolicy, CacheScope, CachedAPIRoute, cache_response
 from api.db import get_db
 from api.deps import get_current_user, require_workspace_membership
 from api.models import AppUser, Notification
 from api.schemas import NotificationCreate, NotificationResponse, NotificationUpdate
 
-router = APIRouter(prefix="/notifications", tags=["notifications"])
+router = APIRouter(prefix="/notifications", tags=["notifications"], route_class=CachedAPIRoute)
 
 
 @router.get("", response_model=list[NotificationResponse])
+@cache_response(CachePolicy(key="notifications:list", tags=("notifications", "workspace_members"), scope=CacheScope.USER))
 def list_notifications(
     workspace_id: uuid.UUID = Query(...),
     db: Session = Depends(get_db),
@@ -45,6 +47,7 @@ def create_notification(
 
 
 @router.get("/{notification_id}", response_model=NotificationResponse)
+@cache_response(CachePolicy(key="notifications:get", tags=("notifications", "workspace_members"), scope=CacheScope.USER))
 def get_notification(
     notification_id: uuid.UUID,
     db: Session = Depends(get_db),

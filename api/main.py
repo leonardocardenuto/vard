@@ -1,11 +1,13 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from api.cache.model_hooks import register_cache_invalidation_hooks
 from api.core.config import get_settings
 from api.routers import auth, camera_streams, cameras, invites, notifications, users, workspaces
 from api.services.camera_streams import STREAMS_ROOT
 
 settings = get_settings()
+register_cache_invalidation_hooks()
 
 app = FastAPI(title=settings.app_name, debug=settings.app_debug)
 app.mount("/streams", StaticFiles(directory=STREAMS_ROOT), name="streams")
