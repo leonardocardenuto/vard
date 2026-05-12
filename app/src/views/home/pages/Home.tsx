@@ -123,11 +123,11 @@ export function Home() {
             style={styles.emergencyButtonsContainer}
           >
             <Text style={styles.emergencyButtonsEstateText}>
-              O AMBIENTE DOMESTICO ESTA SEGURO
+              O AMBIENTE DOMÉSTICO ESTÁ SEGURO
             </Text>
             <Text style={styles.emergencyButtonsDescriptionText}>
-              Monitoramento ativo para quedas, incendios e brigas/agitacao.
-              Todos os sensores estao transmitindo dados em tempo real.
+              Monitoramento ativo para quedas, incêndios e brigas/agitação.
+              Todos os sensores estão transmitindo dados em tempo real.
             </Text>
             <Pressable
               onPress={() => console.log(`SAMU acionado`)}
@@ -141,7 +141,7 @@ export function Home() {
               style={styles.emergencyButton}
             >
               <PoliceIcon />
-              <Text style={styles.emergencyButtonText}>Policia (190)</Text>
+              <Text style={styles.emergencyButtonText}>Polícia (190)</Text>
             </Pressable>
             <Pressable
               onPress={() => console.log(`Bombeiros acionados`)}
