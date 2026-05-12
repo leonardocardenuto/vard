@@ -12,7 +12,7 @@ import { AuthScreen } from './src/views/auth/pages/AuthScreen';
 import { Home } from './src/views/home/pages/Home';
 import { Insights } from './src/views/insights/pages/Insights';
 import { Settings } from './src/views/settings/pages/Settings';
-import { Workspace } from './src/views/workspace/pages/Workspace';
+import Workspace from './src/views/workspace/pages/Workspace';
 import { Header } from './src/components/Header';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();

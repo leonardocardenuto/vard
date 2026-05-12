@@ -49,23 +49,23 @@ const protocolOptions: Array<{
 }> = [
   {
     value: 'local-webview',
-    label: 'Camera local',
-    description: 'Voce informa so o IP e o app abre o link local da camera em WebView.',
+    label: 'Câmera local',
+    description: 'Você informa só o IP e o app abre o link local da câmera em WebView.',
   },
   {
     value: 'rtsp-config',
     label: 'RTSP com acesso',
-    description: 'Monte a conexao com host, usuario, senha e caminho RTSP.',
+    description: 'Monte a conexão com host, usuário, senha e caminho RTSP.',
   },
   {
     value: 'rtsp-manual',
     label: 'RTSP manual',
-    description: 'Permite informar a URL RTSP completa de um equipamento compativel.',
+    description: 'Permite informar a URL RTSP completa de um equipamento compatível.',
   },
   {
     value: 'https-manual',
     label: 'HTTPS manual',
-    description: 'Permite informar uma URL HTTPS direta do stream ou endpoint da camera.',
+    description: 'Permite informar uma URL HTTPS direta do stream ou endpoint da câmera.',
   },
 ];
 
@@ -88,7 +88,7 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
     const name = form.name.trim();
 
     if (!name) {
-      setErrorMessage('Informe um nome para a camera.');
+      setErrorMessage('Informe um nome para a câmera.');
       return;
     }
 
@@ -99,7 +99,7 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
       const host = form.host.trim();
 
       if (!host) {
-        setErrorMessage('Informe o IP ou URL da camera local.');
+        setErrorMessage('Informe o IP ou URL da câmera local.');
         return;
       }
 
@@ -117,7 +117,7 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
       const path = form.path.trim();
 
       if (!host || !username || !password || !path) {
-        setErrorMessage('Preencha host, usuario, senha e caminho RTSP.');
+        setErrorMessage('Preencha host, usuário, senha e caminho RTSP.');
         return;
       }
 
@@ -134,8 +134,8 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
       if (!manualUrl) {
         setErrorMessage(
           protocol === 'https-manual'
-            ? 'Informe a URL HTTPS completa da camera.'
-            : 'Informe a URL RTSP completa da camera.'
+            ? 'Informe a URL HTTPS completa da câmera.'
+            : 'Informe a URL RTSP completa da câmera.'
         );
         return;
       }
@@ -173,7 +173,7 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
       navigation.goBack();
     } catch (error) {
       setErrorMessage(
-        error instanceof ApiRequestError ? error.message : 'Nao foi possivel salvar a camera.'
+        error instanceof ApiRequestError ? error.message : 'Não foi possível salvar a câmera.'
       );
     } finally {
       setIsSaving(false);
@@ -197,15 +197,15 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
             <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
               <Feather color="#111827" name="chevron-left" size={20} />
             </Pressable>
-            <Text style={styles.headerTitle}>Nova camera</Text>
+            <Text style={styles.headerTitle}>Nova câmera</Text>
           </View>
 
           <Text style={styles.subtitle}>
-            Escolha o protocolo de conexao e preencha as informacoes do dispositivo.
+            Escolha o protocolo de conexão e preencha as informações do dispositivo.
           </Text>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Protocolo de conexao</Text>
+            <Text style={styles.sectionTitle}>Protocolo de conexão</Text>
 
             {protocolOptions.map((option) => {
               const isSelected = protocol === option.value;
@@ -229,11 +229,11 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Dados da camera</Text>
+            <Text style={styles.sectionTitle}>Dados da câmera</Text>
 
             <TextInput
               onChangeText={(value) => updateField('name', value)}
-              placeholder="Nome da camera"
+              placeholder="Nome da câmera"
               placeholderTextColor="#9AA4B2"
               style={styles.input}
               value={form.name}
@@ -243,7 +243,7 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
               <TextInput
                 autoCapitalize="none"
                 onChangeText={(value) => updateField('host', value)}
-                placeholder="IP da camera"
+                placeholder="IP da câmera"
                 placeholderTextColor="#9AA4B2"
                 style={styles.input}
                 value={form.host}
@@ -261,7 +261,7 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
                 <TextInput
                   autoCapitalize="none"
                   onChangeText={(value) => updateField('username', value)}
-                  placeholder="Usuario"
+                  placeholder="Usuário"
                   placeholderTextColor="#9AA4B2"
                   style={styles.input}
                   value={form.username}
@@ -308,7 +308,7 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
             style={[styles.primaryButton, isSaving && styles.buttonDisabled]}
           >
             <Text style={styles.primaryButtonText}>
-              {isSaving ? 'Salvando...' : 'Salvar camera'}
+              {isSaving ? 'Salvando...' : 'Salvar câmera'}
             </Text>
           </Pressable>
         </ScrollView>

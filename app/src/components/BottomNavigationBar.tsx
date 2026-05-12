@@ -16,8 +16,8 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'INÍCIO', icon: 'home-outline', activeIcon: 'home', screen: 'Home' },
-  { label: 'WORKSPACE', icon: 'grid-outline', activeIcon: 'grid', screen: 'Workspace' },
-  { label: 'INSIGHTS', icon: 'sparkles-outline', activeIcon: 'sparkles', screen: 'Insights' },
+  { label: 'ESPAÇO', icon: 'grid-outline', activeIcon: 'grid', screen: 'Workspace' },
+  { label: 'ANÁLISES', icon: 'sparkles-outline', activeIcon: 'sparkles', screen: 'Insights' },
   { label: 'AJUSTES', icon: 'settings-outline', activeIcon: 'settings', screen: 'Settings' },
 ];
 
