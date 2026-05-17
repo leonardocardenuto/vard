@@ -1,6 +1,6 @@
 ﻿import { RouteProp, useRoute } from "@react-navigation/native";
 import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, Linking } from "react-native";
 import Svg, {
   Defs,
   LinearGradient,
@@ -20,6 +20,10 @@ type HomeRoute = RouteProp<AppTabParamList, "Home">;
 const REAL_TIME_TITLE_GRADIENT_ID = "realTimeMonitoringTitleGradient";
 const STATUS_CARD_GRADIENT_COLORS = ["#03CDF4", "#019BDE", "#01EBD0"] as const;
 const STATUS_CARD_GRADIENT_LOCATIONS = [0.08, 0.38, 1] as const;
+
+const openDialer = (phoneNumber : string) => {
+  Linking.openURL(`tel:${phoneNumber}`);
+};
 
 const ALERTS = [
   { id: 1, text: "Alerta de exemplo 1" },
@@ -130,21 +134,30 @@ export function Home() {
               Todos os sensores estao transmitindo dados em tempo real.
             </Text>
             <Pressable
-              onPress={() => console.log(`SAMU acionado`)}
+              onPress={() => {
+                console.log(`SAMU acionado`);
+                openDialer("192");
+              }}
               style={styles.emergencyButton}
             >
               <AmbulanceIcon />
               <Text style={styles.emergencyButtonText}>SAMU (192)</Text>
             </Pressable>
             <Pressable
-              onPress={() => console.log(`Policia acionada`)}
+              onPress={() => {
+                console.log(`Policia acionada`);
+                openDialer("190");
+              }}
               style={styles.emergencyButton}
             >
               <PoliceIcon />
               <Text style={styles.emergencyButtonText}>Policia (190)</Text>
             </Pressable>
             <Pressable
-              onPress={() => console.log(`Bombeiros acionados`)}
+              onPress={() => {
+                console.log(`Bombeiros acionados`);
+                openDialer("193");
+              }}
               style={styles.emergencyButton}
             >
               <FirefighterIcon />
