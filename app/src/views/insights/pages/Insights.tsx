@@ -34,7 +34,6 @@ import {
 } from "../Insights";
 
 type Period = "Ultimos 15 dias" | "Ultimos 30 dias" | "Ultimos 60 dias" | "Ultimos 90 dias";
-type InsightMode = "Geral" | "Saude" | "Atividade";
 type CameraFilter = "Cozinha" | "Quarto" | "Sala de Estar";
 
 type CameraData = {
@@ -56,9 +55,14 @@ const PERIOD_OPTIONS: Period[] = [
 ];
 
 const CAMERA_OPTIONS: CameraFilter[] = ["Cozinha", "Quarto", "Sala de Estar"];
-const MODES: InsightMode[] = ["Geral", "Saude", "Atividade"];
 const DEFAULT_PERIOD: Period = "Ultimos 90 dias";
 const DEFAULT_CAMERA: CameraFilter = "Quarto";
+const WORKSPACE_OPTIONS = [
+  "Workspace Vard",
+  "Familia Quadros",
+  "Casa Principal",
+  "Monitoramento Noturno",
+] as const;
 
 const ROOM_BAR_STYLES = {
   quarto: styles.roomBarQuarto,
@@ -226,9 +230,10 @@ export function Insights() {
     [INSIGHTS_FONTS.black]: require("../../../../assets/fonts/Poppins-Black.ttf"),
   });
   const [period, setPeriod] = useState<Period | null>(DEFAULT_PERIOD);
-  const [mode, setMode] = useState<InsightMode>("Geral");
   const [selectedCamera, setSelectedCamera] = useState<CameraFilter | null>(DEFAULT_CAMERA);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(WORKSPACE_OPTIONS[0]);
   const [exportLabel, setExportLabel] = useState("Export Monthly Report");
   const sheetAnimation = useRef(new Animated.Value(0)).current;
   const sheetDragY = useRef(new Animated.Value(0)).current;
@@ -311,12 +316,6 @@ export function Insights() {
     return null;
   }
 
-  function cycleMode() {
-    const currentIndex = MODES.indexOf(mode);
-    const nextMode = MODES[(currentIndex + 1) % MODES.length];
-    setMode(nextMode);
-  }
-
   function handleExportReport() {
     setExportLabel("Relatorio pronto");
     Alert.alert(
@@ -337,6 +336,15 @@ export function Insights() {
     outputRange: [0, 0.4],
   });
 
+  function toggleWorkspaceMenu() {
+    setIsWorkspaceMenuOpen((currentState) => !currentState);
+  }
+
+  function handleWorkspaceSelect(workspace: string) {
+    setSelectedWorkspace(workspace);
+    setIsWorkspaceMenuOpen(false);
+  }
+
   return (
     <LayoutWithNavbar>
       <View style={styles.page}>
@@ -346,30 +354,89 @@ export function Insights() {
         >
           <View style={styles.screen}>
             <View style={styles.hero}>
-              <Pressable
-                accessibilityLabel="Alternar categoria de insights"
-                accessibilityRole="button"
-                onPress={cycleMode}
-                style={({ pressed }) => [styles.modeButton, pressed && styles.pressed]}
-              >
-                <View style={styles.titleLine}>
-                  <GradientTitle
-                    fontSize={40}
-                    height={42}
-                    style={styles.title}
-                    text="Insights"
-                    width={160}
-                    y={31}
-                  />
-                  <Text style={styles.mode}>{mode}</Text>
-                </View>
-                <Ionicons
-                  color={INSIGHTS_COLORS.gradientMiddle}
-                  name="chevron-forward"
-                  size={36}
+              {isWorkspaceMenuOpen ? (
+                <Pressable
+                  onPress={() => {
+                    setIsWorkspaceMenuOpen(false);
+                  }}
+                  style={styles.heroDismissLayer}
                 />
-              </Pressable>
-              <Text style={styles.subtitle}>Resumo de atividades e saude.</Text>
+              ) : null}
+              <View style={styles.heroTopRow}>
+                <GradientTitle
+                  fontSize={40}
+                  height={42}
+                  style={styles.title}
+                  text="Insights"
+                  width={160}
+                  y={31}
+                />
+                <View style={styles.heroWorkspaceArea}>
+                  <Pressable
+                    accessibilityLabel="Selecionar workspace"
+                    accessibilityRole="button"
+                    onPress={toggleWorkspaceMenu}
+                    style={({ pressed }) => [
+                      styles.heroChip,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text
+                      ellipsizeMode="tail"
+                      numberOfLines={1}
+                      style={styles.heroChipText}
+                    >
+                      {selectedWorkspace}
+                    </Text>
+                    <Ionicons
+                      color={INSIGHTS_COLORS.gradientMiddle}
+                      name={isWorkspaceMenuOpen ? "chevron-up" : "chevron-down"}
+                      size={18}
+                    />
+                  </Pressable>
+
+                  {isWorkspaceMenuOpen ? (
+                    <View style={styles.workspaceMenu}>
+                      {WORKSPACE_OPTIONS.map((workspace) => {
+                        const isSelected = workspace === selectedWorkspace;
+
+                        return (
+                          <Pressable
+                            accessibilityRole="button"
+                            key={workspace}
+                            onPress={() => handleWorkspaceSelect(workspace)}
+                            style={({ pressed }) => [
+                              styles.workspaceMenuItem,
+                              isSelected && styles.workspaceMenuItemSelected,
+                              pressed && styles.pressed,
+                            ]}
+                          >
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                styles.workspaceMenuItemText,
+                                isSelected && styles.workspaceMenuItemTextSelected,
+                              ]}
+                            >
+                              {workspace}
+                            </Text>
+                            {isSelected ? (
+                              <Ionicons
+                                color={INSIGHTS_COLORS.gradientMiddle}
+                                name="checkmark"
+                                size={16}
+                              />
+                            ) : null}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+              <Text style={styles.subtitle}>
+                Resumo de atividades e saude do dia.
+              </Text>
             </View>
 
             <View style={styles.cardLarge}>
@@ -384,7 +451,10 @@ export function Insights() {
                     accessibilityLabel="Abrir filtros"
                     accessibilityRole="button"
                     onPress={openFilterSheet}
-                    style={({ pressed }) => [styles.filterButton, pressed && styles.pressed]}
+                    style={({ pressed }) => [
+                      styles.filterButton,
+                      pressed && styles.pressed,
+                    ]}
                   >
                     <Ionicons color="#000000" name="filter-outline" size={20} />
                     <Text style={styles.filterButtonText}>Filtros</Text>
@@ -421,7 +491,9 @@ export function Insights() {
                 />
               </View>
               <Text style={styles.dailyLabel}>TOTAL DAILY INCIDENTS</Text>
-              <Text style={styles.dailyValue}>{selectedData.incidentTotal}</Text>
+              <Text style={styles.dailyValue}>
+                {selectedData.incidentTotal}
+              </Text>
               <Text style={styles.dailyText}>
                 Nenhuma anomalia detectada nas ultimas 24 horas.
               </Text>
@@ -437,12 +509,17 @@ export function Insights() {
             />
 
             <View style={styles.activityCard}>
-              <Text style={styles.cameraTitle}>{selectedData.activityLabel}</Text>
+              <Text style={styles.cameraTitle}>
+                {selectedData.activityLabel}
+              </Text>
               <Text style={styles.cameraSubtitle}>Ultimas 24 horas</Text>
               <View style={styles.activityChart}>
                 <View style={styles.activityTrack}>
                   {ACTIVITY_SEGMENTS.map((segmentStyle, index) => (
-                    <View key={index} style={[styles.activitySegment, segmentStyle]} />
+                    <View
+                      key={index}
+                      style={[styles.activitySegment, segmentStyle]}
+                    />
                   ))}
                 </View>
                 <View style={styles.activityGrid}>
@@ -471,7 +548,10 @@ export function Insights() {
               accessibilityLabel="Exportar relatorio mensal em PDF"
               accessibilityRole="button"
               onPress={handleExportReport}
-              style={({ pressed }) => [styles.exportButton, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.exportButton,
+                pressed && styles.pressed,
+              ]}
             >
               <ExpoLinearGradient
                 colors={INSIGHTS_GRADIENT_COLORS}
@@ -487,7 +567,12 @@ export function Insights() {
           </View>
         </ScrollView>
 
-        <Modal animationType="none" onRequestClose={closeFilterSheet} transparent visible={isFilterSheetOpen}>
+        <Modal
+          animationType="none"
+          onRequestClose={closeFilterSheet}
+          transparent
+          visible={isFilterSheetOpen}
+        >
           <View style={styles.bottomSheetRoot}>
             <Pressable
               accessibilityLabel="Fechar filtros"
@@ -497,7 +582,10 @@ export function Insights() {
             >
               <Animated.View
                 pointerEvents="none"
-                style={[styles.bottomSheetBackdrop, { opacity: backdropOpacity }]}
+                style={[
+                  styles.bottomSheetBackdrop,
+                  { opacity: backdropOpacity },
+                ]}
               />
             </Pressable>
 
@@ -545,7 +633,9 @@ export function Insights() {
                   pressed && styles.pressed,
                 ]}
               >
-                <Text style={styles.filterApplyButtonText}>Aplicar filtros</Text>
+                <Text style={styles.filterApplyButtonText}>
+                  Aplicar filtros
+                </Text>
               </Pressable>
             </Animated.View>
           </View>
