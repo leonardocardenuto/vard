@@ -82,7 +82,7 @@ function getCameraMetadata(camera: CameraResponse) {
 }
 
 function getCameraStatusLabel(camera: CameraResponse) {
-  return camera.status === 'online' ? 'Online' : 'Offline';
+  return camera.status === 'online' ? 'Conectada' : 'Desconectada';
 }
 
 function getCameraProtocol(camera: CameraResponse) {
@@ -128,7 +128,7 @@ export function CameraSettingsPanel({
         await player.replaceAsync(streamUrl);
         player.play();
       } catch {
-        setErrorMessage('Nao foi possivel carregar o video ao vivo.');
+        setErrorMessage('Não foi possível carregar o vídeo ao vivo.');
       }
     }
 
@@ -137,7 +137,7 @@ export function CameraSettingsPanel({
 
   const loadDevices = useCallback(async () => {
     if (!accessToken) {
-      setErrorMessage('Sessao invalida. Faca login novamente.');
+      setErrorMessage('Sessão inválida. Faça login novamente.');
       setIsBootstrapping(false);
       return;
     }
@@ -192,7 +192,7 @@ export function CameraSettingsPanel({
       );
     } catch (error) {
       setErrorMessage(
-        error instanceof ApiRequestError ? error.message : 'Nao foi possivel carregar os ajustes.'
+        error instanceof ApiRequestError ? error.message : 'Não foi possível carregar as configurações.'
       );
     } finally {
       setIsBootstrapping(false);
@@ -240,7 +240,7 @@ export function CameraSettingsPanel({
       setErrorMessage(
         error instanceof ApiRequestError
           ? error.message
-          : 'Nao foi possivel iniciar o stream da camera.'
+          : 'Não foi possível iniciar o stream da câmera.'
       );
     } finally {
       setIsStartingStreamId(null);

@@ -9,12 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from api.cache import CachePolicy, CacheScope, CachedAPIRoute, cache_response
 from api.db import get_db
 from api.deps import get_current_user, require_workspace_membership
 from api.models import AppUser, Camera
 from api.schemas import CameraCreate, CameraPingResponse, CameraResponse, CameraUpdate
 
-router = APIRouter(prefix="/cameras", tags=["cameras"])
+router = APIRouter(prefix="/cameras", tags=["cameras"], route_class=CachedAPIRoute)
 
 
 def _resolve_camera_ping_target(camera: Camera) -> tuple[str, int]:
@@ -61,6 +62,7 @@ def _http_camera_has_pong(url: str, timeout_seconds: float) -> bool:
 
 
 @router.get("", response_model=list[CameraResponse])
+@cache_response(CachePolicy(key="cameras:list", tags=("cameras", "workspace_members"), scope=CacheScope.USER))
 def list_cameras(
     workspace_id: uuid.UUID = Query(...),
     db: Session = Depends(get_db),
@@ -98,6 +100,7 @@ def create_camera(
 
 
 @router.get("/{camera_id}", response_model=CameraResponse)
+@cache_response(CachePolicy(key="cameras:get", tags=("cameras", "workspace_members"), scope=CacheScope.USER))
 def get_camera(camera_id: uuid.UUID, db: Session = Depends(get_db), current_user: AppUser = Depends(get_current_user)) -> Camera:
     camera = db.get(Camera, camera_id)
     if not camera:
