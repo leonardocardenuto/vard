@@ -6,7 +6,7 @@ export function Insights() {
   return (
     <LayoutWithNavbar>
       <View style={styles.container}>
-        <Text style={styles.title}>Insights</Text>
+        <Text style={styles.title}>Análises</Text>
       </View>
     </LayoutWithNavbar>
   );

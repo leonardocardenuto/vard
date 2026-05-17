@@ -5,15 +5,17 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from api.cache import CachePolicy, CacheScope, CachedAPIRoute, cache_response
 from api.db import get_db
 from api.deps import get_current_user
 from api.models import AppUser, Workspace, WorkspaceMember
 from api.schemas import WorkspaceCreate, WorkspaceResponse, WorkspaceUpdate
 
-router = APIRouter(prefix="/workspaces", tags=["workspaces"])
+router = APIRouter(prefix="/workspaces", tags=["workspaces"], route_class=CachedAPIRoute)
 
 
 @router.get("", response_model=list[WorkspaceResponse])
+@cache_response(CachePolicy(key="workspaces:list", tags=("workspaces", "workspace_members"), scope=CacheScope.USER))
 def list_workspaces(db: Session = Depends(get_db), current_user: AppUser = Depends(get_current_user)) -> list[Workspace]:
     query = (
         select(Workspace)
@@ -59,6 +61,7 @@ def create_workspace(
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)
+@cache_response(CachePolicy(key="workspaces:get", tags=("workspaces", "workspace_members"), scope=CacheScope.USER))
 def get_workspace(
     workspace_id: uuid.UUID,
     db: Session = Depends(get_db),

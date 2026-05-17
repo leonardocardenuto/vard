@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from api.cache import CachePolicy, CacheScope, CachedAPIRoute, cache_response
 from api.core.config import get_settings
 from api.db import get_db
 from api.deps import get_current_user, require_workspace_membership
@@ -15,10 +16,11 @@ from api.schemas import InviteAccept, InviteCreate, InviteResponse
 from api.services.invites import InviteEmailError, send_workspace_invite_email
 
 settings = get_settings()
-router = APIRouter(prefix="/invites", tags=["invites"])
+router = APIRouter(prefix="/invites", tags=["invites"], route_class=CachedAPIRoute)
 
 
 @router.get("", response_model=list[InviteResponse])
+@cache_response(CachePolicy(key="invites:list", tags=("invites", "workspace_members"), scope=CacheScope.USER))
 def list_invites(
     workspace_id: uuid.UUID = Query(...),
     db: Session = Depends(get_db),
@@ -82,6 +84,7 @@ def create_invite(
 
 
 @router.get("/{invite_id}", response_model=InviteResponse)
+@cache_response(CachePolicy(key="invites:get", tags=("invites", "workspace_members"), scope=CacheScope.USER))
 def get_invite(
     invite_id: uuid.UUID,
     db: Session = Depends(get_db),
