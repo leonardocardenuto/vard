@@ -124,6 +124,10 @@ Os endpoints `GET` autenticados usam Redis para cache por usuário, sem expiraç
 - `X-Response-Cache: HIT` ou `MISS`
 - `X-Response-Cache-Key`
 
+## Inferência de queda
+
+O fluxo de inferência contínua com vídeo local, webcam ou câmera RTSP/IP está documentado em `docs/fall_detection.md`.
+
 ## Estrutura
 
 ```text
