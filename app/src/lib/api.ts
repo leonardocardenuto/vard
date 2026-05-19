@@ -48,6 +48,19 @@ export type CameraResponse = {
   updated_at: string;
 };
 
+export type NotificationResponse = {
+  id: string;
+  workspace_id: string;
+  camera_id: string | null;
+  notification_type: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  title: string;
+  body: string;
+  payload: Record<string, unknown>;
+  created_by: string;
+  created_at: string;
+};
+
 type WorkspaceCreatePayload = {
   name: string;
   slug: string;
@@ -284,6 +297,11 @@ export async function createWorkspace(token: string, payload: WorkspaceCreatePay
 export async function listCameras(token: string, workspaceId: string) {
   const query = new URLSearchParams({ workspace_id: workspaceId });
   return requestWithToken<CameraResponse[]>(`/cameras?${query.toString()}`, token);
+}
+
+export async function listNotifications(token: string, workspaceId: string) {
+  const query = new URLSearchParams({ workspace_id: workspaceId });
+  return requestWithToken<NotificationResponse[]>(`/notifications?${query.toString()}`, token);
 }
 
 export async function createCamera(token: string, payload: CameraCreatePayload) {
