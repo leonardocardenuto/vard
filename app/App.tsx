@@ -14,6 +14,7 @@ import { Insights } from './src/views/insights/pages/Insights';
 import { Settings } from './src/views/settings/pages/Settings';
 import Workspace from './src/views/workspace/pages/Workspace';
 import { Header } from './src/components/Header';
+import { initializeOneSignal } from './src/lib/onesignal';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<AppTabParamList>();
@@ -58,6 +59,8 @@ export default function App() {
   const [isSplashVisible, setIsSplashVisible] = useState(true);
 
   useEffect(() => {
+    initializeOneSignal();
+
     const timeout = setTimeout(() => {
       setIsSplashVisible(false);
     }, 1600);
@@ -73,7 +76,7 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
-          {/* <Stack.Screen name="Auth" component={AuthScreen} /> */}
+          <Stack.Screen name="Auth" component={AuthScreen} />
           <Stack.Screen name="AppTabs" component={AppTabs} />
         </Stack.Navigator>
       </NavigationContainer>

@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  api:
+    name: API
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: vard
+          POSTGRES_USER: vard
+          POSTGRES_PASSWORD: vard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vard -d vard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      APP_NAME: Vard API
+      APP_ENV: test
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      APP_DEBUG: "false"
+      APP_BASE_URL: http://localhost:8000
+      DATABASE_URL: postgresql://vard:vard@localhost:5432/vard
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: ci-test-secret-key-change-in-production
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRES_MINUTES: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-api.txt
+
+      - name: Install API dependencies
+        run: python -m pip install -r requirements-api.txt
+
+      - name: Run database migrations
+        run: python -m scripts.migrate
+
+      - name: Validate FastAPI app
+        run: python -c "from api.main import app; assert app.title == 'Vard API'"
+
+  app:
+    name: App
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit

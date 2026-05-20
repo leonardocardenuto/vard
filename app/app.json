@@ -13,10 +13,19 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.devsilogix.vard",
       "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
           "NSAllowsLocalNetworking": true
         }
+      },
+      "entitlements": {
+        "aps-environment": "development",
+        "com.apple.security.application-groups": [
+          "group.com.devsilogix.vard.onesignal"
+        ]
       }
     },
     "android": {
@@ -33,6 +42,12 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "development"
+        }
+      ],
       "expo-video"
     ]
   }
