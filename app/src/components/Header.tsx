@@ -1,5 +1,5 @@
 import { StyleSheet, View, Image, TouchableOpacity } from "react-native";
-import VardHorizontalLogo from "../../assets/vard_logo_horizontal.svg";
+import VardHorizontalLogo from "../../assets/vard-logo.svg";
 import NotificationsIcon from "../../assets/notification_icon.svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -18,7 +18,10 @@ export function Header({ notificationFunction }: HeaderProps) {
           />
         </View>
         <View style={styles.center}>
-          <VardHorizontalLogo width={128} height={32} />
+          <VardHorizontalLogo
+            
+            height={22}
+          />
         </View>
         <View style={styles.right}>
           <TouchableOpacity onPress={() => notificationFunction()}>
