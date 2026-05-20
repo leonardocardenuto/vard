@@ -1,6 +1,7 @@
 type AuthPayload = {
   email: string;
   password: string;
+  onesignal_subscription_id?: string;
 };
 
 type RegisterPayload = AuthPayload & {
@@ -28,6 +29,7 @@ type UserResponse = {
   email: string;
   full_name: string | null;
   phone: string | null;
+  onesignal_subscription_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -247,6 +249,7 @@ function humanizeField(field: string) {
     password: 'Senha',
     full_name: 'Nome completo',
     phone: 'Telefone',
+    onesignal_subscription_id: 'Token de notificação',
   };
 
   return labels[field] ?? field;
@@ -268,6 +271,18 @@ export async function register(payload: RegisterPayload) {
 
 export async function getMe(token: string) {
   return requestWithToken<UserResponse>('/auth/me', token);
+}
+
+export async function updateMyOneSignalSubscription(
+  token: string,
+  onesignalSubscriptionId?: string | null
+) {
+  return requestWithToken<UserResponse>('/auth/me/onesignal-subscription', token, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      onesignal_subscription_id: onesignalSubscriptionId || null,
+    }),
+  });
 }
 
 export async function listWorkspaces(token: string) {

@@ -13,7 +13,14 @@ import {
 } from 'react-native';
 
 import VardHorizontalLogo from '../../../../assets/vard_logo_horizontal.svg';
-import { ApiRequestError, getMe, login, register } from '../../../lib/api';
+import {
+  ApiRequestError,
+  getMe,
+  login,
+  register,
+  updateMyOneSignalSubscription,
+} from '../../../lib/api';
+import { getOneSignalSubscriptionId, identifyOneSignalUser } from '../../../lib/onesignal';
 import { RootStackParamList } from '../../../navigation/types';
 import { AuthForm } from '../components/AuthForm';
 import { AuthModeToggle } from '../components/AuthModeToggle';
@@ -114,6 +121,7 @@ export function AuthScreen() {
     setSuccessMessage('');
 
     try {
+      const onesignalSubscriptionId = await getOneSignalSubscriptionId();
       const authResponse =
         mode === 'signup'
           ? await register({
@@ -121,13 +129,20 @@ export function AuthScreen() {
               password,
               full_name: fullName,
               phone: phone || undefined,
+              onesignal_subscription_id: onesignalSubscriptionId || undefined,
             })
           : await login({
               email,
               password,
+              onesignal_subscription_id: onesignalSubscriptionId || undefined,
             });
 
       const me = await getMe(authResponse.access_token);
+      const identifiedSubscriptionId = await identifyOneSignalUser(me.id);
+      if (identifiedSubscriptionId && identifiedSubscriptionId !== me.onesignal_subscription_id) {
+        await updateMyOneSignalSubscription(authResponse.access_token, identifiedSubscriptionId);
+      }
+
       const resolvedName = me.full_name?.trim() || me.email;
 
       setSuccessMessage(
