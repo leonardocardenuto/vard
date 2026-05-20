@@ -93,3 +93,60 @@ jobs:
 
       - name: Typecheck
         run: npx tsc --noEmit
+
+  deploy-api:
+    name: Deploy API
+    runs-on: ubuntu-latest
+    needs:
+      - api
+      - app
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Configure SSH
+        env:
+          VARD_SERVER_HOST: ${{ secrets.VARD_SERVER_HOST }}
+          VARD_SERVER_PORT: ${{ secrets.VARD_SERVER_PORT || '22' }}
+          VARD_SERVER_USER: ${{ secrets.VARD_SERVER_USER }}
+          VARD_SERVER_SSH_KEY: ${{ secrets.VARD_SERVER_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VARD_SERVER_SSH_KEY" > ~/.ssh/vard_deploy_key
+          chmod 600 ~/.ssh/vard_deploy_key
+          ssh-keyscan -p "$VARD_SERVER_PORT" "$VARD_SERVER_HOST" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host vard-server
+            HostName $VARD_SERVER_HOST
+            Port $VARD_SERVER_PORT
+            User $VARD_SERVER_USER
+            IdentityFile ~/.ssh/vard_deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Deploy on server
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          VARD_SERVER_PATH: ${{ secrets.VARD_SERVER_PATH || '/home/leo/vard' }}
+          VARD_SYSTEMD_SERVICE: ${{ secrets.VARD_SYSTEMD_SERVICE || 'vard-api' }}
+        run: |
+          ssh vard-server "DEPLOY_SHA='$DEPLOY_SHA' VARD_SERVER_PATH='$VARD_SERVER_PATH' VARD_SYSTEMD_SERVICE='$VARD_SYSTEMD_SERVICE' bash -s" <<'EOF'
+          set -euo pipefail
+
+          cd "$VARD_SERVER_PATH"
+
+          git fetch origin main
+          git checkout main
+          git reset --hard "$DEPLOY_SHA"
+
+          docker compose up -d postgres redis
+
+          .venv/bin/python -m pip install -r requirements-api.txt
+          .venv/bin/python -m scripts.migrate
+
+          sudo systemctl restart "$VARD_SYSTEMD_SERVICE"
+          sleep 3
+          systemctl is-active --quiet "$VARD_SYSTEMD_SERVICE"
+          curl -fsS http://127.0.0.1:8000/health
+          EOF
