@@ -12,6 +12,7 @@ class AppUser(Base, UUIDPrimaryKeyMixin, OptionalProfileFieldsMixin, CreatedAtMi
     __tablename__ = "app_users"
 
     email: Mapped[str] = mapped_column(Text, nullable=False)
+    onesignal_subscription_id: Mapped[str | None] = mapped_column(Text)
     credentials: Mapped["UserCredential | None"] = relationship(back_populates="user", uselist=False)
 
 

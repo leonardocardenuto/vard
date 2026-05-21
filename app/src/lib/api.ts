@@ -1,6 +1,7 @@
 type AuthPayload = {
   email: string;
   password: string;
+  onesignal_subscription_id?: string;
 };
 
 type RegisterPayload = AuthPayload & {
@@ -28,6 +29,7 @@ type UserResponse = {
   email: string;
   full_name: string | null;
   phone: string | null;
+  onesignal_subscription_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -46,6 +48,19 @@ export type CameraResponse = {
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type NotificationResponse = {
+  id: string;
+  workspace_id: string;
+  camera_id: string | null;
+  notification_type: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  title: string;
+  body: string;
+  payload: Record<string, unknown>;
+  created_by: string;
+  created_at: string;
 };
 
 type WorkspaceCreatePayload = {
@@ -247,6 +262,7 @@ function humanizeField(field: string) {
     password: 'Senha',
     full_name: 'Nome completo',
     phone: 'Telefone',
+    onesignal_subscription_id: 'Token de notificação',
   };
 
   return labels[field] ?? field;
@@ -270,6 +286,18 @@ export async function getMe(token: string) {
   return requestWithToken<UserResponse>('/auth/me', token);
 }
 
+export async function updateMyOneSignalSubscription(
+  token: string,
+  onesignalSubscriptionId?: string | null
+) {
+  return requestWithToken<UserResponse>('/auth/me/onesignal-subscription', token, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      onesignal_subscription_id: onesignalSubscriptionId || null,
+    }),
+  });
+}
+
 export async function listWorkspaces(token: string) {
   return requestWithToken<WorkspaceResponse[]>('/workspaces', token);
 }
@@ -284,6 +312,11 @@ export async function createWorkspace(token: string, payload: WorkspaceCreatePay
 export async function listCameras(token: string, workspaceId: string) {
   const query = new URLSearchParams({ workspace_id: workspaceId });
   return requestWithToken<CameraResponse[]>(`/cameras?${query.toString()}`, token);
+}
+
+export async function listNotifications(token: string, workspaceId: string) {
+  const query = new URLSearchParams({ workspace_id: workspaceId });
+  return requestWithToken<NotificationResponse[]>(`/notifications?${query.toString()}`, token);
 }
 
 export async function createCamera(token: string, payload: CameraCreatePayload) {

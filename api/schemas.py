@@ -14,22 +14,30 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = None
     phone: str | None = None
+    onesignal_subscription_id: str | None = None
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
+    onesignal_subscription_id: str | None = None
 
 
 class UserBase(BaseModel):
     email: EmailStr
     full_name: str | None = None
     phone: str | None = None
+    onesignal_subscription_id: str | None = None
 
 
 class UserUpdate(BaseModel):
     full_name: str | None = None
     phone: str | None = None
+    onesignal_subscription_id: str | None = None
+
+
+class OneSignalSubscriptionUpdate(BaseModel):
+    onesignal_subscription_id: str | None = None
 
 
 class UserResponse(UserBase):

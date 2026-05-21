@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api.cache.model_hooks import register_cache_invalidation_hooks
@@ -10,6 +11,13 @@ settings = get_settings()
 register_cache_invalidation_hooks()
 
 app = FastAPI(title=settings.app_name, debug=settings.app_debug)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.mount("/streams", StaticFiles(directory=STREAMS_ROOT), name="streams")
 
 
