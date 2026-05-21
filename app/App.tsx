@@ -12,8 +12,9 @@ import { AuthScreen } from './src/views/auth/pages/AuthScreen';
 import { Home } from './src/views/home/pages/Home';
 import { Insights } from './src/views/insights/pages/Insights';
 import { Settings } from './src/views/settings/pages/Settings';
-import Workspace from './src/views/workspace/pages/Workspace';
+import Workspaces from './src/views/workspace/pages/workspaces';
 import { Header } from './src/components/Header';
+import { initializeOneSignal } from './src/lib/onesignal';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<AppTabParamList>();
@@ -37,7 +38,7 @@ function AppTabs({ route }: AppTabsProps) {
       />
       <Tabs.Screen
         name="Workspace"
-        component={Workspace}
+        component={Workspaces}
         initialParams={{ accessToken, userEmail, userName }}
       />
       <Tabs.Screen
@@ -58,6 +59,8 @@ export default function App() {
   const [isSplashVisible, setIsSplashVisible] = useState(true);
 
   useEffect(() => {
+    initializeOneSignal();
+
     const timeout = setTimeout(() => {
       setIsSplashVisible(false);
     }, 1600);
@@ -73,7 +76,7 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
-          {/* <Stack.Screen name="Auth" component={AuthScreen} /> */}
+          <Stack.Screen name="Auth" component={AuthScreen} />
           <Stack.Screen name="AppTabs" component={AppTabs} />
         </Stack.Navigator>
       </NavigationContainer>

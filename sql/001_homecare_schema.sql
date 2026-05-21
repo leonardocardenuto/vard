@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS app_users (
     email text NOT NULL,
     full_name text,
     phone text,
+    onesignal_subscription_id text,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT app_users_email_at CHECK (position('@' in email) > 1)
