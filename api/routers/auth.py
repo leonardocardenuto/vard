@@ -11,9 +11,15 @@ from api.core.security import (
 from api.db import get_db
 from api.deps import get_current_user
 from api.models import AppUser, UserCredential
-from api.schemas import LoginRequest, RegisterRequest, TokenResponse, UserResponse
+from api.schemas import EmailCheckRequest, EmailCheckResponse, LoginRequest, RegisterRequest, TokenResponse, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"], route_class=CachedAPIRoute)
+
+
+@router.post("/check-email", response_model=EmailCheckResponse)
+def check_email(payload: EmailCheckRequest, db: Session = Depends(get_db)) -> EmailCheckResponse:
+    existing = db.scalar(select(AppUser.id).where(func.lower(AppUser.email) == payload.email.lower()))
+    return EmailCheckResponse(exists=existing is not None)
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -22,7 +28,13 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenRe
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
-    user = AppUser(email=payload.email.lower(), full_name=payload.full_name, phone=payload.phone)
+    user = AppUser(
+        email=payload.email.lower(),
+        full_name=payload.full_name,
+        phone=payload.phone,
+        avatar_url=payload.avatar_url,
+        birth_date=payload.birth_date,
+    )
     db.add(user)
     db.flush()
 

@@ -152,9 +152,9 @@ const createStyles = (bottomInset: number) =>
     },
     navLabel: {
       color: '#8B98AA',
+      fontFamily: 'Poppins-Bold',
       fontSize: 10,
       lineHeight: 12,
-      fontWeight: '700',
     },
     navLabelActive: {
       color: '#FFFFFF',

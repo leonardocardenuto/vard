@@ -4,16 +4,21 @@ import NotificationsIcon from "../../assets/notification_icon.svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type HeaderProps = {
+  avatarUrl?: string | null;
   notificationFunction: Function;
 };
 
-export function Header({ notificationFunction }: HeaderProps) {
+export function Header({ avatarUrl, notificationFunction }: HeaderProps) {
+  const avatarSource = avatarUrl?.trim()
+    ? { uri: avatarUrl.trim() }
+    : require("../../assets/default_avatar.png");
+
   return (
     <SafeAreaView edges={["top"]} style={{ backgroundColor: "#FFFFFF" }}>
       <View style={styles.container}>
         <View style={styles.left}>
           <Image
-            source={require("../../assets/default_avatar.png")}
+            source={avatarSource}
             style={styles.avatar}
           />
         </View>
