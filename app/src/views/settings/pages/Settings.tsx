@@ -2,8 +2,8 @@ import { RouteProp, useRoute } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AppTabParamList } from "../../../navigation/types";
 import { CameraSettingsPanel } from "../components/CameraSettingsPanel";
-import { CameraConnectionFormScreen } from "./CameraConnectionFormScreen";
-import { CameraLiveViewScreen } from "./CameraLiveViewScreen";
+import { CameraConnectionFormScreen } from "./CameraConnectionFormScreen.tsx";
+import { CameraLiveViewScreen } from "./CameraLiveViewScreen.tsx";
 import { SettingsStackParamList } from "../types";
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
 

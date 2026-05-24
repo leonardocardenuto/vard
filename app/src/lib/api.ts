@@ -4,6 +4,8 @@ type AuthPayload = {
 };
 
 type RegisterPayload = AuthPayload & {
+  avatar_url?: string;
+  birth_date?: string;
   full_name?: string;
   phone?: string;
 };
@@ -11,6 +13,10 @@ type RegisterPayload = AuthPayload & {
 type TokenResponse = {
   access_token: string;
   token_type: string;
+};
+
+type EmailCheckResponse = {
+  exists: boolean;
 };
 
 export type WorkspaceResponse = {
@@ -28,6 +34,8 @@ type UserResponse = {
   email: string;
   full_name: string | null;
   phone: string | null;
+  avatar_url: string | null;
+  birth_date: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -259,6 +267,8 @@ function humanizeField(field: string) {
     email: 'E-mail',
     password: 'Senha',
     full_name: 'Nome completo',
+    avatar_url: 'Foto de perfil',
+    birth_date: 'Data de aniversário',
     phone: 'Telefone',
   };
 
@@ -281,6 +291,13 @@ export async function register(payload: RegisterPayload) {
 
 export async function getMe(token: string) {
   return requestWithToken<UserResponse>('/auth/me', token);
+}
+
+export async function checkEmail(email: string) {
+  return request<EmailCheckResponse>('/auth/check-email', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
 }
 
 export async function listWorkspaces(token: string) {

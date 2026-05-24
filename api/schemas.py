@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -14,6 +14,8 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = None
     phone: str | None = None
+    avatar_url: str | None = None
+    birth_date: date | None = None
 
 
 class LoginRequest(BaseModel):
@@ -21,15 +23,27 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class EmailCheckRequest(BaseModel):
+    email: EmailStr
+
+
+class EmailCheckResponse(BaseModel):
+    exists: bool
+
+
 class UserBase(BaseModel):
     email: EmailStr
     full_name: str | None = None
     phone: str | None = None
+    avatar_url: str | None = None
+    birth_date: date | None = None
 
 
 class UserUpdate(BaseModel):
     full_name: str | None = None
     phone: str | None = None
+    avatar_url: str | None = None
+    birth_date: date | None = None
 
 
 class UserResponse(UserBase):

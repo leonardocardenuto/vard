@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   },
   inlineActionText: {
     color: '#2E86BD',
+    fontFamily: 'Poppins-Bold',
     fontSize: 13,
-    fontWeight: '700',
   },
 });

@@ -6,7 +6,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, TouchableOpacity
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
 import { ApiRequestError, CameraResponse, listCameras } from '../../../lib/api';
 import { WorkspaceStackParamList } from '../types/workspace';
-import { styles } from '../workspace_details';
+import { styles } from '../styles/workspace_details';
 
 type Props = NativeStackScreenProps<WorkspaceStackParamList, 'WorkspaceDetails'>;
 

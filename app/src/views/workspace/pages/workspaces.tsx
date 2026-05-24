@@ -31,7 +31,7 @@ import {
   WORKSPACE_GRADIENT_LOCATIONS,
   WORKSPACES_FONTS,
   styles,
-} from '../workspaces';
+} from '../styles/workspaces';
 import { WorkspaceStackParamList } from '../types/workspace';
 import WorkspaceDetailsScreen from './workspace_details';
 
@@ -111,38 +111,42 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
 
   return (
     <LayoutWithNavbar>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.hero}>
           <View>
             <GradientTitle
-                  height={42}
-                  text="Espaços"
-                  width={160}
-                />
+              height={50}
+              text="Espaços"
+              width={160}
+            />
             <Text style={styles.subtitle}>Escolha o espaco de familia</Text>
           </View>
 
           <Pressable
             accessibilityLabel="Adicionar workspace"
             accessibilityRole="button"
-            onPress={() => navigation.navigate('AddWorkspace', { accessToken, userEmail, userName })}
-            style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
+            onPress={() =>
+              navigation.navigate("AddWorkspace", {
+                accessToken,
+                userEmail,
+                userName,
+              })
+            }
+            style={({ pressed }) => [
+              styles.addButton,
+              pressed && styles.pressed,
+            ]}
           >
-            <ExpoLinearGradient
-              colors={WORKSPACE_GRADIENT_COLORS}
-              locations={WORKSPACE_GRADIENT_LOCATIONS}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.addButtonGradient}
-            >
-              <View style={styles.addButtonInner}>
-                <Feather color="#019BDE" name="plus" size={26} />
-              </View>
-            </ExpoLinearGradient>
+            <Feather color="#019BDE" name="plus" size={40} />
           </Pressable>
         </View>
 
-        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+        {errorMessage ? (
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        ) : null}
 
         {isLoading ? (
           <View style={styles.centerState}>
@@ -151,37 +155,54 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
           </View>
         ) : workspaces.length === 0 ? (
           <View style={styles.emptyCard}>
-            <MaterialCommunityIcons color="#019BDE" name="home-plus-outline" size={34} />
+            <MaterialCommunityIcons
+              color="#019BDE"
+              name="home-plus-outline"
+              size={34}
+            />
             <Text style={styles.emptyTitle}>Nenhum workspace cadastrado</Text>
-            <Text style={styles.emptyText}>Toque no + para criar o primeiro espaco monitorado.</Text>
+            <Text style={styles.emptyText}>
+              Toque no + para criar o primeiro espaco monitorado.
+            </Text>
           </View>
         ) : (
           workspaces.map((workspace, index) => (
-            <ExpoLinearGradient
-              colors={WORKSPACE_GRADIENT_COLORS}
-              key={workspace.id}
-              locations={WORKSPACE_GRADIENT_LOCATIONS}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.workspaceCardGradient}
-            >
               <Pressable
                 accessibilityRole="button"
-                onPress={() => navigation.navigate('WorkspaceDetails', { accessToken, workspace })}
-                style={({ pressed }) => [styles.workspaceCard, pressed && styles.pressed]}
+                onPress={() =>
+                  navigation.navigate("WorkspaceDetails", {
+                    accessToken,
+                    workspace,
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.workspaceCard,
+                  pressed && styles.pressed,
+                ]}
               >
                 <View style={styles.workspaceImageWrap}>
-                  <Image source={{ uri: imageForWorkspace(index) }} style={styles.workspaceImage} />
-                  <Pressable accessibilityRole="button" style={styles.workspaceMenuButton}>
-                    <Ionicons color="#019BDE" name="ellipsis-vertical" size={18} />
+                  <Image
+                    source={{ uri: imageForWorkspace(index) }}
+                    style={styles.workspaceImage}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    style={styles.workspaceMenuButton}
+                  >
+                    <Ionicons
+                      color="#000000"
+                      name="ellipsis-vertical"
+                      size={18}
+                    />
                   </Pressable>
                 </View>
                 <View style={styles.workspaceCardFooter}>
-                  <Text numberOfLines={1} style={styles.workspaceName}>{workspace.name}</Text>
-                  <Feather color="#101828" name="chevron-right" size={22} />
+                  <Text numberOfLines={1} style={styles.workspaceName}>
+                    {workspace.name}
+                  </Text>
+                  <Feather color="#000000" name="chevron-right" size={22} />
                 </View>
               </Pressable>
-            </ExpoLinearGradient>
           ))
         )}
       </ScrollView>
@@ -306,7 +327,7 @@ function GradientTitle({ text }: { height?: number; text: string; width?: number
       </Defs>
       <SvgText
         fill="url(#workspaceTitleGradient)"
-        fontFamily={WORKSPACES_FONTS.manrope}
+        fontFamily={WORKSPACES_FONTS.semiBold}
         fontSize={40}
         fontWeight="900"
         x={0}
@@ -324,7 +345,6 @@ function imageForWorkspace(index: number) {
 
 function useWorkspaceFonts() {
   const [fontsLoaded] = useFonts({
-    [WORKSPACES_FONTS.manrope]: require("../../../../assets/fonts/Manrope.ttf"),
     [WORKSPACES_FONTS.regular]: require('../../../../assets/fonts/Poppins-Regular.ttf'),
     [WORKSPACES_FONTS.medium]: require('../../../../assets/fonts/Poppins-Medium.ttf'),
     [WORKSPACES_FONTS.bold]: require('../../../../assets/fonts/Poppins-Bold.ttf'),

@@ -75,8 +75,8 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     color: '#7F745F',
+    fontFamily: 'Poppins-Bold',
     fontSize: 14,
-    fontWeight: '700',
   },
   toggleLabelActive: {
     color: '#302611',
