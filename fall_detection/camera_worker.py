@@ -3,9 +3,12 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
+from threading import Event
 from typing import Iterator
 
 import cv2
+
+from .stream_url import normalize_stream_url
 
 LOGGER = logging.getLogger(__name__)
 
@@ -14,12 +17,12 @@ class CameraWorker:
     def __init__(
         self,
         source: str | int,
-        sample_fps: float = 6.0,
+        sample_fps: float | None = None,
         reconnect_delay: float = 2.0,
         max_reconnect_attempts: int | None = None,
         webcam_backend: str = "auto",
     ):
-        if sample_fps <= 0:
+        if sample_fps is not None and sample_fps <= 0:
             raise ValueError("sample_fps deve ser maior que zero.")
         self.source = self._normalize_source(source)
         self.sample_fps = sample_fps
@@ -36,7 +39,7 @@ class CameraWorker:
         source_text = str(source).strip()
         if source_text.isdigit():
             return int(source_text)
-        return source_text
+        return normalize_stream_url(source_text)
 
     @property
     def is_stream(self) -> bool:
@@ -85,14 +88,14 @@ class CameraWorker:
             self._cap.release()
         self._cap = None
 
-    def frames(self) -> Iterator[tuple[object, float]]:
+    def frames(self, stop_event: Event | None = None) -> Iterator[tuple[object, float]]:
         self.open()
-        min_interval = 1.0 / self.sample_fps
+        min_interval = 0.0 if self.sample_fps is None else 1.0 / self.sample_fps
         last_emit = 0.0
         reconnect_attempts = 0
 
         try:
-            while True:
+            while stop_event is None or not stop_event.is_set():
                 if self._cap is None:
                     self.open()
 

@@ -1,5 +1,6 @@
 import argparse
 import csv
+import os
 import random
 import re
 import time
@@ -23,6 +24,11 @@ CLASS_NAMES = ["sem_queda", "queda"]
 CLASS_TO_ID = {name: idx for idx, name in enumerate(CLASS_NAMES)}
 VIDEO_SUFFIXES = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
 DEFAULT_SEED = 42
+HF_CACHE_DIR = Path(__file__).resolve().parents[1] / ".cache" / "huggingface"
+HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("HF_HOME", str(HF_CACHE_DIR))
+os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(HF_CACHE_DIR / "hub"))
+os.environ.setdefault("TRANSFORMERS_CACHE", str(HF_CACHE_DIR / "transformers"))
 
 # Ajuste estes aliases se o dataset do Kaggle usar nomes de pasta diferentes.
 CLASS_ALIASES = {
@@ -393,10 +399,16 @@ def collate_fn(batch):
 
 
 class VJEPA2Classifier(nn.Module):
-    def __init__(self, model_name: str, num_classes: int, freeze_backbone: bool = True):
+    def __init__(
+        self,
+        model_name: str,
+        num_classes: int,
+        freeze_backbone: bool = True,
+        cache_dir: str | Path | None = None,
+    ):
         super().__init__()
         # O V-JEPA 2 entra como encoder de video; a classificacao vem da head abaixo.
-        self.backbone = AutoModel.from_pretrained(model_name)
+        self.backbone = AutoModel.from_pretrained(model_name, cache_dir=cache_dir or HF_CACHE_DIR)
         hidden_size = self.backbone.config.hidden_size
 
         # Head pequena para transformar as features do backbone em logits binarios.
@@ -524,7 +536,7 @@ def main():
     log(f"Treino: {len(train_samples)} videos | Validacao: {len(val_samples)} videos")
 
     log(f"Carregando processor do modelo: {MODEL_NAME}")
-    processor = AutoVideoProcessor.from_pretrained(MODEL_NAME)
+    processor = AutoVideoProcessor.from_pretrained(MODEL_NAME, cache_dir=HF_CACHE_DIR)
     log("Processor carregado.")
 
     log("Montando datasets de treino e validacao.")
@@ -554,6 +566,7 @@ def main():
         model_name=MODEL_NAME,
         num_classes=len(CLASS_NAMES),
         freeze_backbone=True,
+        cache_dir=HF_CACHE_DIR,
     ).to(device)
     log("Modelo carregado.")
 
