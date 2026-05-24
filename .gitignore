@@ -5,3 +5,6 @@ __pycache__/
 *.pyc
 *.mp4
 *.pt
+.cache/
+var/
+*.pkl
