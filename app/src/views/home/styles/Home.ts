@@ -29,12 +29,9 @@ export const styles = StyleSheet.create({
   },
   alertsContainer: {
     marginTop: 16,
-    backgroundColor: "#EAEEF2",
+    backgroundColor: "transparent",
     alignItems: "flex-start",
-    padding: 8,
-    borderRadius: 12,
-    borderColor: "#BFC7D1",
-    borderWidth: 1,
+    gap: 10,
   },
   noAlerts: {
     padding: 24,
@@ -53,8 +50,11 @@ export const styles = StyleSheet.create({
     textAlign: "center",
   },
   alertButton: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E7EEF5",
+    borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     width: "100%",
   },

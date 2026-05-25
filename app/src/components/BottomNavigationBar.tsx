@@ -27,7 +27,12 @@ export function BottomNavigationBar({ navigation, state }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(insets.bottom), [insets.bottom]);
   const [navWidth, setNavWidth] = useState(0);
-  const activeIndex = state.index;
+  const currentRouteName = state.routes[state.index]?.name;
+  const activeScreen = currentRouteName === 'Alerts' ? 'Home' : currentRouteName;
+  const activeIndex = Math.max(
+    0,
+    NAV_ITEMS.findIndex((item) => item.screen === activeScreen)
+  );
   const activeOffset = useRef(new Animated.Value(activeIndex)).current;
 
   useEffect(() => {
@@ -71,8 +76,7 @@ export function BottomNavigationBar({ navigation, state }: BottomTabBarProps) {
         ) : null}
 
         {NAV_ITEMS.map((item) => {
-          const routeIndex = state.routes.findIndex((route) => route.name === item.screen);
-          const isActive = routeIndex === activeIndex;
+          const isActive = item.screen === activeScreen;
 
           return (
             <Pressable
