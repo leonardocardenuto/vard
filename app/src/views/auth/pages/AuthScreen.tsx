@@ -13,7 +13,9 @@ import {
   getMe,
   login,
   register,
+  updateMyOneSignalSubscription,
 } from '../../../lib/api';
+import { identifyOneSignalUser } from '../../../lib/onesignal';
 import { RootStackParamList } from '../../../navigation/types';
 import { EmailAuthScreen } from '../screens/EmailAuthScreen';
 import { LandingAuthScreen } from '../screens/LandingAuthScreen';
@@ -106,6 +108,8 @@ export function AuthScreen() {
 
   async function finishAuth(accessToken: string, fallbackAvatarUrl?: string) {
     const me = await getMe(accessToken);
+    await syncOneSignalSubscription(accessToken, me.id);
+
     const resolvedName = me.full_name?.trim() || me.email;
     const resolvedAvatarUrl = me.avatar_url || fallbackAvatarUrl || null;
 
@@ -123,6 +127,17 @@ export function AuthScreen() {
         },
       ],
     });
+  }
+
+  async function syncOneSignalSubscription(accessToken: string, userId: string) {
+    try {
+      const subscriptionId = await identifyOneSignalUser(userId);
+      if (subscriptionId) {
+        await updateMyOneSignalSubscription(accessToken, subscriptionId);
+      }
+    } catch (error) {
+      console.warn('Nao foi possivel registrar o OneSignal para este usuario.', error);
+    }
   }
 
   async function handleLogin() {
