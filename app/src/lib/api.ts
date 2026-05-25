@@ -5,6 +5,8 @@ type AuthPayload = {
 };
 
 type RegisterPayload = AuthPayload & {
+  avatar_url?: string;
+  birth_date?: string;
   full_name?: string;
   phone?: string;
 };
@@ -12,6 +14,10 @@ type RegisterPayload = AuthPayload & {
 type TokenResponse = {
   access_token: string;
   token_type: string;
+};
+
+type EmailCheckResponse = {
+  exists: boolean;
 };
 
 export type WorkspaceResponse = {
@@ -30,6 +36,8 @@ type UserResponse = {
   full_name: string | null;
   phone: string | null;
   onesignal_subscription_id: string | null;
+  avatar_url: string | null;
+  birth_date: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -78,6 +86,13 @@ type CameraCreatePayload = {
   status?: string;
   is_active?: boolean;
   metadata?: Record<string, unknown>;
+};
+
+type NotificationUpdatePayload = {
+  body?: string;
+  payload?: Record<string, unknown>;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  title?: string;
 };
 
 type CameraStreamResponse = {
@@ -261,6 +276,8 @@ function humanizeField(field: string) {
     email: 'E-mail',
     password: 'Senha',
     full_name: 'Nome completo',
+    avatar_url: 'Foto de perfil',
+    birth_date: 'Data de aniversário',
     phone: 'Telefone',
     onesignal_subscription_id: 'Token de notificação',
   };
@@ -298,6 +315,13 @@ export async function updateMyOneSignalSubscription(
   });
 }
 
+export async function checkEmail(email: string) {
+  return request<EmailCheckResponse>('/auth/check-email', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
 export async function listWorkspaces(token: string) {
   return requestWithToken<WorkspaceResponse[]>('/workspaces', token);
 }
@@ -317,6 +341,13 @@ export async function listCameras(token: string, workspaceId: string) {
 export async function listNotifications(token: string, workspaceId: string) {
   const query = new URLSearchParams({ workspace_id: workspaceId });
   return requestWithToken<NotificationResponse[]>(`/notifications?${query.toString()}`, token);
+}
+
+export async function updateNotification(token: string, notificationId: string, payload: NotificationUpdatePayload) {
+  return requestWithToken<NotificationResponse>(`/notifications/${notificationId}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function createCamera(token: string, payload: CameraCreatePayload) {

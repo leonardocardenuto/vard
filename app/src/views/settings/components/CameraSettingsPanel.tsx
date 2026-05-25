@@ -23,6 +23,13 @@ import {
 import { SettingsStackParamList } from '../types';
 import { resolvePrimaryWorkspace } from '../utils/resolveWorkspace';
 
+const SETTINGS_PANEL_FONTS = {
+  regular: 'Poppins-Regular',
+  semiBold: 'Poppins-SemiBold',
+  bold: 'Poppins-Bold',
+  extraBold: 'Poppins-ExtraBold',
+} as const;
+
 type CameraSettingsPanelProps = {
   accessToken: string;
   userEmail: string;
@@ -382,21 +389,22 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#0694EA',
+    fontFamily: SETTINGS_PANEL_FONTS.extraBold,
     fontSize: 22,
     lineHeight: 28,
-    fontWeight: '800',
   },
   subtitle: {
     marginTop: 4,
     color: '#667085',
+    fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 14,
     lineHeight: 20,
   },
   workspaceName: {
     marginTop: 10,
     color: '#101828',
+    fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 13,
-    fontWeight: '700',
   },
   centerState: {
     alignItems: 'center',
@@ -406,6 +414,7 @@ const styles = StyleSheet.create({
   },
   centerStateText: {
     color: '#667085',
+    fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 14,
   },
   sectionHeader: {
@@ -416,9 +425,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: '#101828',
+    fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 18,
     lineHeight: 24,
-    fontWeight: '700',
   },
   addButton: {
     width: 28,
@@ -429,9 +438,9 @@ const styles = StyleSheet.create({
   errorText: {
     marginBottom: 14,
     color: '#B42318',
+    fontFamily: SETTINGS_PANEL_FONTS.semiBold,
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: '600',
   },
   emptyCard: {
     borderRadius: 20,
@@ -445,12 +454,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: '#101828',
+    fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 15,
-    fontWeight: '700',
   },
   emptySubtitle: {
     marginTop: 6,
     color: '#667085',
+    fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -483,9 +493,9 @@ const styles = StyleSheet.create({
   },
   deviceName: {
     color: '#111827',
+    fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 17,
     lineHeight: 23,
-    fontWeight: '700',
   },
   statusRow: {
     marginTop: 6,
@@ -496,8 +506,8 @@ const styles = StyleSheet.create({
   deviceProtocol: {
     marginTop: 4,
     color: '#667085',
+    fontFamily: SETTINGS_PANEL_FONTS.semiBold,
     fontSize: 12,
-    fontWeight: '600',
   },
   statusDot: {
     width: 7,
@@ -511,8 +521,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#98A2B3',
   },
   statusText: {
+    fontFamily: SETTINGS_PANEL_FONTS.semiBold,
     fontSize: 13,
-    fontWeight: '600',
   },
   statusTextOnline: {
     color: '#12B76A',
@@ -526,8 +536,8 @@ const styles = StyleSheet.create({
   },
   streamTitle: {
     color: '#101828',
+    fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 16,
-    fontWeight: '700',
   },
   videoCard: {
     overflow: 'hidden',

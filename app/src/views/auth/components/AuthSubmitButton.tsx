@@ -77,11 +77,12 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#FFFFFF',
+    fontFamily: 'Poppins-ExtraBold',
     fontSize: 16,
-    fontWeight: '800',
   },
   primaryButtonArrow: {
     color: '#FFFFFF',
+    fontFamily: 'Poppins-Regular',
     fontSize: 22,
     lineHeight: 24,
     marginTop: -2,

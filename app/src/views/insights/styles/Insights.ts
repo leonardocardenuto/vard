@@ -15,9 +15,9 @@ const INSIGHTS_GRADIENT_COLORS = [
 const INSIGHTS_GRADIENT_LOCATIONS = [0.08, 0.38, 1] as const;
 
 const INSIGHTS_FONTS = {
-  manrope: "Manrope",
   regular: "Poppins-Regular",
   medium: "Poppins-Medium",
+  semiBold: "Poppins-SemiBold",
   bold: "Poppins-Bold",
   extraBold: "Poppins-ExtraBold",
   black: "Poppins-Black",
@@ -40,6 +40,8 @@ const styles = StyleSheet.create({
   hero: {
     marginTop: 0,
     position: "relative",
+    zIndex: 30,
+    elevation: 30,
   },
   heroTopRow: {
     alignItems: "center",
@@ -84,9 +86,8 @@ const styles = StyleSheet.create({
     flex: 1,
     flexShrink: 1,
     color: INSIGHTS_COLORS.gradientMiddle,
-    fontFamily: INSIGHTS_FONTS.manrope,
+    fontFamily: INSIGHTS_FONTS.bold,
     fontSize: 12,
-    fontWeight: "700",
     lineHeight: 18,
   },
   workspaceMenu: {
@@ -104,8 +105,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 18,
     top: 34,
-    zIndex: 4,
-    elevation: 6,
+    zIndex: 40,
+    elevation: 40,
   },
   workspaceMenuItem: {
     alignItems: "center",
@@ -165,7 +166,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 24 },
     shadowOpacity: 0.72,
     shadowRadius: 28,
-    elevation: 5,
+    zIndex: 1,
+    elevation: 1,
   },
   incidentsHeader: {
     alignItems: "flex-start",
@@ -408,7 +410,6 @@ const styles = StyleSheet.create({
     color: "#8D8D8D",
     fontFamily: INSIGHTS_FONTS.medium,
     fontSize: 12,
-    fontWeight: "500",
     lineHeight: 16,
   },
   legend: {

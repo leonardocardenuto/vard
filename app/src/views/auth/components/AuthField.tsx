@@ -68,8 +68,8 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     color: '#746A52',
+    fontFamily: 'Poppins-Bold',
     fontSize: 13,
-    fontWeight: '700',
   },
   inputWrap: {
     minHeight: 50,
@@ -83,8 +83,8 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: '#40351D',
+    fontFamily: 'Poppins-SemiBold',
     fontSize: 14,
-    fontWeight: '600',
   },
   inputError: {
     borderWidth: 1,
@@ -96,9 +96,9 @@ const styles = StyleSheet.create({
   },
   fieldErrorText: {
     color: '#B24B3B',
+    fontFamily: 'Poppins-Bold',
     fontSize: 12,
     lineHeight: 16,
-    fontWeight: '700',
     paddingHorizontal: 6,
   },
 });
