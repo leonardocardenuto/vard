@@ -1,5 +1,12 @@
 import { StyleSheet } from 'react-native';
 
+const WORKSPACE_DETAILS_FONTS = {
+  regular: 'Poppins-Regular',
+  medium: 'Poppins-Medium',
+  semiBold: 'Poppins-SemiBold',
+  bold: 'Poppins-Bold',
+} as const;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -24,12 +31,13 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#101828',
+    fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 24,
-    fontWeight: 'bold',
     marginTop: 8,
   },
   subtitle: {
     color: '#777777',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     marginBottom: 15,
     marginTop: 2,
   },
@@ -48,10 +56,11 @@ const styles = StyleSheet.create({
   },
   alertTitle: {
     color: '#C0392B',
-    fontWeight: 'bold',
+    fontFamily: WORKSPACE_DETAILS_FONTS.bold,
   },
   alertSubtitle: {
     color: '#555555',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
   },
   secondaryButton: {
     backgroundColor: '#FFFFFF',
@@ -61,7 +70,7 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     color: '#C0392B',
-    fontWeight: 'bold',
+    fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     textAlign: 'center',
   },
   primaryButton: {
@@ -71,7 +80,7 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     color: '#FFFFFF',
-    fontWeight: 'bold',
+    fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     textAlign: 'center',
   },
   sectionHeader: {
@@ -81,11 +90,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: '#101828',
+    fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 16,
-    fontWeight: 'bold',
   },
   live: {
     color: '#00A8CC',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
   },
   activityCard: {
@@ -133,8 +143,8 @@ const styles = StyleSheet.create({
   },
   personName: {
     color: '#101828',
+    fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 13,
-    fontWeight: '600',
   },
   addPerson: {
     alignItems: 'center',
@@ -152,18 +162,21 @@ const styles = StyleSheet.create({
   },
   addPersonText: {
     color: '#667085',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
   },
   activityText: {
     color: '#101828',
-    fontWeight: '500',
+    fontFamily: WORKSPACE_DETAILS_FONTS.medium,
   },
   time: {
     color: '#777777',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
   },
   mutedText: {
     color: '#667085',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 13,
     lineHeight: 18,
     marginTop: 8,
@@ -173,8 +186,8 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#B42318',
+    fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 13,
-    fontWeight: '700',
     lineHeight: 18,
     marginBottom: 12,
   },
