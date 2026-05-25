@@ -88,7 +88,11 @@ class CameraWorker:
             self._cap.release()
         self._cap = None
 
-    def frames(self, stop_event: Event | None = None) -> Iterator[tuple[object, float]]:
+    def frames(
+        self,
+        stop_event: Event | None = None,
+        pause_event: Event | None = None,
+    ) -> Iterator[tuple[object, float]]:
         self.open()
         min_interval = 0.0 if self.sample_fps is None else 1.0 / self.sample_fps
         last_emit = 0.0
@@ -96,6 +100,20 @@ class CameraWorker:
 
         try:
             while stop_event is None or not stop_event.is_set():
+                if pause_event is not None and pause_event.is_set():
+                    if self._cap is not None:
+                        LOGGER.info("Captura pausada temporariamente. Liberando fonte ate o fim do freeze.")
+                        self.release()
+                    while (
+                        pause_event is not None
+                        and pause_event.is_set()
+                        and (stop_event is None or not stop_event.is_set())
+                    ):
+                        time.sleep(0.1)
+                    last_emit = 0.0
+                    reconnect_attempts = 0
+                    continue
+
                 if self._cap is None:
                     self.open()
 

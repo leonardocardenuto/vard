@@ -33,6 +33,7 @@ class LatestInferenceState:
     inference_count: int = 0
     window_end_timestamp: float | None = None
     window_frames: list | None = None
+    freeze_until_monotonic: float | None = None
 
 
 class RuntimeState:
@@ -41,6 +42,7 @@ class RuntimeState:
         self._latest_frame = None
         self._latest_inference = LatestInferenceState()
         self._error: Exception | None = None
+        self._freeze_until_monotonic: float | None = None
 
     def update_frame(self, frame_rgb, timestamp: float):
         with self._lock:
@@ -66,7 +68,22 @@ class RuntimeState:
                 inference_count=inference_count,
                 window_end_timestamp=window_end_timestamp,
                 window_frames=window_frames,
+                freeze_until_monotonic=self._freeze_until_monotonic,
             )
+
+    def start_freeze(self, freeze_until_monotonic: float):
+        with self._lock:
+            self._freeze_until_monotonic = freeze_until_monotonic
+            self._latest_inference.freeze_until_monotonic = freeze_until_monotonic
+
+    def clear_freeze(self):
+        with self._lock:
+            self._freeze_until_monotonic = None
+            self._latest_inference.freeze_until_monotonic = None
+
+    def freeze_until_monotonic(self) -> float | None:
+        with self._lock:
+            return self._freeze_until_monotonic
 
     def set_error(self, error: Exception):
         with self._lock:
@@ -157,6 +174,12 @@ def parse_args():
         default=0,
         help="Limita inferencias para testes. Use 0 para rodar ate o fim do video/stream.",
     )
+    parser.add_argument(
+        "--freeze-seconds",
+        type=float,
+        default=300.0,
+        help="Pausa captura e inferencia por N segundos apos um alerta confirmado. Use 0 para desabilitar.",
+    )
     return parser.parse_args()
 
 
@@ -186,14 +209,19 @@ def _draw_preview(
     moving_average: float | None,
     consecutive_hits: int | None,
     alert: bool,
+    freeze_remaining_seconds: float | None = None,
 ):
     frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
     overlay = frame_bgr.copy()
     cv2.rectangle(overlay, (12, 12), (620, 148), (20, 20, 20), -1)
     frame_bgr = cv2.addWeighted(overlay, 0.45, frame_bgr, 0.55, 0)
 
-    title_color = (0, 0, 255) if alert else (0, 200, 0)
-    title_text = "ALERTA: queda provavel" if alert else "Monitorando"
+    if freeze_remaining_seconds is not None and freeze_remaining_seconds > 0:
+        title_color = (0, 165, 255)
+        title_text = f"FREEZE ATIVO: {int(max(1, round(freeze_remaining_seconds)))}s restantes"
+    else:
+        title_color = (0, 0, 255) if alert else (0, 200, 0)
+        title_text = "ALERTA: queda provavel" if alert else "Monitorando"
     cv2.putText(frame_bgr, title_text, (24, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.85, title_color, 2, cv2.LINE_AA)
 
     if prediction is None:
@@ -265,14 +293,32 @@ def _build_window_preview(window_frames: list[np.ndarray], fallback_frame_rgb) -
     return cv2.vconcat(rows)
 
 
-def _show_preview(window_name: str, frame_rgb, prediction, moving_average, consecutive_hits, alert: bool) -> bool:
-    preview_frame = _draw_preview(frame_rgb, prediction, moving_average, consecutive_hits, alert)
+def _show_preview(
+    window_name: str,
+    frame_rgb,
+    prediction,
+    moving_average,
+    consecutive_hits,
+    alert: bool,
+    freeze_remaining_seconds: float | None = None,
+) -> bool:
+    preview_frame = _draw_preview(
+        frame_rgb,
+        prediction,
+        moving_average,
+        consecutive_hits,
+        alert,
+        freeze_remaining_seconds=freeze_remaining_seconds,
+    )
     cv2.imshow(window_name, preview_frame)
     key = cv2.waitKey(1) & 0xFF
     return key in (27, ord("q"))
 
 
 def _show_window_preview(window_name: str, frame_rgb, inference_state: LatestInferenceState) -> bool:
+    freeze_remaining_seconds = None
+    if inference_state.freeze_until_monotonic is not None:
+        freeze_remaining_seconds = max(0.0, inference_state.freeze_until_monotonic - time.monotonic())
     base_frame_bgr = _build_window_preview(inference_state.window_frames or [], frame_rgb)
     preview_frame = _draw_preview(
         cv2.cvtColor(base_frame_bgr, cv2.COLOR_BGR2RGB),
@@ -280,6 +326,7 @@ def _show_window_preview(window_name: str, frame_rgb, inference_state: LatestInf
         inference_state.moving_average,
         inference_state.consecutive_hits,
         inference_state.alert,
+        freeze_remaining_seconds=freeze_remaining_seconds,
     )
     cv2.putText(
         preview_frame,
@@ -301,10 +348,11 @@ def _capture_loop(
     buffer: FrameBuffer,
     runtime: RuntimeState,
     stop_event: threading.Event,
+    pause_event: threading.Event,
     logger: logging.Logger,
 ):
     try:
-        for frame, timestamp in worker.frames(stop_event=stop_event):
+        for frame, timestamp in worker.frames(stop_event=stop_event, pause_event=pause_event):
             buffer.append(frame, timestamp)
             runtime.update_frame(frame, timestamp)
     except Exception as exc:
@@ -319,6 +367,7 @@ def _inference_loop(
     buffer: FrameBuffer,
     runtime: RuntimeState,
     stop_event: threading.Event,
+    pause_event: threading.Event,
     config: FallDetectionConfig,
     args,
     logger: logging.Logger,
@@ -333,6 +382,18 @@ def _inference_loop(
     inference_count = 0
 
     while not stop_event.is_set():
+        freeze_until_monotonic = runtime.freeze_until_monotonic()
+        if freeze_until_monotonic is not None:
+            remaining = freeze_until_monotonic - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(0.25, remaining))
+                continue
+            runtime.clear_freeze()
+            pause_event.clear()
+            buffer.clear()
+            last_inference_at = None
+            logger.info("Freeze encerrado. Captura e inferencia retomadas.")
+
         latest_timestamp = buffer.latest_timestamp()
         if latest_timestamp is None:
             time.sleep(0.01)
@@ -409,6 +470,16 @@ def _inference_loop(
                     logger.info("Janela de queda salva em %s", export_result.path)
                 else:
                     logger.warning("Nao foi possivel salvar a janela de queda da inferencia #%s.", inference_count)
+            if args.freeze_seconds > 0:
+                freeze_until_monotonic = time.monotonic() + args.freeze_seconds
+                runtime.start_freeze(freeze_until_monotonic)
+                pause_event.set()
+                buffer.clear()
+                last_inference_at = None
+                logger.warning(
+                    "Freeze ativado por %.1fs apos alerta. Captura e inferencia pausadas.",
+                    args.freeze_seconds,
+                )
 
         if args.max_inferences and inference_count >= args.max_inferences:
             logger.info("Encerrando por --max-inferences=%s.", args.max_inferences)
@@ -504,6 +575,7 @@ def main():
     )
     runtime = RuntimeState()
     stop_event = threading.Event()
+    pause_event = threading.Event()
 
     logger.info(
         (
@@ -521,7 +593,7 @@ def main():
 
     capture_thread = threading.Thread(
         target=_capture_loop,
-        args=(worker, buffer, runtime, stop_event, logger),
+        args=(worker, buffer, runtime, stop_event, pause_event, logger),
         name="fall-capture",
         daemon=True,
     )
@@ -529,7 +601,7 @@ def main():
 
     inference_thread = threading.Thread(
         target=_inference_loop,
-        args=(classifier, buffer, runtime, stop_event, config, args, logger),
+        args=(classifier, buffer, runtime, stop_event, pause_event, config, args, logger),
         name="fall-inference",
         daemon=True,
     )
@@ -545,6 +617,12 @@ def main():
                 raise error
 
             if args.show_preview and latest_frame is not None:
+                freeze_remaining_seconds = None
+                if latest_inference.freeze_until_monotonic is not None:
+                    freeze_remaining_seconds = max(
+                        0.0,
+                        latest_inference.freeze_until_monotonic - time.monotonic(),
+                    )
                 if args.preview_mode == "window":
                     should_exit = _show_window_preview(args.window_name, latest_frame, latest_inference)
                 else:
@@ -555,6 +633,7 @@ def main():
                         latest_inference.moving_average,
                         latest_inference.consecutive_hits,
                         latest_inference.alert,
+                        freeze_remaining_seconds=freeze_remaining_seconds,
                     )
                 if should_exit:
                     logger.info("Encerrando por comando do usuario na janela de preview.")
