@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform, TurboModuleRegistry } from 'react-native';
 
 let isInitialized = false;
 
@@ -10,9 +10,16 @@ async function loadOneSignal() {
     return null;
   }
 
+  const nativeModule = NativeModules.OneSignal ?? TurboModuleRegistry.get('OneSignal');
+  if (!nativeModule) {
+    console.warn('OneSignal native module unavailable in this build.');
+    return null;
+  }
+
   try {
-    return await import('react-native-onesignal');
-  } catch {
+    return require('react-native-onesignal') as typeof import('react-native-onesignal');
+  } catch (error) {
+    console.warn('OneSignal native module unavailable in this build.', error);
     return null;
   }
 }
