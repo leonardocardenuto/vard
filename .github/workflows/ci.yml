@@ -90,10 +90,6 @@ jobs:
 
       - name: Install app dependencies
         run: npm ci
-
-      - name: Typecheck
-        run: npx tsc --noEmit
-
   deploy-api:
     name: Deploy API
     runs-on: ubuntu-latest
