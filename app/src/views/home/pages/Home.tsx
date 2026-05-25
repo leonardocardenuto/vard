@@ -1,6 +1,9 @@
 ﻿import { RouteProp, useFocusEffect, useRoute } from "@react-navigation/native";
+import { Feather, FontAwesome6 } from "@expo/vector-icons";
+import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
 import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
-import { useCallback, useState, useEffect, } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -24,6 +27,7 @@ import {
   listWorkspaces,
 } from "../../../lib/api";
 import { AppTabParamList } from "../../../navigation/types";
+import { AlertItem } from "../../alerts/types";
 import {
   HOME_FONTS,
   styles,
@@ -35,6 +39,11 @@ import NoIncidentsIcon from "../../../../assets/no_incident_icon.svg";
 import PoliceIcon from "../../../../assets/police_icon.svg";
 
 type HomeRoute = RouteProp<AppTabParamList, "Home">;
+type HomeNavigation = BottomTabNavigationProp<AppTabParamList, "Home">;
+
+type HomeAlert = NotificationResponse & {
+  workspaceName: string;
+};
 
 const REAL_TIME_TITLE_GRADIENT_ID = "realTimeMonitoringTitleGradient";
 const STATUS_CARD_GRADIENT_COLORS = ["#03CDF4", "#019BDE", "#01EBD0"] as const;
@@ -46,11 +55,14 @@ const openDialer = (phoneNumber: string) => {
 
 export function Home() {
   const route = useRoute<HomeRoute>();
+  const navigation = useNavigation<HomeNavigation>();
   const accessToken = route.params?.accessToken ?? "";
-  const [alerts, setAlerts] = useState<NotificationResponse[]>([]);
+  const [alerts, setAlerts] = useState<HomeAlert[]>([]);
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(true);
   const [alertsError, setAlertsError] = useState("");
   const hasAlerts = alerts.length > 0;
+  const visibleAlerts = alerts.slice(0, 3);
+  const emptyAlertRows = Math.max(0, 3 - visibleAlerts.length);
 
   const loadAlerts = useCallback(async () => {
     if (!accessToken) {
@@ -70,8 +82,11 @@ export function Home() {
       }
 
       const workspaceNotifications = await Promise.all(
-        workspaces.map((workspace) =>
-          listNotifications(accessToken, workspace.id),
+        workspaces.map(async (workspace) =>
+          (await listNotifications(accessToken, workspace.id)).map((notification) => ({
+            ...notification,
+            workspaceName: workspace.name,
+          })),
         ),
       );
       const today = new Date();
@@ -120,37 +135,62 @@ export function Home() {
         showsVerticalScrollIndicator={false}
       >
         <View>
-          <Text style={styles.sectionTitle}>Últimos alertas</Text>
+          <Text style={styles.sectionTitle}>Últimos Alertas</Text>
           <View style={styles.alertsContainer}>
             {hasAlerts ? (
-              alerts.map((alert) => (
-                <Pressable
-                  accessibilityLabel={`Abrir ${alert.title}`}
-                  accessibilityRole="button"
-                  key={alert.id}
-                  onPress={() => console.log(`Alerta ${alert.id} pressionado`)}
-                  style={({ pressed }) => [
-                    styles.alertButton,
-                    pressed && styles.alertButtonPressed,
-                  ]}
-                >
-                  <View style={styles.alertHeader}>
-                    <Text style={styles.alertTitle}>{alert.title}</Text>
-                    <Text
-                      style={[
-                        styles.alertSeverity,
-                        { color: getSeverityColor(alert.severity) },
-                      ]}
-                    >
-                      {formatSeverity(alert.severity)}
-                    </Text>
-                  </View>
-                  <Text style={styles.alertSubtitle}>{alert.body}</Text>
-                  <Text style={styles.alertDate}>
-                    {formatAlertDate(alert.created_at)}
-                  </Text>
-                </Pressable>
-              ))
+              <View style={styles.alertsCard}>
+                {visibleAlerts.map((alert, index) => (
+                  <Pressable
+                    accessibilityLabel={`Abrir ${getAlertTitle(alert)}`}
+                    accessibilityRole="button"
+                    key={alert.id}
+                    onPress={() =>
+                      navigation.navigate(
+                        "Alerts",
+                        {
+                          accessToken,
+                          params: {
+                            accessToken,
+                            alert: notificationToAlert(alert),
+                            openedFrom: "home",
+                          },
+                          screen: "AlertDetails",
+                          userAvatarUrl: route.params?.userAvatarUrl,
+                          userEmail: route.params?.userEmail ?? "",
+                          userName: route.params?.userName,
+                        },
+                      )
+                    }
+                    style={({ pressed }) => [
+                      styles.alertRow,
+                      index < 2 && styles.alertRowBorder,
+                      pressed && styles.alertButtonPressed,
+                    ]}
+                  >
+                    <View style={styles.alertIconWrap}>
+                      {renderAlertIcon(alert)}
+                    </View>
+                    <View style={styles.alertTextWrap}>
+                      <Text style={styles.alertTitle}>
+                        {getAlertTitle(alert)}
+                      </Text>
+                      <Text style={styles.alertWorkspace}>
+                        {formatWorkspaceName(alert.workspaceName)}
+                      </Text>
+                    </View>
+                    <Feather color="#737B84" name="chevron-right" size={26} />
+                  </Pressable>
+                ))}
+                {Array.from({ length: emptyAlertRows }).map((_, index) => (
+                  <View
+                    key={`empty-alert-row-${index}`}
+                    style={[
+                      styles.alertPlaceholderRow,
+                      visibleAlerts.length + index < 2 && styles.alertRowBorder,
+                    ]}
+                  />
+                ))}
+              </View>
             ) : (
               <View
                 accessibilityLabel="Nenhum incidente detectado hoje"
@@ -158,12 +198,12 @@ export function Home() {
                 style={styles.noAlerts}
               >
                 <NoIncidentsIcon
-                  height={30}
+                  height={40}
                   style={styles.noAlertsIcon}
-                  width={30}
+                  width={40}
                 />
                 <Text style={styles.noAlertsText}>
-                  Nenhum incidente detectado hoje.
+                  Nenhum incidente{"\n"}detectado hoje.
                 </Text>
               </View>
             )}
@@ -171,7 +211,7 @@ export function Home() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Monitoramento em tempo real</Text>
+          <Text style={styles.sectionTitle}>Monitoramento</Text>
           <ExpoLinearGradient
             colors={["#03CDF4", "#019BDE", "#01EBD0"]}
             locations={[0.08, 0.38, 1]}
@@ -181,9 +221,17 @@ export function Home() {
           >
             <View style={styles.realTimeMonitoringContainer}>
               <View style={styles.realTimeMonitoringHeader}>
-                <NoIncidentsIcon height={22} width={22} />
+                <ExpoLinearGradient
+                  colors={STATUS_CARD_GRADIENT_COLORS}
+                  locations={STATUS_CARD_GRADIENT_LOCATIONS}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.realTimeCheckIcon}
+                >
+                  <Feather color="#FFFFFF" name="check" size={18} />
+                </ExpoLinearGradient>
                 <View style={styles.realTimeMonitoringTitle}>
-                  <Svg height={24} width={132}>
+                  <Svg height={24} width={155}>
                     <Defs>
                       <LinearGradient
                         id={REAL_TIME_TITLE_GRADIENT_ID}
@@ -199,10 +247,10 @@ export function Home() {
                     </Defs>
                     <SvgText
                       fill={`url(#${REAL_TIME_TITLE_GRADIENT_ID})`}
-                      fontFamily={HOME_FONTS.semiBold}
-                      fontSize={24}
+                      fontFamily={HOME_FONTS.bold}
+                      fontSize={28}
                       x={0}
-                      y={18}
+                      y={23}
                     >
                       Tudo bem!
                     </SvgText>
@@ -268,38 +316,108 @@ export function Home() {
   );
 }
 
-function formatSeverity(severity: NotificationResponse["severity"]) {
-  const labels: Record<NotificationResponse["severity"], string> = {
-    critical: "Critico",
-    high: "Alto",
-    medium: "Medio",
-    low: "Baixo",
-  };
+function getAlertKind(notification: NotificationResponse): AlertItem["kind"] {
+  const type = `${notification.notification_type} ${notification.title}`.toLowerCase();
 
-  return labels[severity] ?? severity;
-}
-function getSeverityColor(severity: NotificationResponse["severity"]) {
-  const colors: Record<NotificationResponse["severity"], string> = {
-    critical: "#D32F2F",
-    high: "#F57C00",
-    medium: "#FBC02D",
-    low: "#388E3C",
-  };
+  if (type.includes("fall") || type.includes("queda")) {
+    return "fall";
+  }
 
-  return colors[severity] ?? "#019BDE";
+  if (type.includes("fight") || type.includes("briga")) {
+    return "fight";
+  }
+
+  return "general";
 }
 
-function formatAlertDate(value: string) {
+function getAlertTitle(notification: NotificationResponse) {
+  const kind = getAlertKind(notification);
+
+  if (kind === "fall") {
+    return "Fall";
+  }
+
+  if (kind === "fight") {
+    return "Fight";
+  }
+
+  return notification.title || "Alerta";
+}
+
+function renderAlertIcon(notification: NotificationResponse) {
+  const kind = getAlertKind(notification);
+
+  if (kind === "fall") {
+    return <FontAwesome6 color="#C9181F" name="person-falling" size={22} />;
+  }
+
+  if (kind === "fight") {
+    return <Feather color="#06777D" name="alert-circle" size={28} />;
+  }
+
+  return <Feather color="#019BDE" name="alert-circle" size={28} />;
+}
+
+function notificationToAlert(notification: HomeAlert): AlertItem {
+  const payload = notification.payload ?? {};
+  const room =
+    typeof payload.room === "string"
+      ? payload.room
+      : typeof payload.location === "string"
+        ? payload.location
+        : "Ambiente";
+  const precision =
+    typeof payload.precision === "number"
+      ? payload.precision
+      : typeof payload.confidence === "number"
+        ? payload.confidence
+        : 98;
+
+  return {
+    id: notification.id,
+    imageUrl:
+      typeof payload.image_url === "string"
+        ? payload.image_url
+        : "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80",
+    isValidationAnswered: hasDetectionValidation(payload),
+    kind: getAlertKind(notification),
+    payload,
+    precision,
+    room,
+    time: formatAlertTime(notification.created_at),
+    title: getAlertTitle(notification),
+  };
+}
+
+function formatAlertTime(value: string) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return "";
   }
 
-  return date.toLocaleString("pt-BR", {
-    day: "2-digit",
+  return date.toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
-    month: "2-digit",
+    second: "2-digit",
   });
+}
+
+function formatWorkspaceName(name: string) {
+  return name.replace(/^Casa de\s+/i, "Workspace ");
+}
+
+function hasDetectionValidation(payload: Record<string, unknown>) {
+  const validation = payload.detection_validation;
+
+  if (!validation || typeof validation !== "object") {
+    return false;
+  }
+
+  const validationPayload = validation as Record<string, unknown>;
+
+  return (
+    typeof validationPayload.is_valid === "boolean" ||
+    typeof validationPayload.answered_at === "string"
+  );
 }

@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, View } from 'react-native';
 import { pt, registerTranslation } from 'react-native-paper-dates';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ApiRequestError,
   checkEmail,
@@ -224,58 +225,60 @@ export function AuthScreen() {
       {step === 'landing' ? (
         <LandingAuthScreen onAccessAccount={() => setStep('email')} />
       ) : (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.keyboardArea}
-        >
-          {step === 'email' ? (
-            <EmailAuthScreen
-              email={email}
-              errorMessage={errorMessage}
-              isSubmitting={isSubmitting}
-              onChangeEmail={(value) => {
-                setEmail(value);
-                setErrorMessage('');
-              }}
-              onContinue={handleEmailContinue}
-            />
-          ) : step === 'password' ? (
-            <PasswordAuthScreen
-              errorMessage={errorMessage}
-              isPasswordVisible={isPasswordVisible}
-              isSubmitting={isSubmitting}
-              onBack={goBack}
-              onChangePassword={(value) => {
-                setPassword(value);
-                setErrorMessage('');
-              }}
-              onContinue={handleLogin}
-              onTogglePassword={() => setIsPasswordVisible((current) => !current)}
-              password={password}
-            />
-          ) : (
-            <SignupAuthScreen
-              acceptedTerms={acceptedTerms}
-              errorMessage={errorMessage}
-              form={signupForm}
-              isPasswordVisible={isPasswordVisible}
-              isSubmitting={isSubmitting}
-              onBack={goBack}
-              onChangeField={updateSignupField}
-              onCreateAccount={handleCreateAccount}
-              onDismissBirthDatePicker={() => setIsBirthDatePickerOpen(false)}
-              onOpenBirthDatePicker={() => setIsBirthDatePickerOpen(true)}
-              onPickAvatar={handlePickAvatar}
-              onSelectBirthDate={handleSelectBirthDate}
-              onTogglePassword={() => setIsPasswordVisible((current) => !current)}
-              onToggleTerms={() => {
-                setAcceptedTerms((current) => !current);
-                setErrorMessage('');
-              }}
-              isBirthDatePickerOpen={isBirthDatePickerOpen}
-            />
-          )}
-        </KeyboardAvoidingView>
+        <SafeAreaView edges={['top', 'bottom']} style={styles.keyboardArea}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.keyboardArea}
+          >
+            {step === 'email' ? (
+              <EmailAuthScreen
+                email={email}
+                errorMessage={errorMessage}
+                isSubmitting={isSubmitting}
+                onChangeEmail={(value) => {
+                  setEmail(value);
+                  setErrorMessage('');
+                }}
+                onContinue={handleEmailContinue}
+              />
+            ) : step === 'password' ? (
+              <PasswordAuthScreen
+                errorMessage={errorMessage}
+                isPasswordVisible={isPasswordVisible}
+                isSubmitting={isSubmitting}
+                onBack={goBack}
+                onChangePassword={(value) => {
+                  setPassword(value);
+                  setErrorMessage('');
+                }}
+                onContinue={handleLogin}
+                onTogglePassword={() => setIsPasswordVisible((current) => !current)}
+                password={password}
+              />
+            ) : (
+              <SignupAuthScreen
+                acceptedTerms={acceptedTerms}
+                errorMessage={errorMessage}
+                form={signupForm}
+                isPasswordVisible={isPasswordVisible}
+                isSubmitting={isSubmitting}
+                onBack={goBack}
+                onChangeField={updateSignupField}
+                onCreateAccount={handleCreateAccount}
+                onDismissBirthDatePicker={() => setIsBirthDatePickerOpen(false)}
+                onOpenBirthDatePicker={() => setIsBirthDatePickerOpen(true)}
+                onPickAvatar={handlePickAvatar}
+                onSelectBirthDate={handleSelectBirthDate}
+                onTogglePassword={() => setIsPasswordVisible((current) => !current)}
+                onToggleTerms={() => {
+                  setAcceptedTerms((current) => !current);
+                  setErrorMessage('');
+                }}
+                isBirthDatePickerOpen={isBirthDatePickerOpen}
+              />
+            )}
+          </KeyboardAvoidingView>
+        </SafeAreaView>
       )}
     </View>
   );

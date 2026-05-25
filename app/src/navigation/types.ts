@@ -14,6 +14,8 @@ export type AppTabParamList = {
   Alerts:
     | {
         accessToken: string;
+        params?: unknown;
+        screen?: string;
         userAvatarUrl?: string | null;
         userEmail: string;
         userName?: string;

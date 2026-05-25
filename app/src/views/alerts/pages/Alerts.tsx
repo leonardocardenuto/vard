@@ -4,15 +4,21 @@ import {
   FontAwesome6,
   Ionicons,
 } from "@expo/vector-icons";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import {
+  RouteProp,
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
 import {
   createNativeStackNavigator,
   NativeStackScreenProps,
 } from "@react-navigation/native-stack";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Linking,
   Pressable,
   ScrollView,
   Text,
@@ -23,6 +29,7 @@ import { LayoutWithNavbar } from "../../../components/LayoutWithNavbar";
 import {
   ApiRequestError,
   NotificationResponse,
+  getNotification,
   listNotifications,
   listWorkspaces,
   updateNotification,
@@ -42,6 +49,14 @@ type AlertDetailsProps = NativeStackScreenProps<
 >;
 
 const Stack = createNativeStackNavigator<AlertsStackParamList>();
+const DEFAULT_ALERT_IMAGE_URL =
+  "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80";
+
+const EMERGENCY_PHONE_BY_LABEL: Record<string, string> = {
+  "Bombeiro (193)": "193",
+  "Policia (190)": "190",
+  "SAMU (192)": "192",
+};
 
 export function Alerts() {
   const route = useRoute<AlertsRoute>();
@@ -97,9 +112,11 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
     }
   }, [accessToken]);
 
-  useEffect(() => {
-    void loadAlerts();
-  }, [loadAlerts]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadAlerts();
+    }, [loadAlerts]),
+  );
 
   return (
     <LayoutWithNavbar>
@@ -138,7 +155,11 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
               accessibilityRole="button"
               key={alert.id}
               onPress={() =>
-                navigation.navigate("AlertDetails", { accessToken, alert })
+                navigation.navigate("AlertDetails", {
+                  accessToken,
+                  alert,
+                  openedFrom: "alerts",
+                })
               }
               style={({ pressed }) => [
                 styles.alertRow,
@@ -164,23 +185,53 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
 }
 
 function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
-  const { accessToken, alert } = route.params;
+  const { accessToken, alert, openedFrom } = route.params;
   const [isValidationAnswered, setIsValidationAnswered] = useState(
     alert.isValidationAnswered,
   );
   const title = alert.kind === "fall" ? "Fall Detected" : alert.title;
 
+  useFocusEffect(
+    useCallback(() => {
+      async function syncAlertValidation() {
+        try {
+          const notification = await getNotification(accessToken, alert.id);
+          const isAnswered = hasDetectionValidation(notification.payload);
+          setIsValidationAnswered(isAnswered);
+          navigation.setParams({
+            alert: {
+              ...alert,
+              isValidationAnswered: isAnswered,
+              payload: notification.payload,
+            },
+          });
+        } catch {
+          setIsValidationAnswered(alert.isValidationAnswered);
+        }
+      }
+
+      void syncAlertValidation();
+    }, [accessToken, alert.id, navigation]),
+  );
+
   async function handleValidate(isValid: boolean) {
     setIsValidationAnswered(true);
 
     try {
-      await updateNotification(accessToken, alert.id, {
+      const updatedNotification = await updateNotification(accessToken, alert.id, {
         payload: {
           ...alert.payload,
           detection_validation: {
             answered_at: new Date().toISOString(),
             is_valid: isValid,
           },
+        },
+      });
+      navigation.setParams({
+        alert: {
+          ...alert,
+          isValidationAnswered: true,
+          payload: updatedNotification.payload,
         },
       });
     } catch {
@@ -196,7 +247,14 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
       >
         <View style={styles.detailsHeaderRow}>
           <Pressable
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (openedFrom === "home") {
+                navigation.getParent()?.navigate("Home");
+                return;
+              }
+
+              navigation.goBack();
+            }}
             style={styles.backButton}
           >
             <Feather color="#050505" name="chevron-left" size={27} />
@@ -281,6 +339,12 @@ function EmergencyButton({
 }) {
   return (
     <Pressable
+      onPress={() => {
+        const phoneNumber = EMERGENCY_PHONE_BY_LABEL[label];
+        if (phoneNumber) {
+          Linking.openURL(`tel:${phoneNumber}`);
+        }
+      }}
       style={({ pressed }) => [
         styles.emergencyButton,
         primary ? styles.emergencyButtonPrimary : styles.emergencyButtonOutline,
@@ -341,13 +405,25 @@ function notificationToAlert(notification: NotificationResponse): AlertItem {
       numberFromPayload(payload, ["precision", "confidence", "accuracy"]) ?? 0,
     imageUrl:
       stringFromPayload(payload, ["image_url", "snapshot_url", "photo_url"]) ??
-      "",
-    isValidationAnswered: Boolean(
-      payload.detection_validation &&
-      typeof payload.detection_validation === "object",
-    ),
+      DEFAULT_ALERT_IMAGE_URL,
+    isValidationAnswered: hasDetectionValidation(payload),
     payload,
   };
+}
+
+function hasDetectionValidation(payload: Record<string, unknown>) {
+  const validation = payload.detection_validation;
+
+  if (!validation || typeof validation !== "object") {
+    return false;
+  }
+
+  const validationPayload = validation as Record<string, unknown>;
+
+  return (
+    typeof validationPayload.is_valid === "boolean" ||
+    typeof validationPayload.answered_at === "string"
+  );
 }
 
 function stringFromPayload(payload: Record<string, unknown>, keys: string[]) {

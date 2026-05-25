@@ -1,4 +1,4 @@
-import { StyleSheet, View, Image, TouchableOpacity } from "react-native";
+import { Image, Pressable, StyleSheet, View } from "react-native";
 import VardHorizontalLogo from "../../assets/vard-logo.svg";
 import NotificationsIcon from "../../assets/notification_icon.svg";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,7 +14,7 @@ export function Header({ avatarUrl, notificationFunction }: HeaderProps) {
     : require("../../assets/default_avatar.png");
 
   return (
-    <SafeAreaView edges={["top"]} style={{ backgroundColor: "#FFFFFF" }}>
+    <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.left}>
           <Image
@@ -23,15 +23,17 @@ export function Header({ avatarUrl, notificationFunction }: HeaderProps) {
           />
         </View>
         <View style={styles.center}>
-          <VardHorizontalLogo
-            
-            height={22}
-          />
+          <VardHorizontalLogo height={22} />
         </View>
         <View style={styles.right}>
-          <TouchableOpacity onPress={() => notificationFunction()}>
+          <Pressable
+            accessibilityLabel="Abrir alertas"
+            accessibilityRole="button"
+            onPress={() => notificationFunction()}
+            style={styles.notificationButton}
+          >
             <NotificationsIcon width={24} height={24} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
     </SafeAreaView>
@@ -39,45 +41,48 @@ export function Header({ avatarUrl, notificationFunction }: HeaderProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 18,
-    paddingTop:8,
-    paddingBottom: 24,
+  safeArea: {
     backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#caccd1",
-    flexDirection: "row",
+  },
+  container: {
     alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderBottomColor: "#caccd1",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    height: 72,
     justifyContent: "space-between",
+    paddingHorizontal: 18,
   },
 
   left: {
-    width: 40,
     alignItems: "flex-start",
+    justifyContent: "center",
+    width: 48,
   },
 
   center: {
-    position: "absolute",
-    left: 0,
-    right: 0,
     alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
   },
 
   right: {
-    width: 40,
     alignItems: "flex-end",
+    justifyContent: "center",
+    width: 48,
   },
 
   avatar: {
-    width: 40,
-    height: 40,
     borderRadius: 20,
+    height: 40,
+    width: 40,
   },
 
-  iconPlaceholder: {
-    width: 24,
-    height: 24,
-    backgroundColor: "#302611",
-    borderRadius: 4,
+  notificationButton: {
+    alignItems: "center",
+    height: 40,
+    justifyContent: "center",
+    width: 40,
   },
 });

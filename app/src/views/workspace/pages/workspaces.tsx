@@ -89,7 +89,8 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
     try {
       setErrorMessage('');
       setIsLoading(true);
-      setWorkspaces(await listWorkspaces(accessToken));
+      const workspaceList = await listWorkspaces(accessToken);
+      setWorkspaces(uniqueWorkspaces(workspaceList));
     } catch (error) {
       setErrorMessage(
         error instanceof ApiRequestError ? error.message : 'Nao foi possivel carregar seus espacos.'
@@ -169,6 +170,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
           workspaces.map((workspace, index) => (
               <Pressable
                 accessibilityRole="button"
+                key={workspace.id}
                 onPress={() =>
                   navigation.navigate("WorkspaceDetails", {
                     accessToken,
@@ -221,6 +223,10 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
   const slug = useMemo(() => buildDefaultWorkspaceSlug(name || userEmail || 'vard'), [name, userEmail]);
 
   async function handleSave() {
+    if (isSaving) {
+      return;
+    }
+
     const trimmedName = name.trim();
     const trimmedTimezone = timezone.trim() || 'America/Sao_Paulo';
 
@@ -341,6 +347,12 @@ function GradientTitle({ text }: { height?: number; text: string; width?: number
 
 function imageForWorkspace(index: number) {
   return WORKSPACE_CARD_IMAGES[index % WORKSPACE_CARD_IMAGES.length];
+}
+
+function uniqueWorkspaces(workspaces: WorkspaceResponse[]) {
+  return workspaces.filter((workspace, index, allWorkspaces) =>
+    allWorkspaces.findIndex((current) => current.id === workspace.id) === index
+  );
 }
 
 function useWorkspaceFonts() {
