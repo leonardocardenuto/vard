@@ -3,6 +3,7 @@ export type RootStackParamList = {
   AppTabs:
     | {
         accessToken: string;
+        userAvatarUrl?: string | null;
         userEmail: string;
         userName?: string;
       }
@@ -10,9 +11,18 @@ export type RootStackParamList = {
 };
 
 export type AppTabParamList = {
+  Alerts:
+    | {
+        accessToken: string;
+        userAvatarUrl?: string | null;
+        userEmail: string;
+        userName?: string;
+      }
+    | undefined;
   Home:
     | {
         accessToken: string;
+        userAvatarUrl?: string | null;
         userEmail: string;
         userName?: string;
       }
@@ -20,6 +30,7 @@ export type AppTabParamList = {
   Workspace:
     | {
         accessToken: string;
+        userAvatarUrl?: string | null;
         userEmail: string;
         userName?: string;
       }
@@ -27,6 +38,7 @@ export type AppTabParamList = {
   Insights:
     | {
         accessToken: string;
+        userAvatarUrl?: string | null;
         userEmail: string;
         userName?: string;
       }
@@ -34,6 +46,7 @@ export type AppTabParamList = {
   Settings:
     | {
         accessToken: string;
+        userAvatarUrl?: string | null;
         userEmail: string;
         userName?: string;
       }

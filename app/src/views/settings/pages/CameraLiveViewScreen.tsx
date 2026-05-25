@@ -1,12 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { WebView } from 'react-native-webview';
 
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
 import { SettingsStackParamList } from '../types';
+import { styles } from '../styles/CameraLiveViewScreen';
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'CameraLiveView'>;
 
@@ -96,52 +97,3 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 22,
-    paddingBottom: 144,
-  },
-  topSpacer: {
-    height: 56,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 18,
-  },
-  backButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerText: {
-    flex: 1,
-  },
-  headerTitle: {
-    color: '#111827',
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  headerSubtitle: {
-    marginTop: 4,
-    color: '#667085',
-    fontSize: 14,
-  },
-  viewerCard: {
-    overflow: 'hidden',
-    borderRadius: 20,
-    backgroundColor: '#09131F',
-    height: 520,
-  },
-  video: {
-    width: '100%',
-    height: '100%',
-  },
-  webview: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#000000',
-  },
-});
