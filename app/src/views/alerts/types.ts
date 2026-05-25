@@ -17,5 +17,6 @@ export type AlertsStackParamList = {
   AlertDetails: {
     alert: AlertItem;
     accessToken: string;
+    openedFrom?: "alerts" | "home";
   };
 };

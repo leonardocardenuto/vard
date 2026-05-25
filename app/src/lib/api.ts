@@ -343,6 +343,10 @@ export async function listNotifications(token: string, workspaceId: string) {
   return requestWithToken<NotificationResponse[]>(`/notifications?${query.toString()}`, token);
 }
 
+export async function getNotification(token: string, notificationId: string) {
+  return requestWithToken<NotificationResponse>(`/notifications/${notificationId}`, token);
+}
+
 export async function updateNotification(token: string, notificationId: string, payload: NotificationUpdatePayload) {
   return requestWithToken<NotificationResponse>(`/notifications/${notificationId}`, token, {
     method: 'PATCH',

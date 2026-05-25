@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minHeight: 124,
     overflow: "hidden",
-    borderColor: "#585858",
+    borderColor: "#B3B3B3",
     borderWidth: 1,
   },
   workspaceImageWrap: {

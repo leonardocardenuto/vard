@@ -43,6 +43,8 @@ function AppTabs({ route }: AppTabsProps) {
             notificationFunction={() => {
               navigation.navigate('Alerts', {
                 accessToken,
+                params: { accessToken },
+                screen: 'AlertsList',
                 userAvatarUrl,
                 userEmail,
                 userName,

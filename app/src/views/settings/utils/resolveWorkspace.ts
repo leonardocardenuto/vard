@@ -1,7 +1,6 @@
 import {
+  ApiRequestError,
   WorkspaceResponse,
-  buildDefaultWorkspaceSlug,
-  createWorkspace,
   listWorkspaces,
 } from '../../../lib/api';
 
@@ -17,13 +16,11 @@ export async function resolvePrimaryWorkspace({
   userName,
 }: ResolveWorkspaceParams): Promise<WorkspaceResponse> {
   const workspaces = await listWorkspaces(accessToken);
+  const workspace = workspaces[0];
 
-  return (
-    workspaces[0] ??
-    createWorkspace(accessToken, {
-      name: `Casa de ${userName}`,
-      slug: buildDefaultWorkspaceSlug(userEmail || userName),
-      timezone: 'America/Sao_Paulo',
-    })
-  );
+  if (!workspace) {
+    throw new ApiRequestError('Crie um workspace antes de adicionar cameras.');
+  }
+
+  return workspace;
 }
