@@ -11,6 +11,14 @@ export type RootStackParamList = {
 };
 
 export type AppTabParamList = {
+  Alerts:
+    | {
+        accessToken: string;
+        userAvatarUrl?: string | null;
+        userEmail: string;
+        userName?: string;
+      }
+    | undefined;
   Home:
     | {
         accessToken: string;

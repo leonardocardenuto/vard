@@ -1,5 +1,6 @@
 ﻿import { RouteProp, useRoute } from "@react-navigation/native";
 import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import Svg, {
   Defs,
@@ -8,6 +9,7 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 import { LayoutWithNavbar } from "../../../components/LayoutWithNavbar";
+import { NotificationResponse, listNotifications, listWorkspaces } from "../../../lib/api";
 import { AppTabParamList } from "../../../navigation/types";
 import {
   HOME_FONTS,
@@ -24,17 +26,43 @@ import PoliceIcon from "../../../../assets/police_icon.svg";
 
 type HomeRoute = RouteProp<AppTabParamList, "Home">;
 
-const ALERTS = [
-  { id: 1, text: "Alerta de exemplo 1" },
-  { id: 2, text: "Alerta de exemplo 2" },
-  { id: 3, text: "Alerta de exemplo 3" },
-];
+type HomeAlert = {
+  id: string;
+  text: string;
+};
 
 export function Home() {
   const route = useRoute<HomeRoute>();
-  const userName = route.params?.userName?.trim() || "usuario";
-  const alerts = ALERTS;
+  const accessToken = route.params?.accessToken ?? "";
+  const [alerts, setAlerts] = useState<HomeAlert[]>([]);
   const hasAlerts = alerts.length > 0;
+
+  const loadAlerts = useCallback(async () => {
+    if (!accessToken) {
+      setAlerts([]);
+      return;
+    }
+
+    try {
+      const workspaces = await listWorkspaces(accessToken);
+      const notificationsByWorkspace = await Promise.all(
+        workspaces.map((workspace) => listNotifications(accessToken, workspace.id))
+      );
+      setAlerts(
+        notificationsByWorkspace
+          .flat()
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 3)
+          .map(notificationToHomeAlert)
+      );
+    } catch {
+      setAlerts([]);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    void loadAlerts();
+  }, [loadAlerts]);
 
   return (
     <LayoutWithNavbar>
@@ -43,7 +71,7 @@ export function Home() {
         showsVerticalScrollIndicator={false}
       >
         <View>
-          <Text style={styles.sectionTitle}>Alertas</Text>
+          <Text style={styles.sectionTitle}>Últimos alertas</Text>
           <View style={styles.alertsContainer}>
             {hasAlerts ? (
               alerts.map((alert) => (
@@ -166,4 +194,37 @@ export function Home() {
       </ScrollView>
     </LayoutWithNavbar>
   );
+}
+
+function notificationToHomeAlert(notification: NotificationResponse): HomeAlert {
+  const room = stringFromPayload(notification.payload, ["room", "location", "camera_name"]);
+  const title = notification.title || notification.notification_type || "Alerta";
+  const time = formatAlertTime(notification.created_at);
+
+  return {
+    id: notification.id,
+    text: room ? `${title} - ${room} - ${time}` : `${title} - ${time}`,
+  };
+}
+
+function stringFromPayload(payload: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+function formatAlertTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--:--";
+  }
+
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

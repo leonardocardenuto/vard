@@ -17,6 +17,7 @@ import { Insights } from './src/views/insights/pages/Insights';
 import { Settings } from './src/views/settings/pages/Settings';
 import Workspaces from './src/views/workspace/pages/workspaces';
 import { Header } from './src/components/Header';
+import { Alerts } from './src/views/alerts/pages/Alerts';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<AppTabParamList>();
@@ -35,11 +36,16 @@ function AppTabs({ route }: AppTabsProps) {
       screenOptions={{
         headerShown: true,
         animation: 'none',
-        header: () => (
+        header: ({ navigation }) => (
           <Header
             avatarUrl={userAvatarUrl}
             notificationFunction={() => {
-              console.log('placeholder notification');
+              navigation.navigate('Alerts', {
+                accessToken,
+                userAvatarUrl,
+                userEmail,
+                userName,
+              });
             }}
           />
         ),
@@ -49,6 +55,11 @@ function AppTabs({ route }: AppTabsProps) {
       <Tabs.Screen
         name="Home"
         component={Home}
+        initialParams={{ accessToken, userAvatarUrl, userEmail, userName }}
+      />
+      <Tabs.Screen
+        name="Alerts"
+        component={Alerts}
         initialParams={{ accessToken, userAvatarUrl, userEmail, userName }}
       />
       <Tabs.Screen

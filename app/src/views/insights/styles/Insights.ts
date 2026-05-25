@@ -40,6 +40,8 @@ const styles = StyleSheet.create({
   hero: {
     marginTop: 0,
     position: "relative",
+    zIndex: 30,
+    elevation: 30,
   },
   heroTopRow: {
     alignItems: "center",
@@ -103,8 +105,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 18,
     top: 34,
-    zIndex: 4,
-    elevation: 6,
+    zIndex: 40,
+    elevation: 40,
   },
   workspaceMenuItem: {
     alignItems: "center",
@@ -164,7 +166,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 24 },
     shadowOpacity: 0.72,
     shadowRadius: 28,
-    elevation: 5,
+    zIndex: 1,
+    elevation: 1,
   },
   incidentsHeader: {
     alignItems: "flex-start",

@@ -86,6 +86,13 @@ type CameraCreatePayload = {
   metadata?: Record<string, unknown>;
 };
 
+type NotificationUpdatePayload = {
+  body?: string;
+  payload?: Record<string, unknown>;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  title?: string;
+};
+
 type CameraStreamResponse = {
   playlist_url: string;
   stream_type: string;
@@ -319,6 +326,13 @@ export async function listCameras(token: string, workspaceId: string) {
 export async function listNotifications(token: string, workspaceId: string) {
   const query = new URLSearchParams({ workspace_id: workspaceId });
   return requestWithToken<NotificationResponse[]>(`/notifications?${query.toString()}`, token);
+}
+
+export async function updateNotification(token: string, notificationId: string, payload: NotificationUpdatePayload) {
+  return requestWithToken<NotificationResponse>(`/notifications/${notificationId}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function createCamera(token: string, payload: CameraCreatePayload) {
