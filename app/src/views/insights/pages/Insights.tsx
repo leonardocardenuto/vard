@@ -44,7 +44,7 @@ import {
   INSIGHTS_GRADIENT_COLORS,
   INSIGHTS_GRADIENT_LOCATIONS,
   styles,
-} from "../Insights";
+} from "../styles/Insights";
 
 type Period = "Ultimos 15 dias" | "Ultimos 30 dias" | "Ultimos 60 dias" | "Ultimos 90 dias";
 type CameraFilter = string;
@@ -88,9 +88,9 @@ export function Insights() {
   const route = useRoute<InsightsRoute>();
   const accessToken = route.params?.accessToken ?? "";
   const [fontsLoaded] = useFonts({
-    [INSIGHTS_FONTS.manrope]: require("../../../../assets/fonts/Manrope.ttf"),
     [INSIGHTS_FONTS.regular]: require("../../../../assets/fonts/Poppins-Regular.ttf"),
     [INSIGHTS_FONTS.medium]: require("../../../../assets/fonts/Poppins-Medium.ttf"),
+    [INSIGHTS_FONTS.semiBold]: require("../../../../assets/fonts/Poppins-SemiBold.ttf"),
     [INSIGHTS_FONTS.bold]: require("../../../../assets/fonts/Poppins-Bold.ttf"),
     [INSIGHTS_FONTS.extraBold]: require("../../../../assets/fonts/Poppins-ExtraBold.ttf"),
     [INSIGHTS_FONTS.black]: require("../../../../assets/fonts/Poppins-Black.ttf"),
@@ -340,6 +340,7 @@ export function Insights() {
               ) : null}
               <View style={styles.heroTopRow}>
                 <GradientTitle
+                  fontFamily={INSIGHTS_FONTS.semiBold}
                   fontSize={40}
                   height={42}
                   style={styles.title}
@@ -379,7 +380,8 @@ export function Insights() {
                         </Text>
                       ) : null}
                       {workspaces.map((workspace) => {
-                        const isSelected = workspace.id === selectedWorkspace?.id;
+                        const isSelected =
+                          workspace.id === selectedWorkspace?.id;
 
                         return (
                           <Pressable
@@ -396,7 +398,8 @@ export function Insights() {
                               numberOfLines={1}
                               style={[
                                 styles.workspaceMenuItemText,
-                                isSelected && styles.workspaceMenuItemTextSelected,
+                                isSelected &&
+                                  styles.workspaceMenuItemTextSelected,
                               ]}
                             >
                               {workspace.name}
@@ -489,11 +492,12 @@ export function Insights() {
             </View>
 
             <GradientTitle
+              fontFamily={INSIGHTS_FONTS.semiBold}
               fontSize={40}
               height={52}
               style={styles.activityTitle}
               text="Atividade"
-              width={190}
+              width={200}
               y={39}
             />
 
@@ -810,6 +814,7 @@ type FilterOptionButtonProps = {
 };
 
 type GradientTitleProps = {
+  fontFamily?: string;
   fontSize: number;
   height: number;
   style: object;
@@ -870,7 +875,15 @@ function FilterOptionButton({
   );
 }
 
-function GradientTitle({ fontSize, height, style, text, width, y }: GradientTitleProps) {
+function GradientTitle({
+  fontFamily = INSIGHTS_FONTS.extraBold,
+  fontSize,
+  height,
+  style,
+  text,
+  width,
+  y,
+}: GradientTitleProps) {
   const gradientId = `${text}TitleGradient`;
 
   return (
@@ -884,9 +897,8 @@ function GradientTitle({ fontSize, height, style, text, width, y }: GradientTitl
       </Defs>
       <SvgText
         fill={`url(#${gradientId})`}
-        fontFamily={INSIGHTS_FONTS.manrope}
+        fontFamily={fontFamily}
         fontSize={fontSize}
-        fontWeight="900"
         x={0}
         y={y}
       >
