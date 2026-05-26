@@ -2,14 +2,17 @@ import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { RouteProp, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFonts } from 'expo-font';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Modal,
   ScrollView,
   Text,
   TextInput,
@@ -23,7 +26,9 @@ import {
   WorkspaceResponse,
   buildDefaultWorkspaceSlug,
   createWorkspace,
+  deleteWorkspace,
   listWorkspaces,
+  updateWorkspace,
 } from '../../../lib/api';
 import { AppTabParamList } from '../../../navigation/types';
 import {
@@ -33,12 +38,13 @@ import {
   styles,
 } from '../styles/workspaces';
 import { WorkspaceStackParamList } from '../types/workspace';
-import WorkspaceDetailsScreen from './workspace_details';
+import WorkspaceDetailsScreen, { WorkspaceCameraLiveViewScreen } from './workspace_details';
 
 type WorkspaceTabRoute = RouteProp<AppTabParamList, 'Workspace'>;
 type WorkspacesListNavigation = NativeStackNavigationProp<WorkspaceStackParamList, 'WorkspacesList'>;
 type WorkspacesListProps = NativeStackScreenProps<WorkspaceStackParamList, 'WorkspacesList'>;
 type AddWorkspaceProps = NativeStackScreenProps<WorkspaceStackParamList, 'AddWorkspace'>;
+type EditWorkspaceProps = NativeStackScreenProps<WorkspaceStackParamList, 'EditWorkspace'>;
 
 const Stack = createNativeStackNavigator<WorkspaceStackParamList>();
 const WORKSPACE_CARD_IMAGES = [
@@ -62,11 +68,13 @@ export default function Workspaces() {
         initialParams={{ accessToken, userEmail, userName }}
       />
       <Stack.Screen name="WorkspaceDetails" component={WorkspaceDetailsScreen} />
+      <Stack.Screen name="CameraLiveView" component={WorkspaceCameraLiveViewScreen} />
       <Stack.Screen
         name="AddWorkspace"
         component={AddWorkspaceScreen}
         initialParams={{ accessToken, userEmail, userName }}
       />
+      <Stack.Screen name="EditWorkspace" component={EditWorkspaceScreen} />
     </Stack.Navigator>
   );
 }
@@ -77,6 +85,8 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
   const [workspaces, setWorkspaces] = useState<WorkspaceResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [menuWorkspace, setMenuWorkspace] = useState<WorkspaceResponse | null>(null);
+  const [deleteWorkspaceTarget, setDeleteWorkspaceTarget] = useState<WorkspaceResponse | null>(null);
   const fontsLoaded = useWorkspaceFonts();
 
   const loadWorkspaces = useCallback(async () => {
@@ -100,11 +110,67 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
     }
   }, [accessToken]);
 
-  useFocusEffect(
+  useFocusEffect( 
     useCallback(() => {
       void loadWorkspaces();
     }, [loadWorkspaces])
   );
+
+  function openWorkspaceMenu(workspace: WorkspaceResponse) {
+    setMenuWorkspace(workspace);
+  }
+
+  function closeWorkspaceMenu() {
+    setMenuWorkspace(null);
+  }
+
+  function handleEditWorkspace() {
+    if (!menuWorkspace) {
+      return;
+    }
+
+    const targetWorkspace = menuWorkspace;
+    closeWorkspaceMenu();
+    navigation.navigate('EditWorkspace', {
+      accessToken,
+      userEmail,
+      userName,
+      workspace: targetWorkspace,
+    });
+  }
+
+  function handleDeleteWorkspace() {
+    if (!menuWorkspace) {
+      return;
+    }
+
+    closeWorkspaceMenu();
+    setDeleteWorkspaceTarget(menuWorkspace);
+  }
+
+  function closeDeleteWorkspaceSheet() {
+    setDeleteWorkspaceTarget(null);
+  }
+
+  function confirmDeleteWorkspace() {
+    if (!deleteWorkspaceTarget) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        await deleteWorkspace(accessToken, deleteWorkspaceTarget.id);
+        setWorkspaces((current) => current.filter((workspace) => workspace.id !== deleteWorkspaceTarget.id));
+      } catch (error) {
+        Alert.alert(
+          'Nao foi possivel excluir',
+          error instanceof ApiRequestError ? error.message : 'Tente novamente em instantes.'
+        );
+      } finally {
+        closeDeleteWorkspaceSheet();
+      }
+    })();
+  }
 
   if (!fontsLoaded) {
     return null;
@@ -171,12 +237,17 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
               <Pressable
                 accessibilityRole="button"
                 key={workspace.id}
-                onPress={() =>
+                onPress={() => {
+                  if (menuWorkspace?.id === workspace.id) {
+                    setMenuWorkspace(null);
+                    return;
+                  }
+
                   navigation.navigate("WorkspaceDetails", {
                     accessToken,
                     workspace,
-                  })
-                }
+                  });
+                }}
                 style={({ pressed }) => [
                   styles.workspaceCard,
                   pressed && styles.pressed,
@@ -189,6 +260,10 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
                   />
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={`Opções de ${workspace.name}`}
+                    onPress={() =>
+                      setMenuWorkspace((current) => (current?.id === workspace.id ? null : workspace))
+                    }
                     style={styles.workspaceMenuButton}
                   >
                     <Ionicons
@@ -197,6 +272,23 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
                       size={18}
                     />
                   </Pressable>
+
+                  {menuWorkspace?.id === workspace.id ? (
+                    <View style={styles.menuCardInline}>
+                      <Text style={styles.menuTitle}>{workspace.name}</Text>
+                      <Text style={styles.menuSubtitle}>Escolha uma acao para este espaco.</Text>
+
+                      <Pressable onPress={handleEditWorkspace} style={styles.menuItem}>
+                        <Feather color="#475467" name="edit-3" size={16} />
+                        <Text style={styles.menuItemText}>Editar</Text>
+                      </Pressable>
+
+                      <Pressable onPress={handleDeleteWorkspace} style={styles.menuItem}>
+                        <Feather color="#B42318" name="trash-2" size={16} />
+                        <Text style={[styles.menuItemText, styles.menuDangerText]}>Excluir</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
                 </View>
                 <View style={styles.workspaceCardFooter}>
                   <Text numberOfLines={1} style={styles.workspaceName}>
@@ -208,6 +300,32 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
           ))
         )}
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={deleteWorkspaceTarget !== null}
+        onRequestClose={closeDeleteWorkspaceSheet}
+      >
+        <Pressable onPress={closeDeleteWorkspaceSheet} style={styles.deleteSheetOverlay}>
+          <Pressable onPress={() => undefined} style={styles.deleteSheetCard}>
+            <View style={styles.deleteSheetHandle} />
+            <Text style={styles.deleteSheetTitle}>Confirmar exclusão</Text>
+            <Text style={styles.deleteSheetDescription}>
+              Você tem certeza que deseja excluir este espaço?
+            </Text>
+
+            <Pressable onPress={confirmDeleteWorkspace} style={styles.deleteSheetConfirmButton}>
+              <Text style={styles.deleteSheetConfirmText}>Sim, eu tenho certeza</Text>
+            </Pressable>
+
+            <Pressable onPress={closeDeleteWorkspaceSheet} style={styles.deleteSheetCancelButton}>
+              <Text style={styles.deleteSheetCancelText}>Cancelar</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
     </LayoutWithNavbar>
   );
 }
@@ -216,6 +334,7 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
   const { accessToken, userEmail, userName } = route.params;
   const [name, setName] = useState(userName ? `Casa de ${userName}` : '');
   const [timezone, setTimezone] = useState('America/Sao_Paulo');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const fontsLoaded = useWorkspaceFonts();
@@ -259,65 +378,213 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
   }
 
   return (
-    <LayoutWithNavbar>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.formHeader}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Feather color="#111827" name="chevron-left" size={20} />
-            </Pressable>
-            <View style={styles.formHeaderText}>
-              <Text style={styles.titleSmall}>Novo workspace</Text>
-              <Text style={styles.subtitle}>Crie um espaco para organizar cameras, alertas e cuidadores.</Text>
-            </View>
-          </View>
+    <WorkspaceFormLayout
+      buttonLabel={isSaving ? 'Criando...' : 'Criar workspace'}
+      onBackPress={() => navigation.goBack()}
+      onSubmit={handleSave}
+      submitDisabled={isSaving}
+      subtitle="Crie um espaço para organizar cameras, alertas e cuidadores."
+      title="Novo Espaço"
+      errorMessage={errorMessage}
+    >
+      <WorkspaceAvatarButton
+        avatarUrl={avatarUrl}
+        onPress={() => void pickWorkspaceAvatar(setAvatarUrl, setErrorMessage)}
+      />
 
-          <View style={styles.formCard}>
-            <Text style={styles.inputLabel}>Nome</Text>
-            <TextInput
-              onChangeText={setName}
-              placeholder="Ex.: Casa da Familia"
-              placeholderTextColor="#98A2B3"
-              style={styles.input}
-              value={name}
-            />
+      <View style={styles.formCard}>
+        <Text style={styles.inputLabel}>Nome do Workspace</Text>
+        <TextInput
+          onChangeText={setName}
+          placeholder="Ex.: Casa da Familia"
+          placeholderTextColor="#98A2B3"
+          style={styles.input}
+          value={name}
+        />
+      </View>
+    </WorkspaceFormLayout>
+  );
+}
 
-            <Text style={styles.inputLabel}>Fuso horario</Text>
-            <TextInput
-              autoCapitalize="none"
-              onChangeText={setTimezone}
-              placeholder="America/Sao_Paulo"
-              placeholderTextColor="#98A2B3"
-              style={styles.input}
-              value={timezone}
-            />
+function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
+  const { accessToken, userEmail, userName, workspace } = route.params;
+  const [name, setName] = useState(workspace.name);
+  const [timezone, setTimezone] = useState(workspace.timezone);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const fontsLoaded = useWorkspaceFonts();
 
-            <View style={styles.slugPreview}>
-              <Text style={styles.slugLabel}>Slug</Text>
-              <Text numberOfLines={1} style={styles.slugValue}>{slug}</Text>
-            </View>
-          </View>
+  const slug = useMemo(() => buildDefaultWorkspaceSlug(name || userEmail || 'vard'), [name, userEmail]);
 
-          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+  async function handleSave() {
+    if (isSaving) {
+      return;
+    }
 
-          <Pressable
-            disabled={isSaving}
-            onPress={handleSave}
-            style={({ pressed }) => [styles.primaryButton, (pressed || isSaving) && styles.pressed]}
-          >
-            <ExpoLinearGradient
-              colors={WORKSPACE_GRADIENT_COLORS}
-              locations={WORKSPACE_GRADIENT_LOCATIONS}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.primaryButtonGradient}
-            >
-              <Text style={styles.primaryButtonText}>{isSaving ? 'Criando...' : 'Criar workspace'}</Text>
-            </ExpoLinearGradient>
+    const trimmedName = name.trim();
+    const trimmedTimezone = timezone.trim() || 'America/Sao_Paulo';
+
+    if (!trimmedName) {
+      setErrorMessage('Informe o nome do workspace.');
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage('');
+
+    try {
+      const updatedWorkspace = await updateWorkspace(accessToken, workspace.id, {
+        name: trimmedName,
+        timezone: trimmedTimezone,
+      });
+      navigation.replace('WorkspaceDetails', { accessToken, workspace: updatedWorkspace });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiRequestError ? error.message : 'Nao foi possivel atualizar o workspace.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
+  return (
+    <WorkspaceFormLayout
+      buttonLabel={isSaving ? 'Salvando...' : 'Salvar alterações'}
+      onBackPress={() => navigation.goBack()}
+      onSubmit={handleSave}
+      submitDisabled={isSaving}
+      subtitle={`Edite o espaço "${workspace.name}" antes de salvar no backend.`}
+      title="Editar Espaço"
+      errorMessage={errorMessage}
+    >
+
+      <View style={styles.formCard}>
+        <Text style={styles.inputLabel}>Nome do Workspace</Text>
+        <TextInput
+          onChangeText={setName}
+          placeholder="Ex.: Casa da Familia"
+          placeholderTextColor="#98A2B3"
+          style={styles.input}
+          value={name}
+        />
+      </View>
+    </WorkspaceFormLayout>
+  );
+}
+
+function WorkspaceAvatarButton({
+  avatarUrl,
+  onPress,
+}: {
+  avatarUrl: string | null;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.avatarWrap}>
+      <View style={styles.avatarCircle}>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+        ) : (
+          <Feather color="#A3AAB5" name="camera" size={40} />
+        )}
+        <View style={styles.avatarPlusBubble}>
+          <Text style={styles.avatarPlusBubbleText}>+</Text>
+        </View>
+      </View>
+      <Text style={styles.avatarHintText}>Selecionar foto</Text>
+    </Pressable>
+  );
+}
+
+async function pickWorkspaceAvatar(
+  setAvatarUrl: (value: string | null) => void,
+  setErrorMessage: (value: string) => void
+) {
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+  if (!permission.granted) {
+    Alert.alert('Permissao necessaria', 'Permita acesso às suas fotos para escolher a imagem do workspace.');
+    return;
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    allowsEditing: true,
+    aspect: [1, 1],
+    base64: true,
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    quality: 0.72,
+  });
+
+  if (result.canceled || !result.assets[0]) {
+    return;
+  }
+
+  const asset = result.assets[0];
+  const workspaceAvatarUrl = asset.base64
+    ? `data:${asset.mimeType ?? 'image/jpeg'};base64,${asset.base64}`
+    : asset.uri;
+
+  setErrorMessage('');
+  setAvatarUrl(workspaceAvatarUrl);
+}
+
+function WorkspaceFormLayout({
+  buttonLabel,
+  children,
+  errorMessage,
+  onBackPress,
+  onSubmit,
+  submitDisabled,
+  subtitle,
+  title,
+}: {
+  buttonLabel: string;
+  children: React.ReactNode;
+  errorMessage: string;
+  onBackPress: () => void;
+  onSubmit: () => void;
+  submitDisabled: boolean;
+  subtitle: string;
+  title: string;
+}) {
+  return (
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+      <ScrollView contentContainerStyle={styles.formScreenContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.formHeader}>
+          <Pressable onPress={onBackPress} style={styles.backButton}>
+            <Feather color="#111827" name="chevron-left" size={20} />
           </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </LayoutWithNavbar>
+          <View style={styles.formHeaderText}>
+            <Text style={styles.titleSmall}>{title}</Text>
+            <Text style={styles.subtitle}>{subtitle}</Text>
+          </View>
+        </View>
+
+        {children}
+
+        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
+        <Pressable
+          disabled={submitDisabled}
+          onPress={onSubmit}
+          style={({ pressed }) => [styles.primaryButton, (pressed || submitDisabled) && styles.pressed]}
+        >
+          <ExpoLinearGradient
+            colors={WORKSPACE_GRADIENT_COLORS}
+            locations={WORKSPACE_GRADIENT_LOCATIONS}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.primaryButtonGradient}
+          >
+            <Text style={styles.primaryButtonText}>{buttonLabel}</Text>
+          </ExpoLinearGradient>
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

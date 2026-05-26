@@ -49,6 +49,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     padding: 15,
   },
+  alertCardSafe: {
+    backgroundColor: '#F0FDFF',
+    borderColor: '#67E8F9',
+  },
   alertHeader: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -58,9 +62,38 @@ const styles = StyleSheet.create({
     color: '#C0392B',
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
   },
+  alertTitleSafe: {
+    color: '#0E7490',
+  },
   alertSubtitle: {
     color: '#555555',
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
+  },
+  alertToggleRow: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  alertToggleTextWrap: {
+    flex: 1,
+    marginRight: 12,
+  },
+  alertToggleTitle: {
+    color: '#101828',
+    fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
+    fontSize: 13,
+  },
+  alertToggleSubtitle: {
+    color: '#667085',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
   },
   secondaryButton: {
     backgroundColor: '#FFFFFF',
@@ -82,6 +115,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     textAlign: 'center',
+  },
+  safeStateBox: {
+    backgroundColor: '#F0FDFF',
+    borderColor: '#67E8F9',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 10,
+    padding: 12,
+  },
+  safeStateText: {
+    color: '#0F766E',
+    fontFamily: WORKSPACE_DETAILS_FONTS.bold,
+    fontSize: 14,
+  },
+  safeStateHint: {
+    color: '#0F766E',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -117,9 +170,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 10,
   },
-  imageRow: {
+  roomsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  roomCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 12,
+    overflow: 'hidden',
+    width: '48%',
+  },
+  roomImage: {
+    height: 110,
+    width: '100%',
+  },
+  roomContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  roomName: {
+    color: '#101828',
+    fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
+    fontSize: 14,
+  },
+  roomMeta: {
+    color: '#667085',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
+    fontSize: 12,
+    marginTop: 2,
   },
   snapshotImage: {
     borderRadius: 10,
@@ -128,12 +209,18 @@ const styles = StyleSheet.create({
   },
   caregivers: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginBottom: 28,
     marginTop: 12,
   },
   person: {
     alignItems: 'center',
-    marginRight: 15,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    marginBottom: 12,
+    marginRight: 12,
+    padding: 10,
+    width: 92,
   },
   personImage: {
     borderRadius: 25,
@@ -145,15 +232,25 @@ const styles = StyleSheet.create({
     color: '#101828',
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 13,
+    textAlign: 'center',
+  },
+  memberRole: {
+    color: '#667085',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
+    fontSize: 11,
+    marginTop: 2,
+    textTransform: 'capitalize',
   },
   addPerson: {
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     borderColor: '#9AA8BA',
     borderRadius: 25,
     borderStyle: 'dashed',
     borderWidth: 1,
     height: 50,
     justifyContent: 'center',
+    marginBottom: 12,
     width: 82,
   },
   addPersonIcon: {
@@ -190,6 +287,119 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 12,
+  },
+  familyHeaderRow: {
+    marginBottom: 4,
+  },
+  familySubtitle: {
+    color: '#667085',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
+    fontSize: 12,
+    marginTop: 3,
+  },
+  modalOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 24, 40, 0.45)',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    width: '100%',
+  },
+  modalTitle: {
+    color: '#101828',
+    fontFamily: WORKSPACE_DETAILS_FONTS.bold,
+    fontSize: 18,
+  },
+  modalSubtitle: {
+    color: '#667085',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  modalInput: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#D0D5DD',
+    borderRadius: 14,
+    borderWidth: 1,
+    color: '#101828',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
+    fontSize: 14,
+    marginTop: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  modalActionButton: {
+    alignItems: 'center',
+    backgroundColor: '#019BDE',
+    borderRadius: 14,
+    marginTop: 14,
+    paddingVertical: 12,
+  },
+  modalActionText: {
+    color: '#FFFFFF',
+    fontFamily: WORKSPACE_DETAILS_FONTS.bold,
+    fontSize: 14,
+  },
+  modalDangerButton: {
+    backgroundColor: '#FDECEA',
+  },
+  modalDangerText: {
+    color: '#C0392B',
+  },
+  modalCancelButton: {
+    alignItems: 'center',
+    marginTop: 10,
+    paddingVertical: 10,
+  },
+  modalCancelText: {
+    color: '#667085',
+    fontFamily: WORKSPACE_DETAILS_FONTS.medium,
+    fontSize: 14,
+  },
+  cameraLiveContent: {
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 40,
+  },
+  cameraLiveTopSpacer: {
+    height: 2,
+  },
+  cameraLiveHeaderRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 14,
+  },
+  cameraLiveHeaderText: {
+    flex: 1,
+  },
+  cameraLiveTitle: {
+    color: '#101828',
+    fontFamily: WORKSPACE_DETAILS_FONTS.bold,
+    fontSize: 22,
+  },
+  cameraLiveSubtitle: {
+    color: '#667085',
+    fontFamily: WORKSPACE_DETAILS_FONTS.regular,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  cameraLiveViewerCard: {
+    backgroundColor: '#000000',
+    borderRadius: 18,
+    height: 260,
+    overflow: 'hidden',
+  },
+  cameraLiveWebview: {
+    flex: 1,
+  },
+  cameraLiveVideo: {
+    flex: 1,
   },
 });
 
