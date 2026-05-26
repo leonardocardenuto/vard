@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Linking,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -59,6 +60,7 @@ export function Home() {
   const accessToken = route.params?.accessToken ?? "";
   const [alerts, setAlerts] = useState<HomeAlert[]>([]);
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(true);
+  const [isRefreshingAlerts, setIsRefreshingAlerts] = useState(false);
   const [alertsError, setAlertsError] = useState("");
   const hasAlerts = alerts.length > 0;
   const visibleAlerts = alerts.slice(0, 3);
@@ -128,10 +130,27 @@ export function Home() {
     }, [loadAlerts]),
   );
 
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshingAlerts(true);
+    try {
+      await loadAlerts();
+    } finally {
+      setIsRefreshingAlerts(false);
+    }
+  }, [loadAlerts]);
+
   return (
     <LayoutWithNavbar>
       <ScrollView
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            colors={["#019BDE"]}
+            onRefresh={handleRefresh}
+            refreshing={isRefreshingAlerts}
+            tintColor="#019BDE"
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
         <View>

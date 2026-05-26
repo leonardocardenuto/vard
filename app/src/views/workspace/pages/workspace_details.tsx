@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,6 +8,7 @@ import {
   Linking,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   Switch,
   Text,
@@ -61,6 +62,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
   const { accessToken, workspace, fallAlert } = route.params;
   const [cameras, setCameras] = useState<CameraResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isOpeningCameraId, setIsOpeningCameraId] = useState<string | null>(null);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>(() => seedFamilyMembers());
@@ -103,23 +105,32 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
     };
   }, [accessToken, workspace.id]);
 
-  useEffect(() => {
-    async function loadWorkspaceDetails() {
-      try {
-        setErrorMessage('');
-        setIsLoading(true);
-        setCameras(await listCameras(accessToken, workspace.id));
-      } catch (error) {
-        setErrorMessage(
-          error instanceof ApiRequestError ? error.message : 'Nao foi possivel carregar os detalhes.'
-        );
-      } finally {
-        setIsLoading(false);
-      }
+  const loadWorkspaceDetails = useCallback(async () => {
+    try {
+      setErrorMessage('');
+      setIsLoading(true);
+      setCameras(await listCameras(accessToken, workspace.id));
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiRequestError ? error.message : 'Nao foi possivel carregar os detalhes.'
+      );
+    } finally {
+      setIsLoading(false);
     }
-
-    void loadWorkspaceDetails();
   }, [accessToken, workspace.id]);
+
+  useEffect(() => {
+    void loadWorkspaceDetails();
+  }, [loadWorkspaceDetails]);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await loadWorkspaceDetails();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [loadWorkspaceDetails]);
 
   const mainCamera = cameras[0];
   const secondCamera = cameras[1];
@@ -249,7 +260,18 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
   return (
     <LayoutWithNavbar>
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              colors={['#019BDE']}
+              onRefresh={handleRefresh}
+              refreshing={isRefreshing}
+              tintColor="#019BDE"
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.headerRow}>
             <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
               <Feather color="#111827" name="chevron-left" size={20} />
