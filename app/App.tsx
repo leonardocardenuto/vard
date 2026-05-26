@@ -26,22 +26,28 @@ let defaultFontsApplied = false;
 
 type AppTabsProps = NativeStackScreenProps<RootStackParamList, 'AppTabs'>;
 
-function AppTabs({ route }: AppTabsProps) {
+function AppTabs({ navigation: stackNavigation, route }: AppTabsProps) {
   const userName = route.params?.userName;
   const accessToken = route.params?.accessToken ?? '';
   const userAvatarUrl = route.params?.userAvatarUrl;
   const userEmail = route.params?.userEmail ?? '';
+  const handleLogout = () => {
+    stackNavigation.reset({
+      index: 0,
+      routes: [{ name: 'Auth' }],
+    });
+  };
 
   return (
     <Tabs.Navigator
       screenOptions={{
         headerShown: true,
         animation: 'none',
-        header: ({ navigation }) => (
+        header: ({ navigation: tabNavigation }) => (
           <Header
             avatarUrl={userAvatarUrl}
             notificationFunction={() => {
-              navigation.navigate('Alerts', {
+              tabNavigation.navigate('Alerts', {
                 accessToken,
                 params: { accessToken },
                 screen: 'AlertsList',
@@ -77,9 +83,10 @@ function AppTabs({ route }: AppTabsProps) {
       />
       <Tabs.Screen
         name="Settings"
-        component={Settings}
         initialParams={{ accessToken, userAvatarUrl, userEmail, userName }}
-      />
+      >
+        {() => <Settings onLogout={handleLogout} />}
+      </Tabs.Screen>
     </Tabs.Navigator>
   );
 }

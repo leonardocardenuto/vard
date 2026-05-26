@@ -9,6 +9,7 @@ from api.services.camera_streams import STREAMS_ROOT
 
 settings = get_settings()
 register_cache_invalidation_hooks()
+fall_monitor_supervisor = None
 
 app = FastAPI(title=settings.app_name, debug=settings.app_debug)
 app.add_middleware(
@@ -24,6 +25,24 @@ app.mount("/streams", StaticFiles(directory=STREAMS_ROOT), name="streams")
 @app.get("/health", tags=["health"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.on_event("startup")
+def start_background_jobs():
+    global fall_monitor_supervisor
+    if not settings.fall_monitor_enabled:
+        return
+
+    from api.services.fall_monitor import CameraMonitorSupervisor
+
+    fall_monitor_supervisor = CameraMonitorSupervisor(settings)
+    fall_monitor_supervisor.start()
+
+
+@app.on_event("shutdown")
+def stop_background_jobs():
+    if fall_monitor_supervisor is not None:
+        fall_monitor_supervisor.stop()
 
 
 app.include_router(auth.router)
