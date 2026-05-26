@@ -334,11 +334,11 @@ function getAlertTitle(notification: NotificationResponse) {
   const kind = getAlertKind(notification);
 
   if (kind === "fall") {
-    return "Fall";
+    return "Queda";
   }
 
   if (kind === "fight") {
-    return "Fight";
+    return "Briga";
   }
 
   return notification.title || "Alerta";
