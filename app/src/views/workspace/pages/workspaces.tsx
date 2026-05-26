@@ -13,6 +13,7 @@ import {
   Platform,
   Pressable,
   Modal,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -84,6 +85,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
   const { accessToken, userEmail, userName } = route.params;
   const [workspaces, setWorkspaces] = useState<WorkspaceResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [menuWorkspace, setMenuWorkspace] = useState<WorkspaceResponse | null>(null);
   const [deleteWorkspaceTarget, setDeleteWorkspaceTarget] = useState<WorkspaceResponse | null>(null);
@@ -172,6 +174,15 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
     })();
   }
 
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await loadWorkspaces();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [loadWorkspaces]);
+
   if (!fontsLoaded) {
     return null;
   }
@@ -180,6 +191,14 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
     <LayoutWithNavbar>
       <ScrollView
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            colors={['#019BDE']}
+            onRefresh={handleRefresh}
+            refreshing={isRefreshing}
+            tintColor="#019BDE"
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>

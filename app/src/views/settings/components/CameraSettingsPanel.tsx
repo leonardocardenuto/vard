@@ -6,6 +6,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -120,6 +121,7 @@ export function CameraSettingsPanel({
   const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
   const [cameras, setCameras] = useState<CameraResponse[]>([]);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isStartingStreamId, setIsStartingStreamId] = useState<string | null>(null);
   const [pingingCameraIds, setPingingCameraIds] = useState<Record<string, boolean>>({});
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
@@ -218,6 +220,15 @@ export function CameraSettingsPanel({
     }, [loadDevices])
   );
 
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await loadDevices();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [loadDevices]);
+
   async function handleStartStream(camera: CameraResponse) {
     const metadata = getCameraMetadata(camera);
     const protocol = typeof metadata.protocol === 'string' ? metadata.protocol : camera.connection_type;
@@ -260,6 +271,14 @@ export function CameraSettingsPanel({
     <ScrollView
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl
+          colors={['#0BA5EC']}
+          onRefresh={handleRefresh}
+          refreshing={isRefreshing}
+          tintColor="#0BA5EC"
+        />
+      }
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   PanResponder,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -46,42 +47,50 @@ import {
   styles,
 } from "../styles/Insights";
 
-type Period = "Ultimos 15 dias" | "Ultimos 30 dias" | "Ultimos 60 dias" | "Ultimos 90 dias";
+type Period = "Últimos 15 dias" | "Últimos 30 dias" | "Últimos 60 dias" | "Últimos 90 dias";
 type CameraFilter = string;
 type InsightsRoute = RouteProp<AppTabParamList, "Insights">;
 
 type CameraData = {
   activityLabel: string;
-  chartValues: number[];
+  activitySegments: ActivitySegment[];
+  dailyIncidentMessage: string;
+  dailyIncidentTotal: number;
+  incidentSeries: IncidentSeriesPoint[];
   incidentTotal: number;
   roomIncidents: Array<{
+    isEmpty?: boolean;
     room: string;
     value: number;
     barStyle: object;
   }>;
 };
 
+type IncidentSeriesPoint = {
+  label: string;
+  value: number;
+};
+
+type ActivitySegment = {
+  left: `${number}%`;
+  width: `${number}%`;
+};
+
 const PERIOD_OPTIONS: Period[] = [
-  "Ultimos 15 dias",
-  "Ultimos 30 dias",
-  "Ultimos 60 dias",
-  "Ultimos 90 dias",
+  "Últimos 15 dias",
+  "Últimos 30 dias",
+  "Últimos 60 dias",
+  "Últimos 90 dias",
 ];
 
-const DEFAULT_PERIOD: Period = "Ultimos 90 dias";
+const DEFAULT_PERIOD: Period = "Últimos 90 dias";
 const ALL_CAMERAS_FILTER = "Todas";
 
-const ACTIVITY_SEGMENTS = [
-  styles.activitySegmentFirst,
-  styles.activitySegmentSecond,
-  styles.activitySegmentThird,
-];
-
 const PERIOD_DAYS: Record<Period, number> = {
-  "Ultimos 15 dias": 15,
-  "Ultimos 30 dias": 30,
-  "Ultimos 60 dias": 60,
-  "Ultimos 90 dias": 90,
+  "Últimos 15 dias": 15,
+  "Últimos 30 dias": 30,
+  "Últimos 60 dias": 60,
+  "Últimos 90 dias": 90,
 };
 
 export function Insights() {
@@ -104,8 +113,9 @@ export function Insights() {
   const [cameras, setCameras] = useState<CameraResponse[]>([]);
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(true);
+  const [isRefreshingInsights, setIsRefreshingInsights] = useState(false);
   const [insightsError, setInsightsError] = useState("");
-  const [exportLabel, setExportLabel] = useState("Export Monthly Report");
+  const [exportLabel, setExportLabel] = useState("Exportar relatório mensal");
   const sheetAnimation = useRef(new Animated.Value(0)).current;
   const sheetDragY = useRef(new Animated.Value(0)).current;
 
@@ -129,66 +139,76 @@ export function Insights() {
     [cameras, effectiveCamera, effectivePeriod, notifications],
   );
 
-  useEffect(() => {
-    async function loadWorkspaces() {
-      if (!accessToken) {
-        setInsightsError("Sessao invalida. Faca login novamente.");
-        setIsLoadingInsights(false);
-        return;
-      }
-
-      try {
-        setInsightsError("");
-        setIsLoadingInsights(true);
-        const workspaceList = await listWorkspaces(accessToken);
-        setWorkspaces(workspaceList);
-        setSelectedWorkspaceId((current) => current ?? workspaceList[0]?.id ?? null);
-      } catch (error) {
-        setInsightsError(
-          error instanceof ApiRequestError ? error.message : "Nao foi possivel carregar os workspaces."
-        );
-        setIsLoadingInsights(false);
-      }
+  const loadWorkspaces = useCallback(async () => {
+    if (!accessToken) {
+      setInsightsError("Sessão inválida. Faça login novamente.");
+      setIsLoadingInsights(false);
+      return;
     }
 
-    void loadWorkspaces();
+    try {
+      setInsightsError("");
+      setIsLoadingInsights(true);
+      const workspaceList = await listWorkspaces(accessToken);
+      setWorkspaces(workspaceList);
+      setSelectedWorkspaceId((current) => current ?? workspaceList[0]?.id ?? null);
+    } catch (error) {
+      setInsightsError(
+        error instanceof ApiRequestError ? error.message : "Não foi possível carregar os workspaces."
+      );
+      setIsLoadingInsights(false);
+    }
   }, [accessToken]);
 
-  useEffect(() => {
-    async function loadWorkspaceInsights() {
-      if (!accessToken || !selectedWorkspace) {
-        setCameras([]);
-        setNotifications([]);
-        setIsLoadingInsights(false);
-        return;
-      }
-
-      try {
-        setInsightsError("");
-        setIsLoadingInsights(true);
-        const [workspaceCameras, workspaceNotifications] = await Promise.all([
-          listCameras(accessToken, selectedWorkspace.id),
-          listNotifications(accessToken, selectedWorkspace.id),
-        ]);
-        setCameras(workspaceCameras);
-        setNotifications(workspaceNotifications);
-        setSelectedCamera((current) => {
-          if (!current || current === ALL_CAMERAS_FILTER) {
-            return current;
-          }
-          return workspaceCameras.some((camera) => camera.name === current) ? current : null;
-        });
-      } catch (error) {
-        setInsightsError(
-          error instanceof ApiRequestError ? error.message : "Nao foi possivel carregar os insights."
-        );
-      } finally {
-        setIsLoadingInsights(false);
-      }
+  const loadWorkspaceInsights = useCallback(async () => {
+    if (!accessToken || !selectedWorkspace) {
+      setCameras([]);
+      setNotifications([]);
+      setIsLoadingInsights(false);
+      return;
     }
 
-    void loadWorkspaceInsights();
+    try {
+      setInsightsError("");
+      setIsLoadingInsights(true);
+      const [workspaceCameras, workspaceNotifications] = await Promise.all([
+        listCameras(accessToken, selectedWorkspace.id),
+        listNotifications(accessToken, selectedWorkspace.id),
+      ]);
+      setCameras(workspaceCameras);
+      setNotifications(workspaceNotifications);
+      setSelectedCamera((current) => {
+        if (!current || current === ALL_CAMERAS_FILTER) {
+          return current;
+        }
+        return workspaceCameras.some((camera) => camera.name === current) ? current : null;
+      });
+    } catch (error) {
+      setInsightsError(
+        error instanceof ApiRequestError ? error.message : "Não foi possível carregar os insights."
+      );
+    } finally {
+      setIsLoadingInsights(false);
+    }
   }, [accessToken, selectedWorkspace]);
+
+  useEffect(() => {
+    void loadWorkspaces();
+  }, [loadWorkspaces]);
+
+  useEffect(() => {
+    void loadWorkspaceInsights();
+  }, [loadWorkspaceInsights]);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshingInsights(true);
+    try {
+      await loadWorkspaces();
+      await loadWorkspaceInsights();
+    } finally {
+      setIsRefreshingInsights(false);
+    }
+  }, [loadWorkspaceInsights, loadWorkspaces]);
 
   useEffect(() => {
     Animated.timing(sheetAnimation, {
@@ -289,14 +309,14 @@ export function Insights() {
       link.download = fileName;
       link.click();
       URL.revokeObjectURL(url);
-      setExportLabel("Relatorio exportado");
+      setExportLabel("Relatório exportado");
       return;
     }
 
-    setExportLabel("Relatorio pronto");
+    setExportLabel("Relatório pronto");
     Alert.alert(
-      "Relatorio gerado",
-      `Workspace: ${selectedWorkspace?.name ?? "Workspace"}\nPeriodo: ${effectivePeriod}\nCamera: ${effectiveCamera}\nIncidentes: ${selectedData.incidentTotal}`,
+      "Relatório gerado",
+      `Workspace: ${selectedWorkspace?.name ?? "Workspace"}\nPeríodo: ${effectivePeriod}\nCâmera: ${effectiveCamera}\nIncidentes: ${selectedData.incidentTotal}`,
     );
   }
 
@@ -326,6 +346,14 @@ export function Insights() {
       <View style={styles.page}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              colors={[INSIGHTS_COLORS.gradientMiddle]}
+              onRefresh={handleRefresh}
+              refreshing={isRefreshingInsights}
+              tintColor={INSIGHTS_COLORS.gradientMiddle}
+            />
+          }
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.screen}>
@@ -419,7 +447,7 @@ export function Insights() {
                 </View>
               </View>
               <Text style={styles.subtitle}>
-                Resumo de atividades e saude do dia.
+                Resumo de atividades e saúde do dia.
               </Text>
               {insightsError ? (
                 <Text style={styles.activeFilterText}>{insightsError}</Text>
@@ -435,7 +463,7 @@ export function Insights() {
               <View style={styles.incidentsHeader}>
                 <View>
                   <Text style={styles.cardTitle}>Incidentes</Text>
-                  <Text style={styles.cardSubtitle}>Incidentes x Dias</Text>
+                  <Text style={styles.cardSubtitle}>Incidentes x dias</Text>
                 </View>
 
                 <View style={styles.incidentsControls}>
@@ -454,21 +482,25 @@ export function Insights() {
                 </View>
               </View>
 
-              <IncidentsChart values={selectedData.chartValues} />
+              <IncidentsChart series={selectedData.incidentSeries} />
             </View>
 
             <View style={styles.cardRooms}>
-              <Text style={styles.roomsTitle}>Incidentes por Comodo</Text>
+              <Text style={styles.roomsTitle}>Incidentes por cômodo</Text>
               <View style={styles.roomList}>
                 {selectedData.roomIncidents.map((item) => (
                   <View key={item.room} style={styles.roomItem}>
                     <View style={styles.roomTopLine}>
-                      <Text style={styles.roomName}>{item.room}</Text>
+                      <Text style={[styles.roomName, item.isEmpty && styles.roomNameMuted]}>
+                        {item.room}
+                      </Text>
                       <Text style={styles.roomValue}>{item.value}</Text>
                     </View>
-                    <View style={styles.roomTrack}>
-                      <View style={[styles.roomBar, item.barStyle]} />
-                    </View>
+                    {item.isEmpty ? null : (
+                      <View style={styles.roomTrack}>
+                        <View style={[styles.roomBar, item.barStyle]} />
+                      </View>
+                    )}
                   </View>
                 ))}
               </View>
@@ -482,12 +514,12 @@ export function Insights() {
                   size={40}
                 />
               </View>
-              <Text style={styles.dailyLabel}>TOTAL DAILY INCIDENTS</Text>
+              <Text style={styles.dailyLabel}>INCIDENTES NAS ÚLTIMAS 24H</Text>
               <Text style={styles.dailyValue}>
-                {selectedData.incidentTotal}
+                {selectedData.dailyIncidentTotal}
               </Text>
               <Text style={styles.dailyText}>
-                Nenhuma anomalia detectada nas ultimas 24 horas.
+                {selectedData.dailyIncidentMessage}
               </Text>
             </View>
 
@@ -505,13 +537,16 @@ export function Insights() {
               <Text style={styles.cameraTitle}>
                 {selectedData.activityLabel}
               </Text>
-              <Text style={styles.cameraSubtitle}>Ultimas 24 horas</Text>
+              <Text style={styles.cameraSubtitle}>Últimas 24 horas</Text>
               <View style={styles.activityChart}>
                 <View style={styles.activityTrack}>
-                  {ACTIVITY_SEGMENTS.map((segmentStyle, index) => (
+                  {selectedData.activitySegments.map((segment, index) => (
                     <View
                       key={index}
-                      style={[styles.activitySegment, segmentStyle]}
+                      style={[
+                        styles.activitySegment,
+                        { left: segment.left, width: segment.width },
+                      ]}
                     />
                   ))}
                 </View>
@@ -538,7 +573,7 @@ export function Insights() {
             </View>
 
             <Pressable
-              accessibilityLabel="Exportar relatorio mensal em PDF"
+              accessibilityLabel="Exportar relatório mensal em PDF"
               accessibilityRole="button"
               onPress={handleExportReport}
               style={({ pressed }) => [
@@ -658,24 +693,16 @@ function buildInsightsData({
   });
   const camerasById = new Map(cameras.map((camera) => [camera.id, camera]));
   const selectedCamera = cameras.find((camera) => camera.name === cameraName);
-
-  const bucketCount = 8;
-  const bucketSize = Math.max(1, (now - startTime) / bucketCount);
-  const chartValues = Array.from({ length: bucketCount }, () => 0);
-  filteredNotifications.forEach((notification) => {
+  const last24HoursStart = now - 24 * 60 * 60 * 1000;
+  const dailyIncidentTotal = filteredNotifications.filter((notification) => {
     const createdAt = new Date(notification.created_at).getTime();
-    const bucketIndex = Math.min(bucketCount - 1, Math.max(0, Math.floor((createdAt - startTime) / bucketSize)));
-    chartValues[bucketIndex] += 1;
-  });
+    return Number.isFinite(createdAt) && createdAt >= last24HoursStart;
+  }).length;
 
   const roomCounts = new Map<string, number>();
   filteredNotifications.forEach((notification) => {
-    const payloadRoom = notification.payload?.room;
     const camera = notification.camera_id ? camerasById.get(notification.camera_id) : undefined;
-    const room =
-      typeof payloadRoom === "string" && payloadRoom.trim()
-        ? payloadRoom.trim()
-        : camera?.name ?? notification.notification_type;
+    const room = resolveNotificationRoom(notification, camera);
     roomCounts.set(room, (roomCounts.get(room) ?? 0) + 1);
   });
 
@@ -698,14 +725,118 @@ function buildInsightsData({
     }));
 
   return {
-    activityLabel: selectedCamera?.name ? `Camera ${selectedCamera.name}` : "Todas as cameras",
-    chartValues,
+    activityLabel: selectedCamera?.name ? `Câmera ${selectedCamera.name}` : "Todas as câmeras",
+    activitySegments: buildActivitySegments(filteredNotifications, now),
+    dailyIncidentMessage:
+      dailyIncidentTotal > 0
+        ? `${dailyIncidentTotal} incidente${dailyIncidentTotal === 1 ? "" : "s"} detectado${dailyIncidentTotal === 1 ? "" : "s"} nas últimas 24 horas.`
+        : "Nenhuma anomalia detectada nas últimas 24 horas.",
+    dailyIncidentTotal,
+    incidentSeries: buildIncidentSeries(filteredNotifications, startTime, now),
     incidentTotal: filteredNotifications.length,
     roomIncidents:
       roomIncidents.length > 0
         ? roomIncidents
-        : [{ room: "Sem incidentes", value: 0, barStyle: { width: "0%" } }],
+        : [{ room: "Sem incidentes no período", value: 0, barStyle: { width: "0%" }, isEmpty: true }],
   };
+}
+
+function buildIncidentSeries(
+  notifications: NotificationResponse[],
+  startTime: number,
+  endTime: number,
+): IncidentSeriesPoint[] {
+  const bucketCount = 8;
+  const bucketSize = Math.max(1, (endTime - startTime) / bucketCount);
+  const series = Array.from({ length: bucketCount }, (_, index) => ({
+    label: formatChartDateLabel(startTime + bucketSize * index),
+    value: 0,
+  }));
+
+  notifications.forEach((notification) => {
+    const createdAt = new Date(notification.created_at).getTime();
+    if (!Number.isFinite(createdAt)) {
+      return;
+    }
+
+    const bucketIndex = Math.min(
+      bucketCount - 1,
+      Math.max(0, Math.floor((createdAt - startTime) / bucketSize)),
+    );
+    series[bucketIndex].value += 1;
+  });
+
+  return series;
+}
+
+function buildActivitySegments(
+  notifications: NotificationResponse[],
+  endTime: number,
+): ActivitySegment[] {
+  const startTime = endTime - 24 * 60 * 60 * 1000;
+  const bucketCount = 24;
+  const bucketSize = Math.max(1, (endTime - startTime) / bucketCount);
+  const activeBuckets = Array.from({ length: bucketCount }, () => false);
+
+  notifications.forEach((notification) => {
+    const createdAt = new Date(notification.created_at).getTime();
+    if (!Number.isFinite(createdAt) || createdAt < startTime || createdAt > endTime) {
+      return;
+    }
+
+    const bucketIndex = Math.min(
+      bucketCount - 1,
+      Math.max(0, Math.floor((createdAt - startTime) / bucketSize)),
+    );
+    activeBuckets[bucketIndex] = true;
+  });
+
+  const segments: ActivitySegment[] = [];
+  let segmentStart: number | null = null;
+
+  activeBuckets.forEach((isActive, index) => {
+    if (isActive && segmentStart === null) {
+      segmentStart = index;
+    }
+
+    const isLastBucket = index === activeBuckets.length - 1;
+    if (segmentStart !== null && (!isActive || isLastBucket)) {
+      const segmentEnd = isActive && isLastBucket ? index + 1 : index;
+      segments.push({
+        left: `${Math.round((segmentStart / bucketCount) * 100)}` as `${number}%`,
+        width: `${Math.max(4, Math.round(((segmentEnd - segmentStart) / bucketCount) * 100))}` as `${number}%`,
+      });
+      segmentStart = null;
+    }
+  });
+
+  return segments;
+}
+
+function resolveNotificationRoom(
+  notification: NotificationResponse,
+  camera?: CameraResponse,
+) {
+  const payloadRoom = notification.payload?.room;
+  const metadata = camera?.metadata_json ?? camera?.metadata;
+  const metadataRoom = metadata?.room;
+
+  if (typeof payloadRoom === "string" && payloadRoom.trim()) {
+    return payloadRoom.trim();
+  }
+
+  if (typeof metadataRoom === "string" && metadataRoom.trim()) {
+    return metadataRoom.trim();
+  }
+
+  return camera?.name ?? notification.notification_type;
+}
+
+function formatChartDateLabel(timestamp: number) {
+  return new Date(timestamp).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
 }
 
 function filterNotificationsBySelection(params: {
@@ -771,14 +902,14 @@ function buildExportReport({
   const camerasById = new Map(cameras.map((camera) => [camera.id, camera.name]));
   const rows = [
     ["workspace", workspaceName],
-    ["periodo", period],
-    ["camera", cameraName],
+    ["período", period],
+    ["câmera", cameraName],
     ["total_incidentes", String(data.incidentTotal)],
     [],
-    ["data", "camera", "tipo", "severidade", "titulo", "descricao"],
+    ["data", "câmera", "tipo", "severidade", "título", "descrição"],
     ...notifications.map((notification) => [
       new Date(notification.created_at).toLocaleString("pt-BR"),
-      notification.camera_id ? camerasById.get(notification.camera_id) ?? "Camera removida" : "Sem camera",
+      notification.camera_id ? camerasById.get(notification.camera_id) ?? "Câmera removida" : "Sem câmera",
       notification.notification_type,
       notification.severity,
       notification.title,
@@ -803,7 +934,7 @@ function slugify(value: string) {
 }
 
 type IncidentsChartProps = {
-  values: number[];
+  series: IncidentSeriesPoint[];
 };
 
 type FilterOptionButtonProps = {
@@ -908,7 +1039,7 @@ function GradientTitle({
   );
 }
 
-function IncidentsChart({ values }: IncidentsChartProps) {
+function IncidentsChart({ series }: IncidentsChartProps) {
   const width = 294;
   const height = 192;
   const chartTop = 28;
@@ -916,12 +1047,17 @@ function IncidentsChart({ values }: IncidentsChartProps) {
   const plotWidth = 270;
   const plotHeight = 120;
   const min = 0;
+  const values = series.length > 0 ? series.map((point) => point.value) : [0, 0];
   const max = Math.max(5, ...values);
   const ticks = [max, max * 0.75, max * 0.5, max * 0.25, min];
-  const labels = ["03", "06", "09", "12", "15", "18", "20", "23"];
+  const labels =
+    series.length > 0
+      ? series.map((point) => point.label)
+      : ["--", "--"];
 
   const points = values.map((value, index) => {
-    const x = chartLeft + (index / (values.length - 1)) * plotWidth;
+    const divisor = Math.max(1, values.length - 1);
+    const x = chartLeft + (index / divisor) * plotWidth;
     const y = chartTop + plotHeight - ((value - min) / (max - min)) * plotHeight;
     return { x, y };
   });
@@ -1033,7 +1169,7 @@ function IncidentsChart({ values }: IncidentsChartProps) {
               fontFamily={INSIGHTS_FONTS.medium}
               fontSize={12}
               fontWeight="500"
-              key={label}
+              key={`${label}-${index}`}
               textAnchor="middle"
               x={x}
               y={height - 10}

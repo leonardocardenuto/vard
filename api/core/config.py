@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     fall_monitor_enabled: bool = Field(False, alias="FALL_MONITOR_ENABLED")
     fall_monitor_checkpoint: str = Field(
-        "fall_detection/models/vard_fall_window_production.pkl",
+        "var/best_vjepa2_fall_classifier_combined.pt",
         alias="FALL_MONITOR_CHECKPOINT",
     )
     fall_monitor_device: str | None = Field(default=None, alias="FALL_MONITOR_DEVICE")

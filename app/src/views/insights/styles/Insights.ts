@@ -243,6 +243,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
+  roomNameMuted: {
+    color: "#92A0B6",
+  },
   roomValue: {
     color: "#000000",
     fontFamily: INSIGHTS_FONTS.medium,

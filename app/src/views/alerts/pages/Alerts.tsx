@@ -20,6 +20,7 @@ import {
   Image,
   Linking,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -80,6 +81,7 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
   const tabNavigation = useNavigation();
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const accessToken = route.params.accessToken;
 
@@ -118,10 +120,27 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
     }, [loadAlerts]),
   );
 
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await loadAlerts();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [loadAlerts]);
+
   return (
     <LayoutWithNavbar>
       <ScrollView
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            colors={["#019BDE"]}
+            onRefresh={handleRefresh}
+            refreshing={isRefreshing}
+            tintColor="#019BDE"
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerRow}>
@@ -189,30 +208,40 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
   const [isValidationAnswered, setIsValidationAnswered] = useState(
     alert.isValidationAnswered,
   );
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const title = alert.kind === "fall" ? "Fall Detected" : alert.title;
+
+  const syncAlertValidation = useCallback(async () => {
+    try {
+      const notification = await getNotification(accessToken, alert.id);
+      const isAnswered = hasDetectionValidation(notification.payload);
+      setIsValidationAnswered(isAnswered);
+      navigation.setParams({
+        alert: {
+          ...alert,
+          isValidationAnswered: isAnswered,
+          payload: notification.payload,
+        },
+      });
+    } catch {
+      setIsValidationAnswered(alert.isValidationAnswered);
+    }
+  }, [accessToken, alert, navigation]);
 
   useFocusEffect(
     useCallback(() => {
-      async function syncAlertValidation() {
-        try {
-          const notification = await getNotification(accessToken, alert.id);
-          const isAnswered = hasDetectionValidation(notification.payload);
-          setIsValidationAnswered(isAnswered);
-          navigation.setParams({
-            alert: {
-              ...alert,
-              isValidationAnswered: isAnswered,
-              payload: notification.payload,
-            },
-          });
-        } catch {
-          setIsValidationAnswered(alert.isValidationAnswered);
-        }
-      }
-
       void syncAlertValidation();
-    }, [accessToken, alert.id, navigation]),
+    }, [syncAlertValidation]),
   );
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await syncAlertValidation();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [syncAlertValidation]);
 
   async function handleValidate(isValid: boolean) {
     setIsValidationAnswered(true);
@@ -243,6 +272,14 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
     <LayoutWithNavbar>
       <ScrollView
         contentContainerStyle={styles.detailsContent}
+        refreshControl={
+          <RefreshControl
+            colors={["#019BDE"]}
+            onRefresh={handleRefresh}
+            refreshing={isRefreshing}
+            tintColor="#019BDE"
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.detailsHeaderRow}>

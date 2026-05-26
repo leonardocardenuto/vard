@@ -112,7 +112,7 @@ def parse_args():
     )
     parser.add_argument(
         "--checkpoint",
-        default="best_vjepa2_fall_classifier.pt",
+        default="var/best_vjepa2_fall_classifier_combined.pt",
         help="Checkpoint treinado do classificador V-JEPA2.",
     )
     parser.add_argument("--num-frames", type=int, default=16)
