@@ -20,7 +20,7 @@ jobs:
           POSTGRES_USER: vard
           POSTGRES_PASSWORD: vard
         ports:
-          - 5433:5433
+          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U vard -d vard"
           --health-interval 5s
@@ -43,7 +43,7 @@ jobs:
       APP_PORT: 8000
       APP_DEBUG: "false"
       APP_BASE_URL: http://localhost:8000
-      DATABASE_URL: postgresql://vard:vard@localhost:5433/vard
+      DATABASE_URL: postgresql://vard:vard@localhost:5432/vard
       REDIS_URL: redis://localhost:6379/0
       JWT_SECRET_KEY: ci-test-secret-key-change-in-production
       JWT_ALGORITHM: HS256

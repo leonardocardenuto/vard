@@ -114,7 +114,7 @@ uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
 - API: [http://localhost:8000](http://localhost:8000)
 - Swagger: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Postgres: `localhost:5433` (`vard` / `vard` / `vard`)
+- Postgres: `localhost:5432` (`vard` / `vard` / `vard`)
 - Redis: `localhost:6379`
 
 ### Cache de resposta
