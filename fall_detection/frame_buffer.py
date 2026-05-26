@@ -74,10 +74,14 @@ class FrameBuffer:
         window_seconds = (num_frames - 1) / sample_fps
         start_ts = end_ts - window_seconds
 
-        candidates = [item for item in frames if start_ts <= item.timestamp <= end_ts]
-        if not candidates:
+        available = [item for item in frames if item.timestamp <= end_ts]
+        if not available:
             return []
-        if candidates[0].timestamp > start_ts or candidates[-1].timestamp < end_ts:
+        if available[0].timestamp > start_ts or available[-1].timestamp < end_ts:
+            return []
+
+        candidates = [item for item in available if start_ts <= item.timestamp <= end_ts]
+        if not candidates:
             return []
 
         return self._sample_evenly_buffered(candidates, num_frames)
