@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 type HeaderProps = {
   avatarUrl?: string | null;
-  notificationFunction: Function;
+  notificationFunction: () => void;
 };
 
 export function Header({ avatarUrl, notificationFunction }: HeaderProps) {
@@ -29,7 +29,7 @@ export function Header({ avatarUrl, notificationFunction }: HeaderProps) {
           <Pressable
             accessibilityLabel="Abrir alertas"
             accessibilityRole="button"
-            onPress={() => notificationFunction()}
+            onPress={notificationFunction}
             style={styles.notificationButton}
           >
             <NotificationsIcon width={24} height={24} />
