@@ -53,6 +53,7 @@ export type CameraResponse = {
   is_active: boolean;
   metadata?: Record<string, unknown>;
   metadata_json?: Record<string, unknown>;
+  room_image_url?: string;
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
@@ -333,6 +334,19 @@ export async function createWorkspace(token: string, payload: WorkspaceCreatePay
   });
 }
 
+export async function updateWorkspace(token: string, workspaceId: string, payload: Partial<WorkspaceCreatePayload>) {
+  return requestWithToken<WorkspaceResponse>(`/workspaces/${workspaceId}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteWorkspace(token: string, workspaceId: string) {
+  return requestWithToken<void>(`/workspaces/${workspaceId}`, token, {
+    method: 'DELETE',
+  });
+}
+
 export async function listCameras(token: string, workspaceId: string) {
   const query = new URLSearchParams({ workspace_id: workspaceId });
   return requestWithToken<CameraResponse[]>(`/cameras?${query.toString()}`, token);
@@ -371,6 +385,17 @@ export async function startCameraHlsStream(token: string, cameraId: string) {
   return requestWithToken<CameraStreamResponse>(`/camera-streams/${cameraId}/hls`, token, {
     method: 'POST',
   });
+}
+
+export type WorkspaceFallAlert = {
+  active?: boolean;
+  occurredAt?: string;
+  roomName?: string;
+  ambulancePhoneNumber?: string;
+};
+
+export async function getWorkspaceFallAlert(token: string, workspaceId: string) {
+  return requestWithToken<WorkspaceFallAlert>(`/workspaces/${workspaceId}/fall-alert`, token);
 }
 
 export function buildIntelbrasIm4RtspUrl(host: string, accessKey: string) {
