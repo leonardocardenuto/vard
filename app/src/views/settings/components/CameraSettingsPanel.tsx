@@ -32,6 +32,7 @@ const SETTINGS_PANEL_FONTS = {
 
 type CameraSettingsPanelProps = {
   accessToken: string;
+  onLogout: () => void;
   userEmail: string;
   userName: string;
 };
@@ -109,6 +110,7 @@ function getCameraProtocol(camera: CameraResponse) {
 
 export function CameraSettingsPanel({
   accessToken,
+  onLogout,
   userEmail,
   userName,
 }: CameraSettingsPanelProps) {
@@ -369,6 +371,17 @@ export function CameraSettingsPanel({
               </View>
             </View>
           ) : null}
+
+          <View style={styles.accountSection}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onLogout}
+              style={styles.logoutButton}
+            >
+              <Feather color="#B42318" name="log-out" size={18} />
+              <Text style={styles.logoutButtonText}>Sair da conta</Text>
+            </Pressable>
+          </View>
         </>
       )}
     </ScrollView>
@@ -533,6 +546,28 @@ const styles = StyleSheet.create({
   streamSection: {
     marginTop: 10,
     gap: 12,
+  },
+  accountSection: {
+    marginTop: 24,
+    paddingTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: '#EAECF0',
+  },
+  logoutButton: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#FDA29B',
+    backgroundColor: '#FFFFFF',
+  },
+  logoutButtonText: {
+    color: '#B42318',
+    fontFamily: SETTINGS_PANEL_FONTS.bold,
+    fontSize: 14,
   },
   streamTitle: {
     color: '#101828',

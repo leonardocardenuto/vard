@@ -8,9 +8,12 @@ import { SettingsStackParamList } from "../types";
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
 
 type SettingsRoute = RouteProp<AppTabParamList, "Settings">;
+type SettingsProps = {
+  onLogout: () => void;
+};
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
 
-export function Settings() {
+export function Settings({ onLogout }: SettingsProps) {
   const route = useRoute<SettingsRoute>();
   const accessToken = route.params?.accessToken ?? "";
   const userEmail = route.params?.userEmail ?? "";
@@ -28,6 +31,7 @@ export function Settings() {
           <LayoutWithNavbar>
             <CameraSettingsPanel
               accessToken={accessToken}
+              onLogout={onLogout}
               userEmail={userEmail}
               userName={userName}
             />
