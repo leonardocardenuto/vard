@@ -69,7 +69,7 @@ export function Home() {
   const loadAlerts = useCallback(async () => {
     if (!accessToken) {
       setAlerts([]);
-      setAlertsError("Sessao invalida. Faca login novamente.");
+      setAlertsError("Sessão inválida. Faça login novamente.");
       setIsLoadingAlerts(false);
       return;
     }
@@ -117,7 +117,7 @@ export function Home() {
       setAlertsError(
         error instanceof ApiRequestError
           ? error.message
-          : "Nao foi possivel carregar os alertas.",
+          : "Não foi possível carregar os alertas.",
       );
     } finally {
       setIsLoadingAlerts(false);
@@ -310,7 +310,7 @@ export function Home() {
             </Pressable>
             <Pressable
               onPress={() => {
-                console.log(`Policia acionada`);
+                console.log(`Polícia acionada`);
                 openDialer("190");
               }}
               style={styles.emergencyButton}

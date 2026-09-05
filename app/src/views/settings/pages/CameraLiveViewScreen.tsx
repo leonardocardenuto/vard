@@ -68,7 +68,7 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
             <Text numberOfLines={1} style={styles.headerTitle}>
               {cameraName}
             </Text>
-            <Text style={styles.headerSubtitle}>Camera ao vivo</Text>
+            <Text style={styles.headerSubtitle}>Câmera ao vivo</Text>
           </View>
         </View>
 

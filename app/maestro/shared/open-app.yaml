@@ -1,0 +1,10 @@
+appId: com.devsilogix.vard
+---
+# Preserve the Expo development client's Metro connection, as in geoescala.
+- launchApp
+- extendedWaitUntil:
+    visible: "ACESSAR SUA CONTA"
+    timeout: 60000
+- tapOn: "ACESSAR SUA CONTA"
+- assertVisible:
+    id: auth-email

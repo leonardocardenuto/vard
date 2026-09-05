@@ -348,7 +348,7 @@ class CameraMonitorJob:
                 workspace_id=self.spec.workspace_id,
                 camera_id=self.spec.camera_id,
                 payload=payload,
-                body=f"Uma possivel queda foi detectada pela camera {self.spec.name}.",
+                body=f"Uma possível queda foi detectada pela câmera {self.spec.name}.",
                 created_by="fall_monitor_job",
             )
         LOGGER.warning(

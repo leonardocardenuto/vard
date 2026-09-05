@@ -1,0 +1,30 @@
+appId: com.devsilogix.vard
+name: Login - senha obrigatoria, incorreta e recuperacao
+---
+- runFlow: ../shared/open-app.yaml
+- tapOn:
+    id: auth-email
+- inputText: ${MAESTRO_EMAIL}
+- hideKeyboard
+- tapOn: "CONTINUE"
+- assertVisible:
+    id: auth-password
+- tapOn: "CONTINUE"
+- assertVisible: "Informe sua senha."
+- tapOn:
+    id: auth-password
+- inputText: "SenhaIncorreta123!"
+- hideKeyboard
+- tapOn: "CONTINUE"
+- assertVisible: "Credenciais inválidas."
+- assertNotVisible:
+    id: tab-Home
+- tapOn:
+    id: auth-password
+- eraseText
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- tapOn: "CONTINUE"
+- extendedWaitUntil:
+    visible: "Últimos Alertas"
+    timeout: 30000

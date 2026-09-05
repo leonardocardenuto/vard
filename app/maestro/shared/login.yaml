@@ -1,0 +1,18 @@
+appId: com.devsilogix.vard
+---
+- runFlow: open-app.yaml
+- tapOn:
+    id: auth-email
+- inputText: ${MAESTRO_EMAIL}
+- hideKeyboard
+- tapOn: "CONTINUE"
+- assertVisible:
+    id: auth-password
+- tapOn:
+    id: auth-password
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- tapOn: "CONTINUE"
+- extendedWaitUntil:
+    visible: "Últimos Alertas"
+    timeout: 30000

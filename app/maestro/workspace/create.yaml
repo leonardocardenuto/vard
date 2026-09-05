@@ -1,0 +1,27 @@
+appId: com.devsilogix.vard
+name: Workspace - nome obrigatorio e criacao
+---
+- runFlow: ../shared/login.yaml
+- tapOn:
+    id: tab-Workspace
+- tapOn: "Adicionar workspace"
+- longPressOn:
+    id: workspace-name
+- runFlow:
+    when:
+      notVisible: "Select all|Select All|Selecionar tudo"
+    commands:
+      - tapOn:
+          id: android:id/overflow
+- tapOn: "Select all|Select All|Selecionar tudo"
+- eraseText: 1
+- assertVisible: "Ex.: Casa da Família"
+- tapOn: "Criar workspace"
+- assertVisible: "Informe o nome do workspace."
+- tapOn:
+    id: workspace-name
+- inputText: "Espaco criado pelo Maestro"
+- hideKeyboard
+- tapOn: "Criar workspace"
+- assertVisible: "Espaco criado pelo Maestro"
+- assertNotVisible: "Criar workspace"

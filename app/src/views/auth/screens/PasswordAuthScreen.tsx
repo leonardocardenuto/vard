@@ -39,9 +39,10 @@ export function PasswordAuthScreen({
         width={300}
         y={32}
       />
-      <Text style={styles.bodyText}>Nos achamos uma conta vinculada a este email. Por favor, insira sua senha.</Text>
+      <Text style={styles.bodyText}>Nós achamos uma conta vinculada a este e-mail. Por favor, insira sua senha.</Text>
 
       <PaperAuthInput
+        testID="auth-password"
         label="Senha"
         onChangeText={onChangePassword}
         onToggleVisibility={onTogglePassword}

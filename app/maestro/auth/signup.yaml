@@ -1,0 +1,59 @@
+appId: com.devsilogix.vard
+name: Cadastro - validacoes e criacao de conta
+---
+- runFlow: ../shared/open-app.yaml
+- tapOn:
+    id: auth-email
+- inputText: ${MAESTRO_SIGNUP_EMAIL}
+- hideKeyboard
+- tapOn: "CONTINUE"
+- assertVisible:
+    id: signup-first-name
+- tapOn:
+    id: signup-first-name
+- eraseText
+- inputText: "Maestro"
+- tapOn:
+    id: signup-last-name
+- inputText: "Cadastro"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "CRIAR CONTA"
+    direction: DOWN
+- tapOn: "CRIAR CONTA"
+- assertVisible: "A senha precisa ter pelo menos 8 caracteres."
+- scrollUntilVisible:
+    element:
+      id: signup-password
+    direction: UP
+- tapOn:
+    id: signup-password
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "CRIAR CONTA"
+    direction: DOWN
+- tapOn: "CRIAR CONTA"
+- assertVisible: "As senhas não conferem."
+- scrollUntilVisible:
+    element:
+      id: signup-confirm-password
+    direction: UP
+- tapOn:
+    id: signup-confirm-password
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "CRIAR CONTA"
+    direction: DOWN
+- tapOn: "CRIAR CONTA"
+- assertVisible: "Aceite os termos para criar sua conta."
+- tapOn:
+    id: signup-terms
+- tapOn: "CRIAR CONTA"
+- extendedWaitUntil:
+    visible: "Últimos Alertas"
+    timeout: 30000

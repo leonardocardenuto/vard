@@ -13,7 +13,14 @@ type BackButtonProps = {
 export function BackButton({ gradientLabel = false, label, onPress }: BackButtonProps) {
   return (
     <View style={styles.backHeader}>
-      <Pressable hitSlop={10} onPress={onPress} style={styles.backButton}>
+      <Pressable
+        testID="auth-back"
+        accessibilityLabel="Voltar"
+        accessibilityRole="button"
+        hitSlop={10}
+        onPress={onPress}
+        style={styles.backButton}
+      >
         <Feather color="#101828" name="chevron-left" size={23} />
       </Pressable>
       {label && gradientLabel ? (

@@ -81,6 +81,9 @@ export function BottomNavigationBar({ navigation, state }: BottomTabBarProps) {
           return (
             <Pressable
               key={item.screen}
+              testID={`tab-${item.screen}`}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
               onPress={() => navigation.navigate(item.screen)}
               style={styles.navItem}
             >

@@ -1,0 +1,23 @@
+appId: com.devsilogix.vard
+name: Navegacao - inicio, espacos, analises, ajustes e logout
+---
+- runFlow: ../shared/login.yaml
+- assertVisible: "Nenhum incidente detectado hoje"
+- tapOn:
+    id: tab-Workspace
+- assertVisible: "Escolha o espaço de família"
+- assertVisible: "Casa Maestro"
+- tapOn:
+    id: tab-Insights
+- assertVisible: "Incidentes x dias"
+- tapOn:
+    id: tab-Settings
+- assertVisible: "Nenhum dispositivo conectado"
+- scrollUntilVisible:
+    element:
+      text: "Sair da conta"
+    direction: DOWN
+- tapOn: "Sair da conta"
+- assertVisible: "ACESSAR SUA CONTA"
+- assertNotVisible:
+    id: tab-Settings

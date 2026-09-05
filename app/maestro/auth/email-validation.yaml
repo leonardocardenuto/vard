@@ -1,0 +1,26 @@
+appId: com.devsilogix.vard
+name: Email - obrigatorio, invalido e recuperacao
+---
+- runFlow: ../shared/open-app.yaml
+- tapOn: "CONTINUE"
+- assertVisible: "Informe seu endereço de e-mail."
+- tapOn:
+    id: auth-email
+- inputText: "email-invalido"
+- assertNotVisible: "Informe seu endereço de e-mail."
+- hideKeyboard
+- tapOn: "CONTINUE"
+- assertVisible: ".*Digite um e-mail válido.*"
+- tapOn:
+    id: auth-email
+- eraseText
+- inputText: ${MAESTRO_EMAIL}
+- hideKeyboard
+- tapOn: "CONTINUE"
+- assertVisible:
+    id: auth-password
+- tapOn:
+    id: auth-back
+- assertVisible:
+    id: auth-email
+- assertVisible: ${MAESTRO_EMAIL}

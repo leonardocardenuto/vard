@@ -285,7 +285,7 @@ export function CameraSettingsPanel({
         <View style={styles.futureHeaderSpace} />
         <Text style={styles.title}>Ajustes do Sistema</Text>
         <Text style={styles.subtitle}>
-          Gerencie seus dispositivos e preferencias de seguranca
+          Gerencie seus dispositivos e preferências de segurança
         </Text>
         {workspace ? <Text style={styles.workspaceName}>{workspace.name}</Text> : null}
       </View>
@@ -320,7 +320,7 @@ export function CameraSettingsPanel({
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>Nenhum dispositivo conectado</Text>
               <Text style={styles.emptySubtitle}>
-                Toque no + para cadastrar sua primeira camera.
+                Toque no + para cadastrar sua primeira câmera.
               </Text>
             </View>
           ) : (

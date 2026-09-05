@@ -27,7 +27,7 @@ export function LandingAuthScreen({ onAccessAccount }: LandingAuthScreenProps) {
         <View style={styles.emergencyRow}>
           <EmergencyItem icon="asterisk" label="SAMU" />
           <View style={styles.emergencyDivider} />
-          <EmergencyItem icon="shield-alt" label="POLICIA" />
+          <EmergencyItem icon="shield-alt" label="POLÍCIA" />
           <View style={styles.emergencyDivider} />
           <EmergencyItem icon="fire-alt" label="BOMBEIRO" />
         </View>
