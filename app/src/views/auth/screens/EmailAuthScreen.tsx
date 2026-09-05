@@ -49,12 +49,13 @@ export function EmailAuthScreen({
           y={32}
         />
       </View>
-      <Text style={styles.bodyText}>Monitore a saude de seus familiares por aqui dlsald sldslsada sldalsdlsadlsa!</Text>
+      <Text style={styles.bodyText}>Monitore a saúde de seus familiares por aqui!</Text>
 
       <PaperAuthInput
         autoCapitalize="none"
         keyboardType="email-address"
-        label="Endereco de email"
+        testID="auth-email"
+        label="Endereço de e-mail"
         onChangeText={onChangeEmail}
         onClear={() => onChangeEmail('')}
         value={email}

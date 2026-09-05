@@ -55,7 +55,7 @@ const DEFAULT_ALERT_IMAGE_URL =
 
 const EMERGENCY_PHONE_BY_LABEL: Record<string, string> = {
   "Bombeiro (193)": "193",
-  "Policia (190)": "190",
+  "Polícia (190)": "190",
   "SAMU (192)": "192",
 };
 
@@ -106,7 +106,7 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
       setErrorMessage(
         error instanceof ApiRequestError
           ? error.message
-          : "Nao foi possivel carregar os alertas.",
+          : "Não foi possível carregar os alertas.",
       );
       setAlerts([]);
     } finally {
@@ -191,7 +191,7 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
               <View style={styles.alertTextWrap}>
                 <Text style={styles.alertTitle}>{alert.title}</Text>
                 <Text numberOfLines={1} style={styles.alertMeta}>
-                  {"\u2022"} {alert.room} - Horario: {alert.time}
+                  {"\u2022"} {alert.room} - Horário: {alert.time}
                 </Text>
               </View>
               <Feather color="#757B80" name="chevron-right" size={25} />
@@ -310,18 +310,18 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
             </View>
 
             <Bullet label="Local" value={alert.room} />
-            <Bullet label="Horario" value={alert.time} />
-            <Bullet label="Nivel de precisao" value={`${alert.precision}%`} />
+            <Bullet label="Horário" value={alert.time} />
+            <Bullet label="Nível de precisão" value={`${alert.precision}%`} />
 
             <EmergencyButton label="SAMU (192)" primary />
-            <EmergencyButton label="Policia (190)" />
+            <EmergencyButton label="Polícia (190)" />
             <EmergencyButton label="Bombeiro (193)" />
           </View>
         </View>
 
         {!isValidationAnswered ? (
           <>
-            <Text style={styles.validationTitle}>A deteccao e valida?</Text>
+            <Text style={styles.validationTitle}>A detecção é válida?</Text>
             <View style={styles.validationRow}>
               <Pressable
                 onPress={() => void handleValidate(true)}
@@ -344,7 +344,7 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
                 ]}
               >
                 <Text style={[styles.validationText, styles.validationTextNo]}>
-                  NAO
+                  NÃO
                 </Text>
               </Pressable>
             </View>
@@ -436,7 +436,7 @@ function notificationToAlert(notification: NotificationResponse): AlertItem {
     kind,
     room:
       stringFromPayload(payload, ["room", "location", "camera_name"]) ??
-      "Local nao informado",
+      "Local não informado",
     time: formatAlertTime(notification.created_at),
     precision:
       numberFromPayload(payload, ["precision", "confidence", "accuracy"]) ?? 0,

@@ -45,7 +45,7 @@ export function SignupAuthScreen({
 }: SignupAuthScreenProps) {
   return (
     <ScrollView contentContainerStyle={styles.signupContent} keyboardShouldPersistTaps="handled">
-      <BackButton gradientLabel onPress={onBack} label="Concluir a criacao da conta" />
+      <BackButton gradientLabel onPress={onBack} label="Concluir a criação da conta" />
 
       <Pressable onPress={onPickAvatar} style={styles.avatarPicker}>
         {form.avatarUrl ? (
@@ -59,19 +59,21 @@ export function SignupAuthScreen({
       </Pressable>
 
       <PaperAuthInput
+        testID="signup-first-name"
         label="Primeiro Nome"
         onChangeText={(value) => onChangeField('firstName', value)}
         onClear={() => onChangeField('firstName', '')}
         value={form.firstName}
       />
       <PaperAuthInput
-        label="Ultimo Nome"
+        testID="signup-last-name"
+        label="Último Nome"
         onChangeText={(value) => onChangeField('lastName', value)}
         onClear={() => onChangeField('lastName', '')}
         value={form.lastName}
       />
       <PaperAuthInput
-        label="Data de Aniversario"
+        label="Data de Aniversário"
         editable={false}
         onChangeText={(value) => onChangeField('birthDate', value)}
         onClear={() => {
@@ -83,6 +85,7 @@ export function SignupAuthScreen({
         value={form.birthDate}
       />
       <PaperAuthInput
+        testID="signup-password"
         label="Senha"
         onChangeText={(value) => onChangeField('password', value)}
         onToggleVisibility={onTogglePassword}
@@ -91,6 +94,7 @@ export function SignupAuthScreen({
         value={form.password}
       />
       <PaperAuthInput
+        testID="signup-confirm-password"
         label="Repita sua senha"
         onChangeText={(value) => onChangeField('confirmPassword', value)}
         onToggleVisibility={onTogglePassword}
@@ -99,12 +103,18 @@ export function SignupAuthScreen({
         value={form.confirmPassword}
       />
 
-      <Pressable onPress={onToggleTerms} style={styles.termsRow}>
+      <Pressable
+        testID="signup-terms"
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: acceptedTerms }}
+        onPress={onToggleTerms}
+        style={styles.termsRow}
+      >
         <View style={[styles.checkbox, acceptedTerms && styles.checkboxActive]}>
           {acceptedTerms ? <Feather color="#FFFFFF" name="check" size={12} /> : null}
         </View>
         <Text style={styles.termsRowText}>
-          Ao criar a conta, eu concordo com os <Text style={styles.linkText}>Termos de{'\n'}Servico</Text> e a <Text style={styles.linkText}>Politica de Privacidade.</Text>
+          Ao criar a conta, eu concordo com os <Text style={styles.linkText}>Termos de{'\n'}Serviço</Text> e a <Text style={styles.linkText}>Política de Privacidade.</Text>
         </Text>
       </Pressable>
 
@@ -125,7 +135,7 @@ export function SignupAuthScreen({
         }}
         onDismiss={onDismissBirthDatePicker}
         saveLabel="Salvar"
-        label="Selecione sua data de aniversario"
+        label="Selecione sua data de aniversário"
         visible={isBirthDatePickerOpen}
         validRange={{ endDate: new Date() }}
       />

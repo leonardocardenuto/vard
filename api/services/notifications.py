@@ -17,7 +17,7 @@ def create_fall_detected_notification(
     camera_id: uuid.UUID | None,
     payload: dict[str, Any],
     title: str = "Queda detectada",
-    body: str = "Uma possivel queda foi detectada pela camera.",
+    body: str = "Uma possível queda foi detectada pela câmera.",
     created_by: str = "fall_monitor_worker",
 ) -> Notification:
     notification = Notification(

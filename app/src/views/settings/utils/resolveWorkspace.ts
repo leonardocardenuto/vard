@@ -19,7 +19,7 @@ export async function resolvePrimaryWorkspace({
   const workspace = workspaces[0];
 
   if (!workspace) {
-    throw new ApiRequestError('Crie um workspace antes de adicionar cameras.');
+    throw new ApiRequestError('Crie um workspace antes de adicionar câmeras.');
   }
 
   return workspace;

@@ -112,7 +112,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
       setCameras(await listCameras(accessToken, workspace.id));
     } catch (error) {
       setErrorMessage(
-        error instanceof ApiRequestError ? error.message : 'Nao foi possivel carregar os detalhes.'
+        error instanceof ApiRequestError ? error.message : 'Não foi possível carregar os detalhes.'
       );
     } finally {
       setIsLoading(false);
@@ -153,13 +153,13 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
     try {
       const canOpen = await Linking.canOpenURL(url);
       if (!canOpen) {
-        Alert.alert('Ligacao indisponivel', `Nao foi possivel abrir a ligacao para ${ambulancePhoneNumber}.`);
+        Alert.alert('Ligação indisponível', `Não foi possível abrir a ligação para ${ambulancePhoneNumber}.`);
         return;
       }
 
       await Linking.openURL(url);
     } catch {
-      Alert.alert('Erro ao ligar', `Nao foi possivel iniciar a chamada para ${ambulancePhoneNumber}.`);
+      Alert.alert('Erro ao ligar', `Não foi possível iniciar a chamada para ${ambulancePhoneNumber}.`);
     }
   }
 
@@ -188,7 +188,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
       });
     } catch (error) {
       Alert.alert(
-        'Nao foi possivel abrir a camera',
+        'Não foi possível abrir a câmera',
         error instanceof ApiRequestError ? error.message : 'Tente novamente em instantes.'
       );
     } finally {
@@ -219,7 +219,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
       )
     );
     closeMemberActions();
-    Alert.alert('Permissao atualizada', `${selectedMember.name} agora pode administrar o espaco.`);
+    Alert.alert('Permissão atualizada', `${selectedMember.name} agora pode administrar o espaço.`);
   }
 
   function handleRemoveMember() {
@@ -229,14 +229,14 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
 
     setFamilyMembers((current) => current.filter((member) => member.id !== selectedMember.id));
     closeMemberActions();
-    Alert.alert('Membro removido', `${selectedMember.name} foi removido da familia.`);
+    Alert.alert('Membro removido', `${selectedMember.name} foi removido da família.`);
   }
 
   function handleAddMember() {
     const trimmedPhone = normalizeMemberPhoneNumber(newMemberPhone);
 
     if (!trimmedPhone) {
-      Alert.alert('Informe o numero', 'Digite o numero do membro para adicionar.');
+      Alert.alert('Informe o número', 'Digite o número do membro para adicionar.');
       return;
     }
 
@@ -360,7 +360,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                         {room.name}
                       </Text>
                       <Text numberOfLines={1} style={styles.roomMeta}>
-                        {isOpeningCameraId === room.id ? 'Abrindo camera...' : room.updatedAtLabel}
+                        {isOpeningCameraId === room.id ? 'Abrindo câmera...' : room.updatedAtLabel}
                       </Text>
                     </View>
                   </Pressable>
@@ -375,8 +375,8 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           </View>
 
           <View style={styles.familyHeaderRow}>
-            <Text style={styles.sectionTitle}>Familia e Cuidadores</Text>
-            <Text style={styles.familySubtitle}>Segure um membro para gerenciar permissoes</Text>
+            <Text style={styles.sectionTitle}>Família e Cuidadores</Text>
+            <Text style={styles.familySubtitle}>Segure um membro para gerenciar permissões</Text>
           </View>
 
           <View style={styles.caregivers}>
@@ -409,7 +409,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           {isLoading ? (
             <View style={styles.activityCard}>
               <ActivityIndicator color="#00A8CC" />
-              <Text style={[styles.mutedText, { marginLeft: 10, marginTop: 0 }]}>Sincronizando cameras...</Text>
+              <Text style={[styles.mutedText, { marginLeft: 10, marginTop: 0 }]}>Sincronizando câmeras...</Text>
             </View>
           ) : null}
         </ScrollView>
@@ -418,7 +418,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           <Pressable onPress={closeMemberActions} style={styles.modalOverlay}>
             <Pressable onPress={() => undefined} style={styles.modalCard}>
               <Text style={styles.modalTitle}>{selectedMember?.name ?? 'Membro'}</Text>
-              <Text style={styles.modalSubtitle}>Escolha a acao que deseja aplicar.</Text>
+              <Text style={styles.modalSubtitle}>Escolha a ação que deseja aplicar.</Text>
 
               <Pressable onPress={handlePromoteMember} style={styles.modalActionButton}>
                 <Text style={styles.modalActionText}>Tornar admin</Text>
@@ -439,7 +439,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           <Pressable onPress={() => setIsAddMemberOpen(false)} style={styles.modalOverlay}>
             <Pressable onPress={() => undefined} style={styles.modalCard}>
               <Text style={styles.modalTitle}>Adicionar membro</Text>
-              <Text style={styles.modalSubtitle}>Informe o numero de telefone para preparar o convite.</Text>
+              <Text style={styles.modalSubtitle}>Informe o número de telefone para preparar o convite.</Text>
 
               <TextInput
                 keyboardType="phone-pad"
@@ -499,7 +499,7 @@ export function WorkspaceCameraLiveViewScreen({ navigation, route }: CameraLiveV
             <Text numberOfLines={1} style={styles.cameraLiveTitle}>
               {cameraName}
             </Text>
-            <Text style={styles.cameraLiveSubtitle}>Camera ao vivo</Text>
+            <Text style={styles.cameraLiveSubtitle}>Câmera ao vivo</Text>
           </View>
         </View>
 

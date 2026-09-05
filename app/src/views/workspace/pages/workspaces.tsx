@@ -93,7 +93,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
 
   const loadWorkspaces = useCallback(async () => {
     if (!accessToken) {
-      setErrorMessage('Sessao invalida. Faca login novamente.');
+      setErrorMessage('Sessão inválida. Faça login novamente.');
       setIsLoading(false);
       return;
     }
@@ -105,7 +105,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
       setWorkspaces(uniqueWorkspaces(workspaceList));
     } catch (error) {
       setErrorMessage(
-        error instanceof ApiRequestError ? error.message : 'Nao foi possivel carregar seus espacos.'
+        error instanceof ApiRequestError ? error.message : 'Não foi possível carregar seus espaços.'
       );
     } finally {
       setIsLoading(false);
@@ -165,7 +165,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         setWorkspaces((current) => current.filter((workspace) => workspace.id !== deleteWorkspaceTarget.id));
       } catch (error) {
         Alert.alert(
-          'Nao foi possivel excluir',
+          'Não foi possível excluir',
           error instanceof ApiRequestError ? error.message : 'Tente novamente em instantes.'
         );
       } finally {
@@ -208,7 +208,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
               text="Espaços"
               width={160}
             />
-            <Text style={styles.subtitle}>Escolha o espaco de familia</Text>
+            <Text style={styles.subtitle}>Escolha o espaço de família</Text>
           </View>
 
           <Pressable
@@ -248,7 +248,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
             />
             <Text style={styles.emptyTitle}>Nenhum workspace cadastrado</Text>
             <Text style={styles.emptyText}>
-              Toque no + para criar o primeiro espaco monitorado.
+              Toque no + para criar o primeiro espaço monitorado.
             </Text>
           </View>
         ) : (
@@ -295,7 +295,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
                   {menuWorkspace?.id === workspace.id ? (
                     <View style={styles.menuCardInline}>
                       <Text style={styles.menuTitle}>{workspace.name}</Text>
-                      <Text style={styles.menuSubtitle}>Escolha uma acao para este espaco.</Text>
+                      <Text style={styles.menuSubtitle}>Escolha uma ação para este espaço.</Text>
 
                       <Pressable onPress={handleEditWorkspace} style={styles.menuItem}>
                         <Feather color="#475467" name="edit-3" size={16} />
@@ -385,7 +385,7 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
       navigation.replace('WorkspaceDetails', { accessToken, workspace });
     } catch (error) {
       setErrorMessage(
-        error instanceof ApiRequestError ? error.message : 'Nao foi possivel criar o workspace.'
+        error instanceof ApiRequestError ? error.message : 'Não foi possível criar o workspace.'
       );
     } finally {
       setIsSaving(false);
@@ -402,7 +402,7 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
       onBackPress={() => navigation.goBack()}
       onSubmit={handleSave}
       submitDisabled={isSaving}
-      subtitle="Crie um espaço para organizar cameras, alertas e cuidadores."
+      subtitle="Crie um espaço para organizar câmeras, alertas e cuidadores."
       title="Novo Espaço"
       errorMessage={errorMessage}
     >
@@ -414,8 +414,9 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
       <View style={styles.formCard}>
         <Text style={styles.inputLabel}>Nome do Workspace</Text>
         <TextInput
+          testID="workspace-name"
           onChangeText={setName}
-          placeholder="Ex.: Casa da Familia"
+          placeholder="Ex.: Casa da Família"
           placeholderTextColor="#98A2B3"
           style={styles.input}
           value={name}
@@ -459,7 +460,7 @@ function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
       navigation.replace('WorkspaceDetails', { accessToken, workspace: updatedWorkspace });
     } catch (error) {
       setErrorMessage(
-        error instanceof ApiRequestError ? error.message : 'Nao foi possivel atualizar o workspace.'
+        error instanceof ApiRequestError ? error.message : 'Não foi possível atualizar o workspace.'
       );
     } finally {
       setIsSaving(false);
@@ -484,8 +485,9 @@ function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
       <View style={styles.formCard}>
         <Text style={styles.inputLabel}>Nome do Workspace</Text>
         <TextInput
+          testID="workspace-name"
           onChangeText={setName}
-          placeholder="Ex.: Casa da Familia"
+          placeholder="Ex.: Casa da Família"
           placeholderTextColor="#98A2B3"
           style={styles.input}
           value={name}
@@ -526,7 +528,7 @@ async function pickWorkspaceAvatar(
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
   if (!permission.granted) {
-    Alert.alert('Permissao necessaria', 'Permita acesso às suas fotos para escolher a imagem do workspace.');
+    Alert.alert('Permissão necessária', 'Permita acesso às suas fotos para escolher a imagem do workspace.');
     return;
   }
 

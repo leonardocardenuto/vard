@@ -5,6 +5,7 @@ import { TextInput } from 'react-native-paper';
 import { styles } from '../auth_screen';
 
 type PaperAuthInputProps = {
+  testID?: string;
   label: string;
   onChangeText: (value: string) => void;
   value: string;
@@ -20,6 +21,7 @@ type PaperAuthInputProps = {
 };
 
 export function PaperAuthInput({
+  testID,
   label,
   onChangeText,
   value,
@@ -37,6 +39,7 @@ export function PaperAuthInput({
 
   return (
     <TextInput
+      testID={testID}
       autoCapitalize={autoCapitalize}
       editable={editable}
       keyboardType={keyboardType}

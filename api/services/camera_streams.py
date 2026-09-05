@@ -143,7 +143,7 @@ def ensure_camera_stream(camera: Camera, timeout_seconds: float = 8.0) -> str:
             break
         time.sleep(0.25)
 
-    raise RuntimeError("Nao foi possivel iniciar o stream HLS da camera.")
+    raise RuntimeError("Não foi possível iniciar o stream HLS da câmera.")
 
 
 def stop_camera_stream(camera_id: uuid.UUID) -> None:

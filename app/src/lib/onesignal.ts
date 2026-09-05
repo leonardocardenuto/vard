@@ -65,6 +65,9 @@ async function waitForOneSignalSubscriptionId(oneSignalModule: Awaited<ReturnTyp
 
 export async function getOneSignalSubscriptionId() {
   await initializeOneSignal();
+  if (!isInitialized) {
+    return null;
+  }
 
   const oneSignalModule = await loadOneSignal();
   return waitForOneSignalSubscriptionId(oneSignalModule);
@@ -72,6 +75,9 @@ export async function getOneSignalSubscriptionId() {
 
 export async function identifyOneSignalUser(userId: string) {
   await initializeOneSignal();
+  if (!isInitialized) {
+    return null;
+  }
 
   const oneSignalModule = await loadOneSignal();
   if (!oneSignalModule) {

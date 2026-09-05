@@ -138,3 +138,16 @@ vard/
 ├── scripts/      # utilitários e migration runner
 └── tests/        # testes e utilitários de ML
 ```
+
+## Testes automatizados do app (Maestro)
+
+Com o emulador Android e o development build instalados:
+
+```sh
+cd app
+npm run test:e2e
+```
+
+A suíte prepara uma API e um banco descartáveis, executa autenticação, cadastro,
+navegação e criação de workspace e salva relatórios JUnit. Consulte
+[pré-requisitos, casos e relatórios](app/maestro/README.md).

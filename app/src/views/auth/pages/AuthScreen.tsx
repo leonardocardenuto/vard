@@ -73,7 +73,7 @@ export function AuthScreen() {
 
   async function handleEmailContinue() {
     if (!normalizedEmail) {
-      setErrorMessage('Informe seu endereco de email.');
+      setErrorMessage('Informe seu endereço de e-mail.');
       return;
     }
 
@@ -89,9 +89,9 @@ export function AuthScreen() {
       }
     } catch (error) {
       if (error instanceof ApiRequestError && error.message === 'Not Found') {
-        setErrorMessage('Nao foi possivel verificar esse email. Atualize a API e tente novamente.');
+        setErrorMessage('Não foi possível verificar esse e-mail. Atualize a API e tente novamente.');
       } else {
-        setErrorMessage(error instanceof Error ? error.message : 'Nao foi possivel verificar seu email.');
+        setErrorMessage(error instanceof Error ? error.message : 'Não foi possível verificar seu e-mail.');
       }
     } finally {
       setIsSubmitting(false);
@@ -136,7 +136,7 @@ export function AuthScreen() {
         await updateMyOneSignalSubscription(accessToken, subscriptionId);
       }
     } catch (error) {
-      console.warn('Nao foi possivel registrar o OneSignal para este usuario.', error);
+      console.warn('Não foi possível registrar o OneSignal para este usuário.', error);
     }
   }
 
@@ -153,7 +153,7 @@ export function AuthScreen() {
       const response = await login({ email: normalizedEmail, password: password.trim() });
       await finishAuth(response.access_token);
     } catch (error) {
-      setErrorMessage(error instanceof ApiRequestError ? error.message : 'Nao foi possivel entrar.');
+      setErrorMessage(error instanceof ApiRequestError ? error.message : 'Não foi possível entrar.');
     } finally {
       setIsSubmitting(false);
     }
@@ -169,7 +169,7 @@ export function AuthScreen() {
       return;
     }
     if (signupForm.password !== signupForm.confirmPassword) {
-      setErrorMessage('As senhas nao conferem.');
+      setErrorMessage('As senhas não conferem.');
       return;
     }
     if (!acceptedTerms) {
@@ -191,9 +191,9 @@ export function AuthScreen() {
       await finishAuth(response.access_token, signupForm.avatarUrl);
     } catch (error) {
       if (error instanceof ApiRequestError && error.message.includes('cadastrado')) {
-        setErrorMessage('Esse email ja esta cadastrado. Volte e entre com sua senha.');
+        setErrorMessage('Esse e-mail já está cadastrado. Volte e entre com sua senha.');
       } else {
-        setErrorMessage(error instanceof Error ? error.message : 'Nao foi possivel criar sua conta.');
+        setErrorMessage(error instanceof Error ? error.message : 'Não foi possível criar sua conta.');
       }
     } finally {
       setIsSubmitting(false);
@@ -204,7 +204,7 @@ export function AuthScreen() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert('Permissao necessaria', 'Permita acesso as suas fotos para escolher uma imagem de perfil.');
+      Alert.alert('Permissão necessária', 'Permita acesso às suas fotos para escolher uma imagem de perfil.');
       return;
     }
 
