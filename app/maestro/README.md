@@ -12,6 +12,12 @@ O runner Android usa o app e a API FastAPI reais, sem mocks ou credenciais reais
 - Em `app/`, execute `npm ci` e instale o development build com
   `npx expo run:android`. O emulador deve estar ligado.
 
+O runner procura Docker, Maestro e Android SDK também nos diretórios padrão
+de instalação quando o terminal que executa `npm` tem um `PATH` reduzido.
+O Docker Desktop precisa estar aberto. `ANDROID_HOME` e `ANDROID_SDK_ROOT`
+podem indicar uma instalação personalizada do SDK; ferramentas já presentes
+no `PATH` continuam tendo prioridade. Isso não altera a configuração do shell.
+
 ## Executar
 
 Dentro de `app/`:

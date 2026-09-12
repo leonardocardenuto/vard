@@ -63,17 +63,20 @@ class UserResponse(UserBase):
 
 
 class WorkspaceCreate(BaseModel):
+    image_url: str | None = Field(default=None, max_length=7_000_000)
     name: str = Field(min_length=1, max_length=200)
     slug: str = Field(min_length=2, max_length=80, pattern=r"^[a-z0-9-]+$")
     timezone: str = "UTC"
 
 
 class WorkspaceUpdate(BaseModel):
+    image_url: str | None = Field(default=None, max_length=7_000_000)
     name: str | None = None
     timezone: str | None = None
 
 
 class WorkspaceResponse(BaseModel):
+    image_url: str | None = Field(default=None, max_length=7_000_000)
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
