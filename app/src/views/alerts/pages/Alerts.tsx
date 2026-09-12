@@ -31,6 +31,7 @@ import {
   ApiRequestError,
   NotificationResponse,
   getNotification,
+  listFallEvents,
   listNotifications,
   listWorkspaces,
   updateNotification,
@@ -96,12 +97,24 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
       setErrorMessage("");
       setIsLoading(true);
       const workspaces = await listWorkspaces(accessToken);
-      const notificationsByWorkspace = await Promise.all(
+      const historyByWorkspace = await Promise.all(
         workspaces.map((workspace) =>
-          listNotifications(accessToken, workspace.id),
+          Promise.all([
+            listNotifications(accessToken, workspace.id),
+            listFallEvents(accessToken, workspace.id),
+          ]),
         ),
       );
-      setAlerts(notificationsByWorkspace.flat().map(notificationToAlert));
+      const occurredAtByNotification = new Map<string, string>();
+      const notifications = historyByWorkspace.flatMap(([workspaceNotifications, fallEvents]) => {
+        fallEvents.forEach((event) => {
+          if (event.notification_id) {
+            occurredAtByNotification.set(event.notification_id, event.occurred_at);
+          }
+        });
+        return workspaceNotifications;
+      });
+      setAlerts(notifications.map((notification) => notificationToAlert(notification, occurredAtByNotification)));
     } catch (error) {
       setErrorMessage(
         error instanceof ApiRequestError
@@ -419,7 +432,10 @@ function renderAlertIcon(kind: AlertItem["kind"], size: number) {
   return <Ionicons color="#019BDE" name="notifications-outline" size={size} />;
 }
 
-function notificationToAlert(notification: NotificationResponse): AlertItem {
+function notificationToAlert(
+  notification: NotificationResponse,
+  occurredAtByNotification: Map<string, string>,
+): AlertItem {
   const payload = notification.payload ?? {};
   const rawTitle =
     notification.title || notification.notification_type || "Alert";
@@ -437,7 +453,7 @@ function notificationToAlert(notification: NotificationResponse): AlertItem {
     room:
       stringFromPayload(payload, ["room", "location", "camera_name"]) ??
       "Local não informado",
-    time: formatAlertTime(notification.created_at),
+    time: formatAlertTime(occurredAtByNotification.get(notification.id) ?? notification.created_at),
     precision:
       numberFromPayload(payload, ["precision", "confidence", "accuracy"]) ?? 0,
     imageUrl:
