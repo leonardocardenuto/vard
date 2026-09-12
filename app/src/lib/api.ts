@@ -73,6 +73,14 @@ export type NotificationResponse = {
   created_at: string;
 };
 
+export type FallEventResponse = {
+  id: string;
+  workspace_id: string;
+  camera_id: string | null;
+  notification_id: string | null;
+  occurred_at: string;
+};
+
 type WorkspaceCreatePayload = {
   image_url?: string | null;
   name: string;
@@ -357,6 +365,11 @@ export async function listCameras(token: string, workspaceId: string) {
 export async function listNotifications(token: string, workspaceId: string) {
   const query = new URLSearchParams({ workspace_id: workspaceId });
   return requestWithToken<NotificationResponse[]>(`/notifications?${query.toString()}`, token);
+}
+
+export async function listFallEvents(token: string, workspaceId: string) {
+  const query = new URLSearchParams({ workspace_id: workspaceId });
+  return requestWithToken<FallEventResponse[]>(`/fall-events?${query.toString()}`, token);
 }
 
 export async function getNotification(token: string, notificationId: string) {

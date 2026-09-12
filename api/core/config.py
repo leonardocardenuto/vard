@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     onesignal_app_id: str | None = Field(default=None, alias="ONESIGNAL_APP_ID")
     onesignal_api_key: str | None = Field(default=None, alias="ONESIGNAL_API_KEY")
 
+    # A comma-separated set of urlsafe base64 Fernet keys. The first key encrypts
+    # new records; the remaining keys allow a key rotation without losing history.
+    fall_event_encryption_keys: str = Field("", alias="FALL_EVENT_ENCRYPTION_KEYS")
+
     fall_monitor_enabled: bool = Field(False, alias="FALL_MONITOR_ENABLED")
     fall_monitor_checkpoint: str = Field(
         "var/best_vjepa2_fall_classifier_combined.pt",

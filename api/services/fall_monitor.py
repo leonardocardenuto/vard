@@ -312,7 +312,6 @@ class CameraMonitorJob:
                     prediction=prediction,
                     smoothing=smoothing,
                     inference_count=inference_count,
-                    timestamp=timestamp,
                 )
         except Exception as exc:
             self.failed_at = time.monotonic()
@@ -327,7 +326,11 @@ class CameraMonitorJob:
             if not self._stop_event.is_set():
                 self._update_camera_status("offline")
 
-    def _create_notification(self, *, prediction: dict, smoothing, inference_count: int, timestamp: float):
+    def _create_notification(self, *, prediction: dict, smoothing, inference_count: int):
+        from datetime import UTC, datetime
+
+        from api.services.fall_events import record_fall_event
+
         payload = {
             "camera_id": str(self.spec.camera_id),
             "workspace_id": str(self.spec.workspace_id),
@@ -340,10 +343,15 @@ class CameraMonitorJob:
             "threshold": self.spec.config.threshold,
             "moving_average": float(smoothing.moving_average),
             "consecutive_hits": int(smoothing.consecutive_hits),
-            "monitor_timestamp": float(timestamp),
         }
         with SessionLocal() as db:
-            create_fall_detected_notification(
+            event = record_fall_event(
+                db,
+                workspace_id=self.spec.workspace_id,
+                camera_id=self.spec.camera_id,
+                occurred_at=datetime.now(UTC),
+            )
+            notification = create_fall_detected_notification(
                 db,
                 workspace_id=self.spec.workspace_id,
                 camera_id=self.spec.camera_id,
@@ -351,6 +359,8 @@ class CameraMonitorJob:
                 body=f"Uma possível queda foi detectada pela câmera {self.spec.name}.",
                 created_by="fall_monitor_job",
             )
+            event.notification_id = notification.id
+            db.commit()
         LOGGER.warning(
             "fall monitor notification created: camera_id=%s fall=%.4f",
             self.spec.camera_id,

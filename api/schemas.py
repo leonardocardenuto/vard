@@ -191,3 +191,11 @@ class NotificationResponse(BaseModel):
     payload: dict
     created_by: str
     created_at: datetime
+
+
+class FallEventResponse(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    camera_id: uuid.UUID | None
+    notification_id: uuid.UUID | None
+    occurred_at: datetime
