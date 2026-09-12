@@ -9,6 +9,28 @@ DEVICE="${MAESTRO_DEVICE:-emulator-5554}"
 OUTPUT_DIR="$MAESTRO_DIR/results/$(date +%Y%m%d-%H%M%S)-$$"
 COMPOSE=(docker compose -p vard-maestro -f "$MAESTRO_DIR/compose.yaml")
 
+# npm can run with a different PATH than an interactive terminal. Keep the
+# caller's tools first and fall back to standard local installation paths.
+add_tool_path() {
+  [[ -d "$1" ]] || return 0
+  case ":$PATH:" in
+    *":$1:"*) ;;
+    *) export PATH="$PATH:$1" ;;
+  esac
+}
+if [[ -n "${npm_node_execpath:-}" && -x "$npm_node_execpath" ]]; then
+  add_tool_path "$(dirname "$npm_node_execpath")"
+fi
+add_tool_path /usr/local/bin
+add_tool_path /opt/homebrew/bin
+add_tool_path /Applications/Docker.app/Contents/Resources/bin
+add_tool_path "$HOME/.docker/bin"
+add_tool_path "$HOME/.maestro/bin"
+[[ -z "${ANDROID_HOME:-}" ]] || add_tool_path "$ANDROID_HOME/platform-tools"
+[[ -z "${ANDROID_SDK_ROOT:-}" ]] || add_tool_path "$ANDROID_SDK_ROOT/platform-tools"
+add_tool_path "$HOME/Library/Android/sdk/platform-tools"
+add_tool_path "$HOME/Android/Sdk/platform-tools"
+
 case "$CASE" in
   all) FLOWS=(auth/email-validation.yaml auth/login-validation.yaml auth/signup.yaml navigation/tabs-and-logout.yaml workspace/create.yaml) ;;
   email) FLOWS=(auth/email-validation.yaml) ;;
@@ -21,6 +43,14 @@ esac
 for command in docker maestro adb node curl; do
   command -v "$command" >/dev/null || { echo "Comando ausente: $command" >&2; exit 1; }
 done
+docker info >/dev/null 2>&1 || {
+  echo 'Docker instalado, mas o daemon não está acessível. Inicie o Docker Desktop e tente novamente.' >&2
+  exit 1
+}
+docker compose version >/dev/null 2>&1 || {
+  echo 'Docker Compose indisponível. Instale o plugin Compose ou atualize o Docker Desktop.' >&2
+  exit 1
+}
 [[ -x "$PYTHON" ]] || { echo 'Instale requirements-api.txt em .venv ou defina MAESTRO_PYTHON.' >&2; exit 1; }
 [[ -f "$ROOT_DIR/app/node_modules/expo/bin/cli" ]] || { echo 'Execute npm ci em app/ antes de testar.' >&2; exit 1; }
 adb -s "$DEVICE" get-state >/dev/null

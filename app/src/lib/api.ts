@@ -21,6 +21,7 @@ type EmailCheckResponse = {
 };
 
 export type WorkspaceResponse = {
+  image_url?: string | null;
   id: string;
   name: string;
   slug: string;
@@ -73,6 +74,7 @@ export type NotificationResponse = {
 };
 
 type WorkspaceCreatePayload = {
+  image_url?: string | null;
   name: string;
   slug: string;
   timezone?: string;

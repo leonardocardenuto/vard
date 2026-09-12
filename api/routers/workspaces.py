@@ -38,6 +38,7 @@ def create_workspace(
 
     workspace = Workspace(
         name=payload.name,
+        image_url=payload.image_url,
         slug=payload.slug,
         timezone=payload.timezone,
         created_by_user_id=current_user.id,

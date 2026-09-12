@@ -66,7 +66,7 @@ export function EmailAuthScreen({
       <GradientButton disabled={isSubmitting} label={isSubmitting ? 'VERIFICANDO...' : 'CONTINUE'} onPress={onContinue} />
 
       <View style={styles.emailSpacer} />
-      <Text style={styles.orText}>or continue with</Text>
+      <Text style={styles.orText}>ou continuar com</Text>
       <View style={styles.googleButton}>
         <Text style={styles.googleIcon}>G</Text>
         <Text style={styles.googleText}>Continue with Google</Text>

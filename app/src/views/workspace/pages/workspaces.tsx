@@ -3,6 +3,7 @@ import { RouteProp, useFocusEffect, useNavigation, useRoute } from '@react-navig
 import { createNativeStackNavigator, NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFonts } from 'expo-font';
 import * as ImagePicker from 'expo-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
@@ -274,7 +275,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
               >
                 <View style={styles.workspaceImageWrap}>
                   <Image
-                    source={{ uri: imageForWorkspace(index) }}
+                    source={{ uri: workspace.image_url || imageForWorkspace(index) }}
                     style={styles.workspaceImage}
                   />
                   <Pressable
@@ -354,6 +355,7 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
   const [name, setName] = useState(userName ? `Casa de ${userName}` : '');
   const [timezone, setTimezone] = useState('America/Sao_Paulo');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isPickingImage, setIsPickingImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const fontsLoaded = useWorkspaceFonts();
@@ -381,6 +383,7 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
         name: trimmedName,
         slug,
         timezone: trimmedTimezone,
+        image_url: avatarUrl,
       });
       navigation.replace('WorkspaceDetails', { accessToken, workspace });
     } catch (error) {
@@ -401,19 +404,25 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
       buttonLabel={isSaving ? 'Criando...' : 'Criar workspace'}
       onBackPress={() => navigation.goBack()}
       onSubmit={handleSave}
-      submitDisabled={isSaving}
+      submitDisabled={isSaving || isPickingImage}
       subtitle="Crie um espaço para organizar câmeras, alertas e cuidadores."
-      title="Novo Espaço"
+      title="Novo espaço"
       errorMessage={errorMessage}
     >
       <WorkspaceAvatarButton
         avatarUrl={avatarUrl}
-        onPress={() => void pickWorkspaceAvatar(setAvatarUrl, setErrorMessage)}
+        disabled={isSaving || isPickingImage}
+        isPicking={isPickingImage}
+        onRemove={() => setAvatarUrl(null)}
+        onPress={() => void pickWorkspaceAvatar(setAvatarUrl, setErrorMessage, setIsPickingImage)}
       />
 
       <View style={styles.formCard}>
-        <Text style={styles.inputLabel}>Nome do Workspace</Text>
+        <Text style={styles.inputLabel}>Nome do espaço</Text>
         <TextInput
+          accessibilityLabel="Nome do espaço"
+          editable={!isSaving}
+          maxLength={200}
           testID="workspace-name"
           onChangeText={setName}
           placeholder="Ex.: Casa da Família"
@@ -429,7 +438,9 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
 function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
   const { accessToken, userEmail, userName, workspace } = route.params;
   const [name, setName] = useState(workspace.name);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(workspace.image_url ?? null);
   const [timezone, setTimezone] = useState(workspace.timezone);
+  const [isPickingImage, setIsPickingImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const fontsLoaded = useWorkspaceFonts();
@@ -456,6 +467,7 @@ function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
       const updatedWorkspace = await updateWorkspace(accessToken, workspace.id, {
         name: trimmedName,
         timezone: trimmedTimezone,
+        image_url: avatarUrl,
       });
       navigation.replace('WorkspaceDetails', { accessToken, workspace: updatedWorkspace });
     } catch (error) {
@@ -476,15 +488,25 @@ function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
       buttonLabel={isSaving ? 'Salvando...' : 'Salvar alterações'}
       onBackPress={() => navigation.goBack()}
       onSubmit={handleSave}
-      submitDisabled={isSaving}
-      subtitle={`Edite o espaço "${workspace.name}" antes de salvar no backend.`}
-      title="Editar Espaço"
+      submitDisabled={isSaving || isPickingImage}
+      subtitle="Atualize o nome e a foto do seu espaço."
+      title="Editar espaço"
       errorMessage={errorMessage}
     >
 
+      <WorkspaceAvatarButton
+        avatarUrl={avatarUrl}
+        disabled={isSaving || isPickingImage}
+        isPicking={isPickingImage}
+        onRemove={() => setAvatarUrl(null)}
+        onPress={() => void pickWorkspaceAvatar(setAvatarUrl, setErrorMessage, setIsPickingImage)}
+      />
       <View style={styles.formCard}>
-        <Text style={styles.inputLabel}>Nome do Workspace</Text>
+        <Text style={styles.inputLabel}>Nome do espaço</Text>
         <TextInput
+          accessibilityLabel="Nome do espaço"
+          editable={!isSaving}
+          maxLength={200}
           testID="workspace-name"
           onChangeText={setName}
           placeholder="Ex.: Casa da Família"
@@ -497,71 +519,73 @@ function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
   );
 }
 
-function WorkspaceAvatarButton({
-  avatarUrl,
-  onPress,
-}: {
+function WorkspaceAvatarButton({ avatarUrl, onPress, onRemove, disabled, isPicking }: {
   avatarUrl: string | null;
   onPress: () => void;
+  onRemove: () => void;
+  disabled: boolean;
+  isPicking: boolean;
 }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.avatarWrap}>
-      <View style={styles.avatarCircle}>
-        {avatarUrl ? (
-          <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-        ) : (
-          <Feather color="#A3AAB5" name="camera" size={40} />
+    <View style={styles.photoSection}>
+      <Text style={styles.inputLabel}>Foto de capa</Text>
+      <Pressable testID="workspace-photo" accessibilityRole="button"
+        accessibilityLabel={avatarUrl ? 'Trocar foto do espaço' : 'Selecionar foto do espaço'}
+        accessibilityState={{ disabled, busy: isPicking }} disabled={disabled} onPress={onPress}
+        style={({ pressed }) => [styles.photoPreview, (pressed || disabled) && styles.pressed]}>
+        {avatarUrl ? <Image source={{ uri: avatarUrl }} resizeMode="cover" style={styles.avatarImage} /> : (
+          <View style={styles.photoPlaceholder}>
+            <View style={styles.photoIcon}><Feather color="#019BDE" name="image" size={24} /></View>
+            <Text style={styles.photoTitle}>Escolher foto</Text>
+            <Text style={styles.avatarHintText}>Selecione uma imagem da galeria</Text>
+          </View>
         )}
-        <View style={styles.avatarPlusBubble}>
-          <Text style={styles.avatarPlusBubbleText}>+</Text>
-        </View>
-      </View>
-      <Text style={styles.avatarHintText}>Selecionar foto</Text>
-    </Pressable>
+        {isPicking ? <View style={styles.photoLoading}><ActivityIndicator color="#019BDE" /></View> : null}
+      </Pressable>
+      {avatarUrl ? <View style={styles.photoActions}>
+        <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={styles.photoAction}>
+          <Feather name="image" size={18} color="#019BDE" /><Text style={styles.photoActionText}>Trocar foto</Text>
+        </Pressable>
+        <Pressable testID="workspace-photo-remove" accessibilityRole="button" disabled={disabled} onPress={onRemove} style={styles.photoAction}>
+          <Feather name="trash-2" size={18} color="#B42318" /><Text style={styles.photoRemoveText}>Remover</Text>
+        </Pressable>
+      </View> : null}
+    </View>
   );
 }
 
 async function pickWorkspaceAvatar(
   setAvatarUrl: (value: string | null) => void,
-  setErrorMessage: (value: string) => void
+  setErrorMessage: (value: string) => void,
+  setIsPicking: (value: boolean) => void,
 ) {
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-  if (!permission.granted) {
-    Alert.alert('Permissão necessária', 'Permita acesso às suas fotos para escolher a imagem do workspace.');
-    return;
-  }
-
-  const result = await ImagePicker.launchImageLibraryAsync({
-    allowsEditing: true,
-    aspect: [1, 1],
-    base64: true,
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    quality: 0.72,
-  });
-
-  if (result.canceled || !result.assets[0]) {
-    return;
-  }
-
-  const asset = result.assets[0];
-  const workspaceAvatarUrl = asset.base64
-    ? `data:${asset.mimeType ?? 'image/jpeg'};base64,${asset.base64}`
-    : asset.uri;
-
+  setIsPicking(true);
   setErrorMessage('');
-  setAvatarUrl(workspaceAvatarUrl);
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [16, 9],
+      base64: true,
+      mediaTypes: ['images'],
+      quality: 0.72,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (!asset.base64) throw new Error('Não foi possível ler a foto. Escolha outra imagem.');
+    // Native picker returns JPEG; web preserves the selected file format.
+    const mimeType = Platform.OS === 'web' ? (asset.mimeType || 'image/jpeg') : 'image/jpeg';
+    const image = `data:${mimeType};base64,${asset.base64}`;
+    if (image.length > 7_000_000) throw new Error('A foto é muito grande. Escolha uma imagem menor que 5 MB.');
+    setAvatarUrl(image);
+  } catch (error) {
+    setErrorMessage(error instanceof Error ? error.message : 'Não foi possível abrir a galeria. Tente novamente.');
+  } finally {
+    setIsPicking(false);
+  }
 }
 
 function WorkspaceFormLayout({
-  buttonLabel,
-  children,
-  errorMessage,
-  onBackPress,
-  onSubmit,
-  submitDisabled,
-  subtitle,
-  title,
+  buttonLabel, children, errorMessage, onBackPress, onSubmit, submitDisabled, subtitle, title,
 }: {
   buttonLabel: string;
   children: React.ReactNode;
@@ -572,39 +596,48 @@ function WorkspaceFormLayout({
   subtitle: string;
   title: string;
 }) {
+  const insets = useSafeAreaInsets();
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.formScreenContent} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={72 + insets.top}
+      style={[styles.formScreen, { paddingBottom: 64 + Math.max(insets.bottom, 10) }]}
+    >
+      <ScrollView contentContainerStyle={styles.formScreenContent}
+        keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.formHeader}>
-          <Pressable onPress={onBackPress} style={styles.backButton}>
-            <Feather color="#111827" name="chevron-left" size={20} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={onBackPress}
+            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+            <Feather color="#344054" name="arrow-left" size={21} />
           </Pressable>
-          <View style={styles.formHeaderText}>
-            <Text style={styles.titleSmall}>{title}</Text>
-            <Text style={styles.subtitle}>{subtitle}</Text>
-          </View>
+          <Text accessibilityRole="header" style={styles.formTitle}>{title}</Text>
+          <View style={styles.headerBalance} />
         </View>
-
-        {children}
-
-        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-
-        <Pressable
-          disabled={submitDisabled}
-          onPress={onSubmit}
-          style={({ pressed }) => [styles.primaryButton, (pressed || submitDisabled) && styles.pressed]}
-        >
-          <ExpoLinearGradient
-            colors={WORKSPACE_GRADIENT_COLORS}
-            locations={WORKSPACE_GRADIENT_LOCATIONS}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.primaryButtonGradient}
-          >
-            <Text style={styles.primaryButtonText}>{buttonLabel}</Text>
-          </ExpoLinearGradient>
-        </Pressable>
+        <Text style={styles.formDescription}>{subtitle}</Text>
+        <View style={styles.formBody}>{children}</View>
+        {errorMessage ? <Text accessibilityLiveRegion="polite" style={styles.errorText}>{errorMessage}</Text> : null}
       </ScrollView>
+      <View style={styles.formFooter}>
+        <View style={styles.footerContent}>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: submitDisabled }}
+            testID="workspace-save" disabled={submitDisabled} onPress={onSubmit}
+            style={({ pressed }) => [styles.primaryButton, (pressed || submitDisabled) && styles.pressed]}>
+            <ExpoLinearGradient
+              colors={WORKSPACE_GRADIENT_COLORS}
+              locations={WORKSPACE_GRADIENT_LOCATIONS}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.primaryButtonGradient}
+            >
+              <Text style={styles.primaryButtonText}>{buttonLabel}</Text>
+            </ExpoLinearGradient>
+          </Pressable>
+          <Pressable accessibilityRole="button" disabled={submitDisabled} onPress={onBackPress}
+            style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
+            <Text style={styles.cancelButtonText}>Cancelar</Text>
+          </Pressable>
+        </View>
+      </View>
     </KeyboardAvoidingView>
   );
 }
