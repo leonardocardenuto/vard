@@ -16,6 +16,7 @@ import {
   updateMyOneSignalSubscription,
 } from '../../../lib/api';
 import { identifyOneSignalUser } from '../../../lib/onesignal';
+import { prepareFallHistoryKey } from '../../../lib/fallHistoryCrypto';
 import { RootStackParamList } from '../../../navigation/types';
 import { EmailAuthScreen } from '../screens/EmailAuthScreen';
 import { LandingAuthScreen } from '../screens/LandingAuthScreen';
@@ -106,8 +107,17 @@ export function AuthScreen() {
     setStep('signup');
   }
 
-  async function finishAuth(accessToken: string, fallbackAvatarUrl?: string) {
+  async function finishAuth(accessToken: string, fallbackAvatarUrl?: string, passwordForRecovery?: string) {
     const me = await getMe(accessToken);
+    if (passwordForRecovery) {
+      try {
+        // The camera history is decrypted locally. Wait until this device has
+        // restored its private key before opening the live camera screen.
+        await prepareFallHistoryKey(accessToken, me.id, passwordForRecovery);
+      } catch (error) {
+        console.warn('Não foi possível preparar a chave do histórico de quedas.', error);
+      }
+    }
     await syncOneSignalSubscription(accessToken, me.id);
 
     const resolvedName = me.full_name?.trim() || me.email;
@@ -151,7 +161,7 @@ export function AuthScreen() {
 
     try {
       const response = await login({ email: normalizedEmail, password: password.trim() });
-      await finishAuth(response.access_token);
+      await finishAuth(response.access_token, undefined, password.trim());
     } catch (error) {
       setErrorMessage(error instanceof ApiRequestError ? error.message : 'Não foi possível entrar.');
     } finally {
@@ -188,7 +198,7 @@ export function AuthScreen() {
         birth_date: signupForm.birthDateIso || undefined,
         full_name: fullName,
       });
-      await finishAuth(response.access_token, signupForm.avatarUrl);
+      await finishAuth(response.access_token, signupForm.avatarUrl, signupForm.password);
     } catch (error) {
       if (error instanceof ApiRequestError && error.message.includes('cadastrado')) {
         setErrorMessage('Esse e-mail já está cadastrado. Volte e entre com sua senha.');

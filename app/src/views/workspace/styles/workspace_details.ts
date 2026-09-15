@@ -390,9 +390,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   cameraLiveViewerCard: {
+    aspectRatio: 16 / 9,
     backgroundColor: '#000000',
-    borderRadius: 18,
-    height: 260,
+    borderRadius: 16,
+    borderColor: '#D0D5DD',
+    borderWidth: 1,
     overflow: 'hidden',
   },
   cameraLiveWebview: {

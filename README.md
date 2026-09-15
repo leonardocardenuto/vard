@@ -128,6 +128,30 @@ Os endpoints `GET` autenticados usam Redis para cache por usuário, sem expiraç
 
 O fluxo de inferência contínua com vídeo local, webcam ou câmera RTSP/IP está documentado em `docs/fall_detection.md`.
 
+### Demo com webcam local
+
+O CLI de jobs mantém o comportamento normal por padrão: ele monitora somente as
+câmeras ativas já cadastradas. Para preparar uma demonstração local com webcam,
+use o modo explícito `--demo`:
+
+```bash
+python -m scripts.run_fall_monitor_jobs --demo
+```
+
+Ele cria, ou reaproveita, uma conta demo (`demo.webcam@example.com` / `VardDemo2026!`),
+um workspace e a câmera **Webcam de demonstração** com a origem OpenCV `0`. A webcam
+é usada apenas nesse modo. O comando também prepara a chave de recuperação usada
+para descriptografar os eventos e clipes dessa conta no aplicativo.
+
+Para criar os dados sem ligar a webcam, use:
+
+```bash
+python -m scripts.run_fall_monitor_jobs --demo --demo-seed-only
+```
+
+`--webcam-source`, `--demo-checkpoint` e `--demo-threshold` permitem ajustar a
+origem, o checkpoint e o limiar exclusivamente para a câmera demo.
+
 ## Estrutura
 
 ```text

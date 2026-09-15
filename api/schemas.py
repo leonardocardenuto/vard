@@ -62,6 +62,16 @@ class UserResponse(UserBase):
     updated_at: datetime
 
 
+class EncryptionKeyUpload(BaseModel):
+    public_key: str = Field(min_length=40, max_length=200)
+    encrypted_private_key_backup: str = Field(min_length=40, max_length=20_000)
+    recovery_salt: str = Field(min_length=16, max_length=200)
+
+
+class EncryptionKeyResponse(EncryptionKeyUpload):
+    pass
+
+
 class WorkspaceCreate(BaseModel):
     image_url: str | None = Field(default=None, max_length=7_000_000)
     name: str = Field(min_length=1, max_length=200)
@@ -198,4 +208,11 @@ class FallEventResponse(BaseModel):
     workspace_id: uuid.UUID
     camera_id: uuid.UUID | None
     notification_id: uuid.UUID | None
-    occurred_at: datetime
+    encrypted_payload: str
+    key_envelope: dict[str, str]
+    has_clip: bool
+
+
+class FallEventClipResponse(BaseModel):
+    encrypted_clip: str
+    key_envelope: dict[str, str]

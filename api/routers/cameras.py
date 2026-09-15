@@ -35,6 +35,12 @@ def _resolve_camera_ping_target(camera: Camera) -> tuple[str, int]:
 
 
 def _camera_has_pong(camera: Camera, timeout_seconds: float = 2.5) -> bool:
+    metadata = camera.metadata_json or {}
+    if metadata.get("protocol") == "local-agent-webcam":
+        # The local agent updates this status after it successfully reads a frame.
+        # Do not attempt a network probe for a host-side webcam (source "0").
+        return camera.is_active and camera.status == "online"
+
     parsed = urlparse(camera.stream_url)
     scheme = (parsed.scheme or camera.connection_type or "").lower()
 

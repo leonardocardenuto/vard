@@ -11,7 +11,10 @@ export type SettingsStackParamList = {
   };
   CameraLiveView: {
     cameraName: string;
-    protocol: 'hls' | 'local-webview';
+    protocol: 'agent-mjpeg' | 'hls' | 'local-webview';
     url: string;
+    accessToken?: string;
+    cameraId?: string;
+    workspaceId?: string;
   };
 };

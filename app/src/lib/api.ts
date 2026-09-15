@@ -78,7 +78,20 @@ export type FallEventResponse = {
   workspace_id: string;
   camera_id: string | null;
   notification_id: string | null;
-  occurred_at: string;
+  encrypted_payload: string;
+  key_envelope: Record<string, string>;
+  has_clip: boolean;
+};
+
+export type FallEventClipResponse = {
+  encrypted_clip: string;
+  key_envelope: Record<string, string>;
+};
+
+type EncryptionKeyPayload = {
+  public_key: string;
+  encrypted_private_key_backup: string;
+  recovery_salt: string;
 };
 
 type WorkspaceCreatePayload = {
@@ -132,11 +145,13 @@ const API_BASE_URL =
 
 export class ApiRequestError extends Error {
   fieldErrors?: Record<string, string>;
+  status?: number;
 
-  constructor(message: string, fieldErrors?: Record<string, string>) {
+  constructor(message: string, fieldErrors?: Record<string, string>, status?: number) {
     super(message);
     this.name = 'ApiRequestError';
     this.fieldErrors = fieldErrors;
+    this.status = status;
   }
 }
 
@@ -180,7 +195,7 @@ async function requestWithToken<T>(path: string, token?: string, init?: RequestI
       // keep fallback message
     }
 
-    throw new ApiRequestError(message, fieldErrors);
+    throw new ApiRequestError(message, fieldErrors, response.status);
   }
 
   return (await response.json()) as T;
@@ -372,6 +387,18 @@ export async function listFallEvents(token: string, workspaceId: string) {
   return requestWithToken<FallEventResponse[]>(`/fall-events?${query.toString()}`, token);
 }
 
+export async function getFallEventClip(token: string, eventId: string) {
+  return requestWithToken<FallEventClipResponse>(`/fall-events/${eventId}/clip`, token);
+}
+
+export async function getEncryptionKey(token: string) {
+  return requestWithToken<EncryptionKeyPayload>('/encryption-keys/me', token);
+}
+
+export async function putEncryptionKey(token: string, payload: EncryptionKeyPayload) {
+  return requestWithToken<EncryptionKeyPayload>('/encryption-keys/me', token, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
 export async function getNotification(token: string, notificationId: string) {
   return requestWithToken<NotificationResponse>(`/notifications/${notificationId}`, token);
 }
@@ -400,6 +427,10 @@ export async function startCameraHlsStream(token: string, cameraId: string) {
   return requestWithToken<CameraStreamResponse>(`/camera-streams/${cameraId}/hls`, token, {
     method: 'POST',
   });
+}
+
+export function getCameraMjpegUrl(cameraId: string) {
+  return `${resolveApiBaseUrl()}/camera-streams/${cameraId}/live`;
 }
 
 export type WorkspaceFallAlert = {

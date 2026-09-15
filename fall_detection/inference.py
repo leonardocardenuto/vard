@@ -58,7 +58,14 @@ class FallClassifier:
         if not self.checkpoint.exists():
             raise FileNotFoundError(f"Checkpoint nao encontrado: {self.checkpoint}")
 
-        self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        preferred_device = (
+            "cuda"
+            if torch.cuda.is_available()
+            else "mps"
+            if torch.backends.mps.is_available()
+            else "cpu"
+        )
+        self.device = torch.device(device or preferred_device)
         self.class_names = list(CLASS_NAMES)
         self.mode = "torch_head"
         self.embedding_feature_strategy = "mean"
