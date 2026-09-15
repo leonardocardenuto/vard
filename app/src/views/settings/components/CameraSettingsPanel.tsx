@@ -16,6 +16,7 @@ import {
 import {
   ApiRequestError,
   CameraResponse,
+  getCameraMjpegUrl,
   listCameras,
   pingCamera,
   startCameraHlsStream,
@@ -100,6 +101,10 @@ function getCameraProtocol(camera: CameraResponse) {
 
   if (protocol === 'local-webview') {
     return 'Local';
+  }
+
+  if (protocol === 'local-agent-webcam') {
+    return 'Agente local';
   }
 
   if (protocol === 'https' || protocol === 'https-manual') {
@@ -240,6 +245,22 @@ export function CameraSettingsPanel({
         cameraName: camera.name,
         protocol: 'local-webview',
         url: camera.stream_url,
+        cameraId: camera.id,
+        workspaceId: camera.workspace_id,
+      });
+      return;
+    }
+
+    if (protocol === 'local-agent-webcam') {
+      setSelectedCameraId(camera.id);
+      setStreamUrl('');
+      navigation.navigate('CameraLiveView', {
+        cameraName: camera.name,
+        protocol: 'agent-mjpeg',
+        url: getCameraMjpegUrl(camera.id),
+        accessToken,
+        cameraId: camera.id,
+        workspaceId: camera.workspace_id,
       });
       return;
     }
@@ -255,6 +276,8 @@ export function CameraSettingsPanel({
         cameraName: camera.name,
         protocol: 'hls',
         url: response.playlist_url,
+        cameraId: camera.id,
+        workspaceId: camera.workspace_id,
       });
     } catch (error) {
       setErrorMessage(

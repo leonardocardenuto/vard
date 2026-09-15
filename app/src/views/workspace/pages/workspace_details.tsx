@@ -16,39 +16,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { WebView } from 'react-native-webview';
-
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
-import { ApiRequestError, CameraResponse, listCameras, startCameraHlsStream, getWorkspaceFallAlert } from '../../../lib/api';
+import { ApiRequestError, CameraResponse, getCameraMjpegUrl, listCameras, startCameraHlsStream, getWorkspaceFallAlert } from '../../../lib/api';
+import { CameraLiveViewScreen as CameraHistoryLiveViewScreen } from '../../settings/pages/CameraLiveViewScreen';
+import { SettingsStackParamList } from '../../settings/types';
 import { WorkspaceFallAlert, WorkspaceStackParamList } from '../types/workspace';
 import { styles } from '../styles/workspace_details';
 
 type Props = NativeStackScreenProps<WorkspaceStackParamList, 'WorkspaceDetails'>;
 type CameraLiveViewProps = NativeStackScreenProps<WorkspaceStackParamList, 'CameraLiveView'>;
-
-const CAMERA_WEBVIEW_INJECTED_JS = `
-  (function() {
-    function applyFullscreenStyles() {
-      try {
-        var style = document.getElementById('vard-camera-fullscreen-style');
-        if (!style) {
-          style = document.createElement('style');
-          style.id = 'vard-camera-fullscreen-style';
-          style.innerHTML = [
-            'html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden !important; background: #000 !important; }',
-            'iframe, video, img, canvas, object, embed { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important; display: block !important; margin: 0 !important; padding: 0 !important; }'
-          ].join('');
-          document.head.appendChild(style);
-        }
-      } catch (error) {}
-    }
-    applyFullscreenStyles();
-    setTimeout(applyFullscreenStyles, 300);
-    setTimeout(applyFullscreenStyles, 1000);
-  })();
-  true;
-`;
 
 type FamilyMember = {
   id: string;
@@ -171,11 +147,24 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
     setIsOpeningCameraId(camera.id);
 
     try {
+      if ((camera.metadata ?? camera.metadata_json ?? {}).protocol === 'local-agent-webcam') {
+        navigation.navigate('CameraLiveView', {
+          cameraName: camera.name,
+          protocol: 'agent-mjpeg',
+          url: getCameraMjpegUrl(camera.id),
+          accessToken,
+          cameraId: camera.id,
+          workspaceId: workspace.id,
+        });
+        return;
+      }
       if (camera.connection_type === 'local-webview' || camera.connection_type === 'https') {
         navigation.navigate('CameraLiveView', {
           cameraName: camera.name,
           protocol: 'local-webview',
           url: camera.stream_url,
+          cameraId: camera.id,
+          workspaceId: workspace.id,
         });
         return;
       }
@@ -185,6 +174,8 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
         cameraName: camera.name,
         protocol: 'hls',
         url: response.playlist_url,
+        cameraId: camera.id,
+        workspaceId: workspace.id,
       });
     } catch (error) {
       Alert.alert(
@@ -466,60 +457,10 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
 }
 
 export function WorkspaceCameraLiveViewScreen({ navigation, route }: CameraLiveViewProps) {
-  const { cameraName, protocol, url } = route.params;
-  const player = useVideoPlayer(null);
-
-  useEffect(() => {
-    async function syncPlayerSource() {
-      if (protocol !== 'hls') {
-        return;
-      }
-
-      try {
-        await player.replaceAsync(url);
-        player.play();
-      } catch {
-        // streaming errors are surfaced by the backend/source
-      }
-    }
-
-    void syncPlayerSource();
-  }, [player, protocol, url]);
-
   return (
-    <LayoutWithNavbar>
-      <ScrollView contentContainerStyle={styles.cameraLiveContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.cameraLiveTopSpacer} />
-
-        <View style={styles.cameraLiveHeaderRow}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Feather color="#111827" name="chevron-left" size={20} />
-          </Pressable>
-          <View style={styles.cameraLiveHeaderText}>
-            <Text numberOfLines={1} style={styles.cameraLiveTitle}>
-              {cameraName}
-            </Text>
-            <Text style={styles.cameraLiveSubtitle}>Câmera ao vivo</Text>
-          </View>
-        </View>
-
-        <View style={styles.cameraLiveViewerCard}>
-          {protocol === 'local-webview' ? (
-            <WebView
-              injectedJavaScript={CAMERA_WEBVIEW_INJECTED_JS}
-              injectedJavaScriptBeforeContentLoaded={CAMERA_WEBVIEW_INJECTED_JS}
-              javaScriptEnabled
-              scalesPageToFit={false}
-              source={{ uri: url }}
-              startInLoadingState
-              style={styles.cameraLiveWebview}
-            />
-          ) : (
-            <VideoView contentFit="cover" nativeControls player={player} style={styles.cameraLiveVideo} />
-          )}
-        </View>
-      </ScrollView>
-    </LayoutWithNavbar>
+    <CameraHistoryLiveViewScreen
+      {...({ navigation, route } as unknown as NativeStackScreenProps<SettingsStackParamList, 'CameraLiveView'>)}
+    />
   );
 }
 

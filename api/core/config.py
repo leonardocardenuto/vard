@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     fall_monitor_smoothing_window: int = Field(5, alias="FALL_MONITOR_SMOOTHING_WINDOW")
     fall_monitor_min_consecutive_hits: int = Field(2, alias="FALL_MONITOR_MIN_CONSECUTIVE_HITS")
     fall_monitor_buffer_seconds: float = Field(8.0, alias="FALL_MONITOR_BUFFER_SECONDS")
+    fall_monitor_clip_pre_seconds: float = Field(5.0, alias="FALL_MONITOR_CLIP_PRE_SECONDS")
+    fall_monitor_clip_post_seconds: float = Field(5.0, alias="FALL_MONITOR_CLIP_POST_SECONDS")
     fall_monitor_freeze_seconds: float = Field(300.0, alias="FALL_MONITOR_FREEZE_SECONDS")
     fall_monitor_show_preview: bool = Field(False, alias="FALL_MONITOR_SHOW_PREVIEW")
     fall_monitor_alert_cooldown_seconds: float = Field(60.0, alias="FALL_MONITOR_ALERT_COOLDOWN_SECONDS")

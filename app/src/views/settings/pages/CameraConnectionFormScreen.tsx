@@ -22,7 +22,12 @@ import { styles } from '../styles/CameraConnectionFormScreen';
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'CameraConnectionForm'>;
 
-type ConnectionProtocol = 'https-manual' | 'local-webview' | 'rtsp-config' | 'rtsp-manual';
+type ConnectionProtocol =
+  | 'https-manual'
+  | 'local-agent-webcam'
+  | 'local-webview'
+  | 'rtsp-config'
+  | 'rtsp-manual';
 
 type FormState = {
   host: string;
@@ -47,6 +52,11 @@ const protocolOptions: Array<{
   label: string;
   value: ConnectionProtocol;
 }> = [
+  {
+    value: 'local-agent-webcam',
+    label: 'Webcam deste computador',
+    description: 'Conecta a webcam ao agente VARD que está em execução neste computador.',
+  },
   {
     value: 'local-webview',
     label: 'Câmera local',
@@ -95,7 +105,15 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
     let streamUrl = '';
     let metadata: Record<string, unknown> = {};
 
-    if (protocol === 'local-webview') {
+    if (protocol === 'local-agent-webcam') {
+      streamUrl = '0';
+      metadata = {
+        protocol: 'local-agent-webcam',
+        fall_monitor: {
+          enabled: true,
+        },
+      };
+    } else if (protocol === 'local-webview') {
       const host = form.host.trim();
 
       if (!host) {
@@ -160,7 +178,11 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
         workspace_id: workspace.id,
         name,
         connection_type:
-          protocol === 'https-manual' || protocol === 'local-webview' ? 'https' : 'rtsp',
+          protocol === 'local-agent-webcam'
+            ? 'other'
+            : protocol === 'https-manual' || protocol === 'local-webview'
+              ? 'https'
+              : 'rtsp',
         stream_url: streamUrl,
         status: 'offline',
         is_active: true,
@@ -316,4 +338,3 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
     </LayoutWithNavbar>
   );
 }
-

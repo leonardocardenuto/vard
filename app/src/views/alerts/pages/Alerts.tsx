@@ -27,9 +27,11 @@ import {
 } from "react-native";
 
 import { LayoutWithNavbar } from "../../../components/LayoutWithNavbar";
+import { decryptFallOccurredAt } from "../../../lib/fallHistoryCrypto";
 import {
   ApiRequestError,
   NotificationResponse,
+  getMe,
   getNotification,
   listFallEvents,
   listNotifications,
@@ -96,7 +98,7 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
     try {
       setErrorMessage("");
       setIsLoading(true);
-      const workspaces = await listWorkspaces(accessToken);
+      const [workspaces, me] = await Promise.all([listWorkspaces(accessToken), getMe(accessToken)]);
       const historyByWorkspace = await Promise.all(
         workspaces.map((workspace) =>
           Promise.all([
@@ -106,14 +108,16 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
         ),
       );
       const occurredAtByNotification = new Map<string, string>();
-      const notifications = historyByWorkspace.flatMap(([workspaceNotifications, fallEvents]) => {
-        fallEvents.forEach((event) => {
+      const notifications: NotificationResponse[] = [];
+      for (const [workspaceNotifications, fallEvents] of historyByWorkspace) {
+        await Promise.all(fallEvents.map(async (event) => {
           if (event.notification_id) {
-            occurredAtByNotification.set(event.notification_id, event.occurred_at);
+            const occurredAt = await decryptFallOccurredAt(event.encrypted_payload, event.key_envelope, me.id);
+            if (occurredAt) occurredAtByNotification.set(event.notification_id, occurredAt);
           }
-        });
-        return workspaceNotifications;
-      });
+        }));
+        notifications.push(...workspaceNotifications);
+      }
       setAlerts(notifications.map((notification) => notificationToAlert(notification, occurredAtByNotification)));
     } catch (error) {
       setErrorMessage(

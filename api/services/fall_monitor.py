@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 import uuid
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,9 @@ from api.core.config import Settings, get_settings
 from api.db import SessionLocal
 from api.models import Camera
 from api.services.notifications import create_fall_detected_notification
+from api.services.native_preview import NativePreview
 from fall_detection import CameraWorker, FallDetectionConfig, FrameBuffer, TemporalSmoother
+from fall_detection.clip_exporter import ClipExporter
 
 LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +31,8 @@ class CameraMonitorSpec:
     source: str
     config: FallDetectionConfig
     capture_fps: float | None
+    clip_pre_seconds: float
+    clip_post_seconds: float
     freeze_seconds: float
     show_preview: bool
     alert_cooldown_seconds: float
@@ -79,6 +84,8 @@ class CameraMonitorJob:
         )
         self._running_lock = threading.Lock()
         self._running = False
+        self._latest_frame_lock = threading.Lock()
+        self._latest_frame = None
         self.failed_at: float | None = None
 
     def start(self):
@@ -99,6 +106,19 @@ class CameraMonitorJob:
     def is_alive(self) -> bool:
         return self._thread.is_alive()
 
+    def snapshot_jpeg(self) -> bytes | None:
+        with self._latest_frame_lock:
+            if self._latest_frame is None:
+                return None
+            frame = self._latest_frame.copy()
+
+        success, encoded = cv2.imencode(
+            ".jpg",
+            cv2.cvtColor(frame, cv2.COLOR_RGB2BGR),
+            [int(cv2.IMWRITE_JPEG_QUALITY), 80],
+        )
+        return encoded.tobytes() if success else None
+
     def _run(self):
         with self._running_lock:
             if self._running:
@@ -114,10 +134,12 @@ class CameraMonitorJob:
         config = self.spec.config
         estimated_capture_fps = self.spec.capture_fps or max(config.sample_fps, 30.0)
         worker = CameraWorker(self.spec.source, sample_fps=self.spec.capture_fps)
+        clip_capture_fps = self.spec.capture_fps or estimated_capture_fps
         buffer = FrameBuffer(
             max_frames=max(
                 config.num_frames,
-                int(config.buffer_seconds * estimated_capture_fps) + config.num_frames,
+                int(max(config.buffer_seconds, self.spec.clip_pre_seconds) * estimated_capture_fps)
+                + config.num_frames,
             )
         )
         smoother = TemporalSmoother(
@@ -133,14 +155,108 @@ class CameraMonitorJob:
         skipped_windows = 0
         latest_prediction: dict | None = None
         latest_smoothing = None
-        preview_enabled = self.spec.show_preview
+        pending_alert: dict[str, Any] | None = None
+        preview: NativePreview | None = None
+        if self.spec.show_preview:
+            try:
+                preview = NativePreview(self.spec.name)
+            except Exception as exc:
+                LOGGER.warning(
+                    "fall monitor preview unavailable: camera_id=%s camera=%s reason=%s",
+                    self.spec.camera_id,
+                    self.spec.name,
+                    exc,
+                )
+        prediction_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fall-inference")
+        prediction_future: Future | None = None
+        prediction_context = None
+
+        def consume_completed_prediction():
+            nonlocal last_alert_at, latest_prediction, latest_smoothing, pending_alert
+            nonlocal last_inference_at, prediction_context, prediction_future
+
+            if prediction_future is None or not prediction_future.done():
+                return
+
+            inference_index, inference_timestamp, buffered_window = prediction_context
+            future = prediction_future
+            prediction_future = None
+            prediction_context = None
+            prediction = future.result()
+            smoothing = smoother.update(prediction["fall_probability"])
+            latest_prediction = prediction
+            latest_smoothing = smoothing
+
+            LOGGER.info(
+                (
+                    "Resultado #%s camera_id=%s camera=%s classe=%s queda=%.4f "
+                    "media=%.4f hits=%s alerta=%s probs=%s"
+                ),
+                inference_index,
+                self.spec.camera_id,
+                self.spec.name,
+                prediction["predicted_class"],
+                prediction["fall_probability"],
+                smoothing.moving_average,
+                smoothing.consecutive_hits,
+                "sim" if smoothing.alert else "nao",
+                prediction.get("probabilities", {}),
+            )
+
+            if not smoothing.alert:
+                return
+            if inference_timestamp - last_alert_at < self.spec.alert_cooldown_seconds:
+                LOGGER.info(
+                    (
+                        "ALERTA_QUEDA_SUPRIMIDO_COOLDOWN camera_id=%s queda=%.4f "
+                        "media=%.4f hits=%s cooldown_restante=%.2fs"
+                    ),
+                    self.spec.camera_id,
+                    prediction["fall_probability"],
+                    smoothing.moving_average,
+                    smoothing.consecutive_hits,
+                    self.spec.alert_cooldown_seconds - (inference_timestamp - last_alert_at),
+                )
+                return
+
+            last_alert_at = inference_timestamp
+            # Keep receiving frames briefly after the alert. That gives the
+            # encrypted history useful context on both sides of the fall.
+            post_roll_until = max(inference_timestamp, timestamp) + self.spec.clip_post_seconds
+            pending_alert = {
+                "prediction": prediction,
+                "smoothing": smoothing,
+                "inference_count": inference_index,
+                "clip_start": inference_timestamp - self.spec.clip_pre_seconds,
+                "clip_end": post_roll_until,
+                "clip_frames": [
+                    item
+                    for item in buffer.frames()
+                    if item.timestamp >= inference_timestamp - self.spec.clip_pre_seconds
+                ],
+            }
+            LOGGER.warning(
+                (
+                    "ALERTA_QUEDA_PROVAVEL camera_id=%s camera=%s source=%s queda=%.4f "
+                    "media=%.4f hits=%s pre_roll=%.2fs post_roll=%.2fs timestamp=%.3f"
+                ),
+                self.spec.camera_id,
+                self.spec.name,
+                _mask_source(self.spec.source),
+                prediction["fall_probability"],
+                smoothing.moving_average,
+                smoothing.consecutive_hits,
+                self.spec.clip_pre_seconds,
+                self.spec.clip_post_seconds,
+                time.time(),
+            )
 
         LOGGER.info(
             (
                 "Pipeline iniciado: camera_id=%s camera=%s source=%s checkpoint=%s "
                 "num_frames=%s infer_sample_fps=%.2f capture_fps=%s stride=%.2fs "
                 "threshold=%.2f smoothing_window=%s min_hits=%s buffer_seconds=%.2f "
-                "freeze=%.2fs cooldown=%.2fs show_preview=%s"
+                "clip_pre=%.2fs clip_post=%.2fs freeze=%.2fs cooldown=%.2fs show_preview=%s"
             ),
             self.spec.camera_id,
             self.spec.name,
@@ -154,6 +270,8 @@ class CameraMonitorJob:
             config.smoothing_window,
             config.min_consecutive_hits,
             config.buffer_seconds,
+            self.spec.clip_pre_seconds,
+            self.spec.clip_post_seconds,
             self.spec.freeze_seconds,
             self.spec.alert_cooldown_seconds,
             self.spec.show_preview,
@@ -161,48 +279,69 @@ class CameraMonitorJob:
         has_frame = False
         try:
             for frame, timestamp in worker.frames(stop_event=self._stop_event, pause_event=pause_event):
+                with self._latest_frame_lock:
+                    self._latest_frame = frame.copy()
+                consume_completed_prediction()
                 if freeze_until_monotonic is not None:
                     freeze_remaining = freeze_until_monotonic - time.monotonic()
                     if freeze_remaining > 0:
                         time.sleep(min(0.25, freeze_remaining))
                         continue
                     freeze_until_monotonic = None
-                    pause_event.clear()
                     buffer.clear()
                     last_inference_at = None
-                    LOGGER.info("Freeze encerrado. Captura e inferencia retomadas: camera_id=%s", self.spec.camera_id)
+                    LOGGER.info("Freeze encerrado. Inferencia retomada: camera_id=%s", self.spec.camera_id)
 
                 if not has_frame:
                     has_frame = True
                     self._update_camera_status("online")
                 buffer.append(frame, timestamp)
-                if preview_enabled:
-                    try:
-                        should_close = _show_preview_frame(
-                            self.spec.name,
-                            frame,
-                            latest_prediction,
-                            latest_smoothing,
-                            freeze_until_monotonic,
-                        )
-                    except cv2.error as exc:
-                        preview_enabled = False
-                        LOGGER.warning(
-                            (
-                                "fall monitor preview disabled: camera_id=%s camera=%s "
-                                "reason=%s"
-                            ),
-                            self.spec.camera_id,
-                            self.spec.name,
-                            exc,
+                if preview is not None:
+                    if preview.is_alive:
+                        preview.submit(
+                            _render_preview_frame(
+                                frame,
+                                latest_prediction,
+                                latest_smoothing,
+                                freeze_until_monotonic,
+                            )
                         )
                     else:
-                        if should_close:
-                            LOGGER.info("fall monitor preview closed by user: camera_id=%s", self.spec.camera_id)
-                            self._stop_event.set()
-                            break
+                        LOGGER.info("fall monitor preview closed by user: camera_id=%s", self.spec.camera_id)
+                        preview.close()
+                        preview = None
+
+                if pending_alert is not None:
+                    pending_alert["clip_frames"].append(buffer.frames()[-1])
+                    if timestamp < pending_alert["clip_end"]:
+                        continue
+
+                    self._create_notification(
+                        prediction=pending_alert["prediction"],
+                        smoothing=pending_alert["smoothing"],
+                        inference_count=pending_alert["inference_count"],
+                        clip_frames=pending_alert["clip_frames"],
+                        clip_fps=clip_capture_fps,
+                    )
+                    if self.spec.freeze_seconds > 0:
+                        freeze_until_monotonic = time.monotonic() + self.spec.freeze_seconds
+                        if preview is not None and preview.is_alive:
+                            preview.submit(
+                                _render_preview_frame(
+                                    frame,
+                                    pending_alert["prediction"],
+                                    pending_alert["smoothing"],
+                                    freeze_until_monotonic,
+                                )
+                            )
+                    pending_alert = None
+                    buffer.clear()
+                    last_inference_at = None
+                    continue
 
                 if last_inference_at is not None and timestamp - last_inference_at < config.stride_seconds:
+                    continue
+                if prediction_future is not None:
                     continue
 
                 buffered_window = buffer.sample_window_buffered(
@@ -247,86 +386,25 @@ class CameraMonitorJob:
                     window_end,
                     config.checkpoint,
                 )
-                prediction = self.classifier_provider.predict_frames(
+                prediction_context = (inference_count, timestamp, buffered_window)
+                prediction_future = prediction_executor.submit(
+                    self.classifier_provider.predict_frames,
                     window,
                     checkpoint=config.checkpoint,
                     device=config.device,
-                )
-                smoothing = smoother.update(prediction["fall_probability"])
-                latest_prediction = prediction
-                latest_smoothing = smoothing
-
-                LOGGER.info(
-                    (
-                        "Resultado #%s camera_id=%s camera=%s classe=%s queda=%.4f "
-                        "media=%.4f hits=%s alerta=%s probs=%s"
-                    ),
-                    inference_count,
-                    self.spec.camera_id,
-                    self.spec.name,
-                    prediction["predicted_class"],
-                    prediction["fall_probability"],
-                    smoothing.moving_average,
-                    smoothing.consecutive_hits,
-                    "sim" if smoothing.alert else "nao",
-                    prediction.get("probabilities", {}),
-                )
-
-                if not smoothing.alert:
-                    continue
-                if timestamp - last_alert_at < self.spec.alert_cooldown_seconds:
-                    LOGGER.info(
-                        (
-                            "ALERTA_QUEDA_SUPRIMIDO_COOLDOWN camera_id=%s queda=%.4f "
-                            "media=%.4f hits=%s cooldown_restante=%.2fs"
-                        ),
-                        self.spec.camera_id,
-                        prediction["fall_probability"],
-                        smoothing.moving_average,
-                        smoothing.consecutive_hits,
-                        self.spec.alert_cooldown_seconds - (timestamp - last_alert_at),
-                    )
-                    continue
-
-                last_alert_at = timestamp
-                if self.spec.freeze_seconds > 0:
-                    freeze_until_monotonic = time.monotonic() + self.spec.freeze_seconds
-                    pause_event.set()
-                    buffer.clear()
-                    last_inference_at = None
-                LOGGER.warning(
-                    (
-                        "ALERTA_QUEDA_PROVAVEL camera_id=%s camera=%s source=%s queda=%.4f "
-                        "media=%.4f hits=%s freeze=%.2fs timestamp=%.3f"
-                    ),
-                    self.spec.camera_id,
-                    self.spec.name,
-                    _mask_source(self.spec.source),
-                    prediction["fall_probability"],
-                    smoothing.moving_average,
-                    smoothing.consecutive_hits,
-                    self.spec.freeze_seconds,
-                    time.time(),
-                )
-                self._create_notification(
-                    prediction=prediction,
-                    smoothing=smoothing,
-                    inference_count=inference_count,
                 )
         except Exception as exc:
             self.failed_at = time.monotonic()
             LOGGER.exception("fall monitor job failed: camera_id=%s", self.spec.camera_id)
             self._update_camera_status("error", error=str(exc))
         finally:
-            if preview_enabled:
-                try:
-                    cv2.destroyWindow(_preview_window_name(self.spec.name))
-                except cv2.error:
-                    pass
+            prediction_executor.shutdown(wait=False, cancel_futures=True)
+            if preview is not None:
+                preview.close()
             if not self._stop_event.is_set():
                 self._update_camera_status("offline")
 
-    def _create_notification(self, *, prediction: dict, smoothing, inference_count: int):
+    def _create_notification(self, *, prediction: dict, smoothing, inference_count: int, clip_frames, clip_fps: float):
         from datetime import UTC, datetime
 
         from api.services.fall_events import record_fall_event
@@ -345,12 +423,18 @@ class CameraMonitorJob:
             "consecutive_hits": int(smoothing.consecutive_hits),
         }
         with SessionLocal() as db:
-            event = record_fall_event(
-                db,
-                workspace_id=self.spec.workspace_id,
-                camera_id=self.spec.camera_id,
-                occurred_at=datetime.now(UTC),
-            )
+            clip_result = ClipExporter(LOGGER).export_mp4(clip_frames, fps=clip_fps)
+            try:
+                event = record_fall_event(
+                    db,
+                    workspace_id=self.spec.workspace_id,
+                    camera_id=self.spec.camera_id,
+                    occurred_at=datetime.now(UTC),
+                    clip_bytes=clip_result.path.read_bytes() if clip_result else None,
+                )
+            finally:
+                if clip_result:
+                    clip_result.path.unlink(missing_ok=True)
             notification = create_fall_detected_notification(
                 db,
                 workspace_id=self.spec.workspace_id,
@@ -448,6 +532,11 @@ class CameraMonitorSupervisor:
         elapsed = time.monotonic() - job.failed_at
         return elapsed >= max(1.0, self.settings.fall_monitor_restart_backoff_seconds)
 
+    def snapshot_jpeg(self, camera_id: uuid.UUID) -> bytes | None:
+        with self._lock:
+            job = self._jobs.get(camera_id)
+        return job.snapshot_jpeg() if job and job.is_alive() else None
+
     def _stop_all_jobs(self):
         with self._lock:
             jobs = list(self._jobs.values())
@@ -487,6 +576,22 @@ class CameraMonitorSupervisor:
         capture_fps = float(monitor_metadata.get("capture_fps") or self.settings.fall_monitor_capture_fps)
         if capture_fps <= 0:
             capture_fps = None
+        clip_pre_seconds = max(
+            0.0,
+            float(
+                monitor_metadata["clip_pre_seconds"]
+                if "clip_pre_seconds" in monitor_metadata
+                else self.settings.fall_monitor_clip_pre_seconds
+            ),
+        )
+        clip_post_seconds = max(
+            0.0,
+            float(
+                monitor_metadata["clip_post_seconds"]
+                if "clip_post_seconds" in monitor_metadata
+                else self.settings.fall_monitor_clip_post_seconds
+            ),
+        )
         freeze_seconds = float(
             monitor_metadata.get("freeze_seconds")
             or self.settings.fall_monitor_freeze_seconds
@@ -512,6 +617,8 @@ class CameraMonitorSupervisor:
             config.buffer_seconds,
             config.device,
             capture_fps,
+            clip_pre_seconds,
+            clip_post_seconds,
             freeze_seconds,
             show_preview,
             cooldown,
@@ -523,6 +630,8 @@ class CameraMonitorSupervisor:
             source=camera.stream_url,
             config=config,
             capture_fps=capture_fps,
+            clip_pre_seconds=clip_pre_seconds,
+            clip_post_seconds=clip_post_seconds,
             freeze_seconds=freeze_seconds,
             show_preview=show_preview,
             alert_cooldown_seconds=cooldown,
@@ -540,17 +649,12 @@ def _mask_source(source: str) -> str:
     return f"{scheme}://***:***@{host}"
 
 
-def _preview_window_name(camera_name: str) -> str:
-    return f"VARD Fall Monitor - {camera_name}"
-
-
-def _show_preview_frame(
-    camera_name: str,
+def _render_preview_frame(
     frame_rgb,
     prediction: dict | None,
     smoothing,
     freeze_until_monotonic: float | None,
-) -> bool:
+):
     frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
     overlay = frame_bgr.copy()
     cv2.rectangle(overlay, (12, 12), (660, 156), (20, 20, 20), -1)
@@ -615,6 +719,4 @@ def _show_preview_frame(
             cv2.LINE_AA,
         )
 
-    cv2.imshow(_preview_window_name(camera_name), frame_bgr)
-    key = cv2.waitKey(1) & 0xFF
-    return key in (27, ord("q"))
+    return frame_bgr

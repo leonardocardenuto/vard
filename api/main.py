@@ -4,8 +4,7 @@ from fastapi.staticfiles import StaticFiles
 
 from api.cache.model_hooks import register_cache_invalidation_hooks
 from api.core.config import get_settings
-from api.core.fall_event_crypto import validate_encryption_keys
-from api.routers import auth, camera_streams, cameras, fall_events, invites, notifications, users, workspaces
+from api.routers import auth, camera_streams, cameras, encryption_keys, fall_events, invites, notifications, users, workspaces
 from api.services.camera_streams import STREAMS_ROOT
 
 settings = get_settings()
@@ -34,18 +33,18 @@ def start_background_jobs():
     if not settings.fall_monitor_enabled:
         return
 
-    validate_encryption_keys(settings.fall_event_encryption_keys)
-
     from api.services.fall_monitor import CameraMonitorSupervisor
 
     fall_monitor_supervisor = CameraMonitorSupervisor(settings)
     fall_monitor_supervisor.start()
+    app.state.fall_monitor_supervisor = fall_monitor_supervisor
 
 
 @app.on_event("shutdown")
 def stop_background_jobs():
     if fall_monitor_supervisor is not None:
         fall_monitor_supervisor.stop()
+    app.state.fall_monitor_supervisor = None
 
 
 app.include_router(auth.router)
@@ -56,3 +55,4 @@ app.include_router(cameras.router)
 app.include_router(invites.router)
 app.include_router(notifications.router)
 app.include_router(fall_events.router)
+app.include_router(encryption_keys.router)
