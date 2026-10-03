@@ -23,6 +23,7 @@ from api.core.config import get_settings
 from api.core.security import hash_password
 from api.db import SessionLocal
 from api.models import AppUser, Camera, UserCredential, Workspace, WorkspaceMember
+from api.cache.model_hooks import register_cache_invalidation_hooks
 from api.services.fall_monitor import CameraMonitorSupervisor
 
 
@@ -68,6 +69,7 @@ def configure_logging():
 def main():
     args = parse_args()
     configure_logging()
+    register_cache_invalidation_hooks()
     logger = logging.getLogger("fall_monitor.jobs")
 
     if args.demo:

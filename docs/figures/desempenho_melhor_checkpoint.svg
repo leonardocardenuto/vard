@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1100" viewBox="0 0 2000 1100">
+<rect width="2000" height="1100" fill="#FFFFFF"/>
+<style>
+text { font-family: Arial, sans-serif; fill: #1F2937; }
+.title { font-size: 58px; font-weight: 700; }
+.legend { font-size: 31px; fill: #5B6573; }
+.axis { font-size: 29px; }
+.tick { font-size: 29px; fill: #5B6573; }
+.label { font-size: 38px; font-weight: 700; }
+.n { font-size: 27px; fill: #5B6573; }
+.value { font-size: 34px; font-weight: 700; fill: #FFFFFF; }
+.percent { font-size: 31px; fill: #FFFFFF; }
+.callout { font-size: 28px; font-weight: 700; }
+</style>
+<text x="110" y="120" class="title">Resultados do classificador no melhor checkpoint</text>
+<rect x="112" y="170" width="28" height="28" fill="#2F6B9A"/><text x="158" y="194" class="legend">Classificação correta</text>
+<rect x="520" y="170" width="28" height="28" fill="#D97A32"/><text x="566" y="194" class="legend">Erro de classificação</text>
+<text x="440" y="275" class="axis">Percentual das amostras de cada classe real</text>
+<g stroke="#D9DEE5" stroke-width="2">
+<line x1="440" y1="315" x2="440" y2="845"/><line x1="800" y1="315" x2="800" y2="845"/>
+<line x1="1160" y1="315" x2="1160" y2="845"/><line x1="1520" y1="315" x2="1520" y2="845"/>
+<line x1="1880" y1="315" x2="1880" y2="845"/>
+</g>
+<g class="tick" text-anchor="middle"><text x="440" y="1010">0%</text><text x="800" y="1010">25%</text><text x="1160" y="1010">50%</text><text x="1520" y="1010">75%</text><text x="1880" y="1010">100%</text></g>
+<text x="396" y="424" class="label" text-anchor="end">Sem queda</text><text x="396" y="474" class="n" text-anchor="end">n = 271</text>
+<rect x="440" y="370" width="1381.54" height="142" fill="#2F6B9A"/><rect x="1821.54" y="370" width="58.46" height="142" fill="#D97A32"/>
+<text x="1130.77" y="426" class="value" text-anchor="middle">260 corretas</text><text x="1130.77" y="476" class="percent" text-anchor="middle">95,9%</text>
+<line x1="1850.77" y1="370" x2="1850.77" y2="318" stroke="#1F2937" stroke-width="3"/><text x="1880" y="302" class="callout" text-anchor="end">11 falsos alertas · 4,1%</text>
+<text x="396" y="704" class="label" text-anchor="end">Queda</text><text x="396" y="754" class="n" text-anchor="end">n = 247</text>
+<rect x="440" y="650" width="1416.67" height="142" fill="#2F6B9A"/><rect x="1856.67" y="650" width="23.33" height="142" fill="#D97A32"/>
+<text x="1148.34" y="706" class="value" text-anchor="middle">243 detectadas</text><text x="1148.34" y="756" class="percent" text-anchor="middle">98,4%</text>
+<line x1="1868.34" y1="792" x2="1868.34" y2="850" stroke="#1F2937" stroke-width="3"/><text x="1880" y="900" class="callout" text-anchor="end">4 não detectadas · 1,6%</text>
+</svg>

@@ -1,5 +1,9 @@
 # Deteccao de queda no VARD
 
+> Para o supervisor atual de cameras, com as duas camadas de inferencia e
+> notificacoes automaticas, consulte [Monitoramento de quedas e pessoas armadas](armed_detection.md).
+> As secoes abaixo descrevem principalmente o pipeline e o script de teste de quedas.
+
 Este documento descreve como a deteccao de queda funciona no codigo atual do projeto, cobrindo:
 
 - treinamento e formato do modelo;
@@ -342,7 +346,8 @@ Quando recebe uma sequencia de frames:
 
 O codigo primeiro tenta achar a classe chamada exatamente `queda`.
 
-Se nao encontrar, faz fallback para a ultima probabilidade do vetor. Isso permite algum grau de tolerancia a checkpoints que tragam metadados diferentes, mas a expectativa real do projeto continua sendo o rotulo `queda`.
+Se nao encontrar, rejeita o checkpoint. Isso impede que a probabilidade de outra
+classe, como `armado`, seja interpretada como queda.
 
 ## Regra de alerta: `TemporalSmoother`
 

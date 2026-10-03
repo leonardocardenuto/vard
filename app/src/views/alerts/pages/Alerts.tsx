@@ -425,6 +425,9 @@ function EmergencyButton({
 }
 
 function renderAlertIcon(kind: AlertItem["kind"], size: number) {
+  if (kind === "armed") {
+    return <Ionicons color="#CA171B" name="shield-outline" size={size} />;
+  }
   if (kind === "fall") {
     return <FontAwesome6 color="#CA171B" name="person-falling" size={size} />;
   }
@@ -443,16 +446,18 @@ function notificationToAlert(
   const payload = notification.payload ?? {};
   const rawTitle =
     notification.title || notification.notification_type || "Alert";
-  const normalizedTitle = rawTitle.toLowerCase();
-  const kind = normalizedTitle.includes("fall")
+  const normalizedTitle = `${notification.notification_type} ${rawTitle}`.toLowerCase();
+  const kind = normalizedTitle.includes("armed_person") || normalizedTitle.includes("pessoa armada")
+    ? "armed"
+    : normalizedTitle.includes("fall") || normalizedTitle.includes("queda")
     ? "fall"
-    : normalizedTitle.includes("fight")
+    : normalizedTitle.includes("confrontation") || normalizedTitle.includes("confronto") || normalizedTitle.includes("fight") || normalizedTitle.includes("briga")
       ? "fight"
       : "general";
 
   return {
     id: notification.id,
-    title: kind === "fall" ? "Fall" : kind === "fight" ? "Fight" : rawTitle,
+    title: kind === "armed" ? "Pessoa armada" : kind === "fall" ? "Fall" : kind === "fight" ? "Confronto" : rawTitle,
     kind,
     room:
       stringFromPayload(payload, ["room", "location", "camera_name"]) ??
