@@ -338,11 +338,15 @@ export function Home() {
 function getAlertKind(notification: NotificationResponse): AlertItem["kind"] {
   const type = `${notification.notification_type} ${notification.title}`.toLowerCase();
 
+  if (type.includes("armed_person") || type.includes("pessoa armada")) {
+    return "armed";
+  }
+
   if (type.includes("fall") || type.includes("queda")) {
     return "fall";
   }
 
-  if (type.includes("fight") || type.includes("briga")) {
+  if (type.includes("confrontation") || type.includes("confronto") || type.includes("fight") || type.includes("briga")) {
     return "fight";
   }
 
@@ -352,12 +356,16 @@ function getAlertKind(notification: NotificationResponse): AlertItem["kind"] {
 function getAlertTitle(notification: NotificationResponse) {
   const kind = getAlertKind(notification);
 
+  if (kind === "armed") {
+    return "Pessoa armada";
+  }
+
   if (kind === "fall") {
     return "Queda";
   }
 
   if (kind === "fight") {
-    return "Briga";
+    return "Confronto";
   }
 
   return notification.title || "Alerta";
@@ -365,6 +373,10 @@ function getAlertTitle(notification: NotificationResponse) {
 
 function renderAlertIcon(notification: NotificationResponse) {
   const kind = getAlertKind(notification);
+
+  if (kind === "armed") {
+    return <Feather color="#C9181F" name="shield" size={26} />;
+  }
 
   if (kind === "fall") {
     return <FontAwesome6 color="#C9181F" name="person-falling" size={22} />;

@@ -198,7 +198,9 @@ class FallClassifier:
             for class_name, probability in zip(self.class_names, probs)
         }
 
-        fall_probability = probabilities.get("queda", probs[-1] if probs else 0.0)
+        if "queda" not in probabilities:
+            raise ValueError("Checkpoint de queda nao possui a classe 'queda'. Use o detector correspondente.")
+        fall_probability = probabilities["queda"]
         result = {
             "predicted_class": self.class_names[pred_idx],
             "probabilities": probabilities,

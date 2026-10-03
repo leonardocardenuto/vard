@@ -15,10 +15,13 @@ from sqlalchemy import select
 from api.core.config import Settings, get_settings
 from api.db import SessionLocal
 from api.models import Camera
-from api.services.notifications import create_fall_detected_notification
-from api.services.native_preview import NativePreview
+from api.services.notifications import (
+    create_fall_detected_notification, create_armed_person_detected_notification,
+    create_confrontation_detected_notification,
+)
 from fall_detection import CameraWorker, FallDetectionConfig, FrameBuffer, TemporalSmoother
 from fall_detection.clip_exporter import ClipExporter
+from api.services.native_preview import NativePreview
 
 LOGGER = logging.getLogger(__name__)
 
@@ -31,12 +34,44 @@ class CameraMonitorSpec:
     source: str
     config: FallDetectionConfig
     capture_fps: float | None
-    clip_pre_seconds: float
-    clip_post_seconds: float
     freeze_seconds: float
     show_preview: bool
     alert_cooldown_seconds: float
     signature: tuple[Any, ...]
+    clip_pre_seconds: float = 0.0
+    clip_post_seconds: float = 0.0
+    fall_enabled: bool = True
+    armed_config: FallDetectionConfig | None = None
+    armed_alert_cooldown_seconds: float = 60.0
+    confrontation_config: FallDetectionConfig | None = None
+    confrontation_alert_cooldown_seconds: float = 60.0
+
+
+@dataclass
+class DetectionLayer:
+    kind: str
+    config: FallDetectionConfig
+    cooldown_seconds: float
+    freeze_seconds: float = 0.0
+    last_inference_at: float | None = None
+    last_alert_at: float = -float("inf")
+    resume_at: float = -float("inf")
+    inference_count: int = 0
+    prediction: dict | None = None
+    smoothing: Any = None
+    future: Future | None = None
+    pending_alert: dict | None = None
+
+    def __post_init__(self):
+        self.smoother = TemporalSmoother(
+            threshold=self.config.threshold, window_size=self.config.smoothing_window,
+            min_consecutive_hits=self.config.min_consecutive_hits,
+        )
+
+    @property
+    def probability_key(self) -> str:
+        return {"fall": "fall_probability", "armed": "armed_probability",
+                "confrontation": "confrontation_probability"}[self.kind]
 
 
 class FallClassifierProvider:
@@ -47,28 +82,39 @@ class FallClassifierProvider:
         self._load_lock = threading.Lock()
         self._predict_lock = threading.Lock()
 
-    def predict_frames(self, frames: list, *, checkpoint: str | Path | None = None, device: str | None = None) -> dict:
+    def predict_frames(self, frames: list, *, checkpoint: str | Path | None = None, device: str | None = None,
+                       detector: str = "fall", sample_fps: float | None = None) -> dict:
         classifier = self._get_classifier(
             Path(checkpoint) if checkpoint is not None else self.default_checkpoint,
             device if device is not None else self.default_device,
+            detector,
         )
         with self._predict_lock:
+            if detector in {"armed", "confrontation"} and sample_fps is not None and abs(sample_fps - classifier.sample_fps) > 1e-6:
+                raise ValueError(f"Checkpoint {detector} requer sample_fps={classifier.sample_fps}; recebido {sample_fps}.")
             return classifier.predict_frames(frames)
 
-    def _get_classifier(self, checkpoint: Path, device: str | None):
-        key = (str(checkpoint), device)
+    def _get_classifier(self, checkpoint: Path, device: str | None, detector: str = "fall"):
+        key = (detector, str(checkpoint), device)
         if key in self._classifiers:
             return self._classifiers[key]
         with self._load_lock:
             if key not in self._classifiers:
                 from fall_detection import FallClassifier
+                from fall_detection.armed_inference import ArmedClassifier
+                from fall_detection.confrontation_inference import ConfrontationClassifier
 
                 LOGGER.info(
                     "fall monitor classifier loading: checkpoint=%s device=%s",
                     checkpoint,
                     device or "auto",
                 )
-                self._classifiers[key] = FallClassifier(checkpoint, device=device)
+                classifier_types = {"fall": FallClassifier, "armed": ArmedClassifier,
+                                    "confrontation": ConfrontationClassifier}
+                if detector not in classifier_types:
+                    raise ValueError(f"Detector desconhecido: {detector}")
+                classifier_type = classifier_types[detector]
+                self._classifiers[key] = classifier_type(checkpoint, device=device)
         return self._classifiers[key]
 
 
@@ -111,12 +157,8 @@ class CameraMonitorJob:
             if self._latest_frame is None:
                 return None
             frame = self._latest_frame.copy()
-
-        success, encoded = cv2.imencode(
-            ".jpg",
-            cv2.cvtColor(frame, cv2.COLOR_RGB2BGR),
-            [int(cv2.IMWRITE_JPEG_QUALITY), 80],
-        )
+        success, encoded = cv2.imencode(".jpg", cv2.cvtColor(frame, cv2.COLOR_RGB2BGR),
+                                        [int(cv2.IMWRITE_JPEG_QUALITY), 80])
         return encoded.tobytes() if success else None
 
     def _run(self):
@@ -130,326 +172,204 @@ class CameraMonitorJob:
             with self._running_lock:
                 self._running = False
 
+    def _detection_layers(self) -> list[DetectionLayer]:
+        layers = []
+        if self.spec.fall_enabled:
+            layers.append(DetectionLayer("fall", self.spec.config,
+                                         self.spec.alert_cooldown_seconds, self.spec.freeze_seconds))
+        if self.spec.armed_config is not None:
+            layers.append(DetectionLayer("armed", self.spec.armed_config,
+                                         self.spec.armed_alert_cooldown_seconds))
+        if self.spec.confrontation_config is not None:
+            layers.append(DetectionLayer("confrontation", self.spec.confrontation_config,
+                                         self.spec.confrontation_alert_cooldown_seconds))
+        return layers
+
     def _monitor_loop(self):
-        config = self.spec.config
-        estimated_capture_fps = self.spec.capture_fps or max(config.sample_fps, 30.0)
+        layers = self._detection_layers()
+        estimated_fps = self.spec.capture_fps or max(30.0, *(layer.config.sample_fps for layer in layers))
+        buffer = FrameBuffer(max_frames=max(
+            int(max(layer.config.buffer_seconds, self.spec.clip_pre_seconds) * estimated_fps)
+            + layer.config.num_frames for layer in layers
+        ))
         worker = CameraWorker(self.spec.source, sample_fps=self.spec.capture_fps)
-        clip_capture_fps = self.spec.capture_fps or estimated_capture_fps
-        buffer = FrameBuffer(
-            max_frames=max(
-                config.num_frames,
-                int(max(config.buffer_seconds, self.spec.clip_pre_seconds) * estimated_capture_fps)
-                + config.num_frames,
-            )
-        )
-        smoother = TemporalSmoother(
-            threshold=config.threshold,
-            window_size=config.smoothing_window,
-            min_consecutive_hits=config.min_consecutive_hits,
-        )
-        last_inference_at: float | None = None
-        last_alert_at = -float("inf")
-        freeze_until_monotonic: float | None = None
-        pause_event = threading.Event()
-        inference_count = 0
-        skipped_windows = 0
-        latest_prediction: dict | None = None
-        latest_smoothing = None
-        pending_alert: dict[str, Any] | None = None
-        preview: NativePreview | None = None
+        preview = None
         if self.spec.show_preview:
             try:
                 preview = NativePreview(self.spec.name)
-            except Exception as exc:
-                LOGGER.warning(
-                    "fall monitor preview unavailable: camera_id=%s camera=%s reason=%s",
-                    self.spec.camera_id,
-                    self.spec.name,
-                    exc,
-                )
-        prediction_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fall-inference")
-        prediction_future: Future | None = None
-        prediction_context = None
-
-        def consume_completed_prediction():
-            nonlocal last_alert_at, latest_prediction, latest_smoothing, pending_alert
-            nonlocal last_inference_at, prediction_context, prediction_future
-
-            if prediction_future is None or not prediction_future.done():
-                return
-
-            inference_index, inference_timestamp, buffered_window = prediction_context
-            future = prediction_future
-            prediction_future = None
-            prediction_context = None
-            prediction = future.result()
-            smoothing = smoother.update(prediction["fall_probability"])
-            latest_prediction = prediction
-            latest_smoothing = smoothing
-
-            LOGGER.info(
-                (
-                    "Resultado #%s camera_id=%s camera=%s classe=%s queda=%.4f "
-                    "media=%.4f hits=%s alerta=%s probs=%s"
-                ),
-                inference_index,
-                self.spec.camera_id,
-                self.spec.name,
-                prediction["predicted_class"],
-                prediction["fall_probability"],
-                smoothing.moving_average,
-                smoothing.consecutive_hits,
-                "sim" if smoothing.alert else "nao",
-                prediction.get("probabilities", {}),
-            )
-
-            if not smoothing.alert:
-                return
-            if inference_timestamp - last_alert_at < self.spec.alert_cooldown_seconds:
-                LOGGER.info(
-                    (
-                        "ALERTA_QUEDA_SUPRIMIDO_COOLDOWN camera_id=%s queda=%.4f "
-                        "media=%.4f hits=%s cooldown_restante=%.2fs"
-                    ),
-                    self.spec.camera_id,
-                    prediction["fall_probability"],
-                    smoothing.moving_average,
-                    smoothing.consecutive_hits,
-                    self.spec.alert_cooldown_seconds - (inference_timestamp - last_alert_at),
-                )
-                return
-
-            last_alert_at = inference_timestamp
-            # Keep receiving frames briefly after the alert. That gives the
-            # encrypted history useful context on both sides of the fall.
-            post_roll_until = max(inference_timestamp, timestamp) + self.spec.clip_post_seconds
-            pending_alert = {
-                "prediction": prediction,
-                "smoothing": smoothing,
-                "inference_count": inference_index,
-                "clip_start": inference_timestamp - self.spec.clip_pre_seconds,
-                "clip_end": post_roll_until,
-                "clip_frames": [
-                    item
-                    for item in buffer.frames()
-                    if item.timestamp >= inference_timestamp - self.spec.clip_pre_seconds
-                ],
-            }
-            LOGGER.warning(
-                (
-                    "ALERTA_QUEDA_PROVAVEL camera_id=%s camera=%s source=%s queda=%.4f "
-                    "media=%.4f hits=%s pre_roll=%.2fs post_roll=%.2fs timestamp=%.3f"
-                ),
-                self.spec.camera_id,
-                self.spec.name,
-                _mask_source(self.spec.source),
-                prediction["fall_probability"],
-                smoothing.moving_average,
-                smoothing.consecutive_hits,
-                self.spec.clip_pre_seconds,
-                self.spec.clip_post_seconds,
-                time.time(),
-            )
-
-        LOGGER.info(
-            (
-                "Pipeline iniciado: camera_id=%s camera=%s source=%s checkpoint=%s "
-                "num_frames=%s infer_sample_fps=%.2f capture_fps=%s stride=%.2fs "
-                "threshold=%.2f smoothing_window=%s min_hits=%s buffer_seconds=%.2f "
-                "clip_pre=%.2fs clip_post=%.2fs freeze=%.2fs cooldown=%.2fs show_preview=%s"
-            ),
-            self.spec.camera_id,
-            self.spec.name,
-            _mask_source(self.spec.source),
-            config.checkpoint,
-            config.num_frames,
-            config.sample_fps,
-            "source" if self.spec.capture_fps is None else f"{self.spec.capture_fps:.2f}",
-            config.stride_seconds,
-            config.threshold,
-            config.smoothing_window,
-            config.min_consecutive_hits,
-            config.buffer_seconds,
-            self.spec.clip_pre_seconds,
-            self.spec.clip_post_seconds,
-            self.spec.freeze_seconds,
-            self.spec.alert_cooldown_seconds,
-            self.spec.show_preview,
-        )
+            except Exception:
+                LOGGER.exception("Preview indisponivel: camera_id=%s", self.spec.camera_id)
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="camera-inference")
         has_frame = False
+        for layer in layers:
+            LOGGER.info("Detector iniciado: camera_id=%s detector=%s config=%s cooldown=%.1fs",
+                        self.spec.camera_id, layer.kind, layer.config, layer.cooldown_seconds)
         try:
-            for frame, timestamp in worker.frames(stop_event=self._stop_event, pause_event=pause_event):
+            for frame, timestamp in worker.frames(stop_event=self._stop_event, pause_event=None):
                 with self._latest_frame_lock:
                     self._latest_frame = frame.copy()
-                consume_completed_prediction()
-                if freeze_until_monotonic is not None:
-                    freeze_remaining = freeze_until_monotonic - time.monotonic()
-                    if freeze_remaining > 0:
-                        time.sleep(min(0.25, freeze_remaining))
-                        continue
-                    freeze_until_monotonic = None
-                    buffer.clear()
-                    last_inference_at = None
-                    LOGGER.info("Freeze encerrado. Inferencia retomada: camera_id=%s", self.spec.camera_id)
-
                 if not has_frame:
                     has_frame = True
                     self._update_camera_status("online")
                 buffer.append(frame, timestamp)
+                # Cada camada tem sua propria janela, suavizacao, cooldown e pausa.
+                # A captura continua mesmo quando uma camada esta em freeze.
+                for layer in layers:
+                    if self._stop_event.is_set():
+                        break
+                    try:
+                        self._process_layer(layer, buffer, timestamp, executor=executor)
+                    except Exception:
+                        layer.smoother.reset()
+                        layer.resume_at = time.monotonic() + 30.0
+                        LOGGER.exception("Detector falhou; nova tentativa em 30s: camera_id=%s detector=%s",
+                                         self.spec.camera_id, layer.kind)
                 if preview is not None:
                     if preview.is_alive:
-                        preview.submit(
-                            _render_preview_frame(
-                                frame,
-                                latest_prediction,
-                                latest_smoothing,
-                                freeze_until_monotonic,
-                            )
-                        )
+                        preview.submit(_render_preview_frame(frame, layers))
                     else:
-                        LOGGER.info("fall monitor preview closed by user: camera_id=%s", self.spec.camera_id)
                         preview.close()
                         preview = None
-
-                if pending_alert is not None:
-                    pending_alert["clip_frames"].append(buffer.frames()[-1])
-                    if timestamp < pending_alert["clip_end"]:
-                        continue
-
-                    self._create_notification(
-                        prediction=pending_alert["prediction"],
-                        smoothing=pending_alert["smoothing"],
-                        inference_count=pending_alert["inference_count"],
-                        clip_frames=pending_alert["clip_frames"],
-                        clip_fps=clip_capture_fps,
-                    )
-                    if self.spec.freeze_seconds > 0:
-                        freeze_until_monotonic = time.monotonic() + self.spec.freeze_seconds
-                        if preview is not None and preview.is_alive:
-                            preview.submit(
-                                _render_preview_frame(
-                                    frame,
-                                    pending_alert["prediction"],
-                                    pending_alert["smoothing"],
-                                    freeze_until_monotonic,
-                                )
-                            )
-                    pending_alert = None
-                    buffer.clear()
-                    last_inference_at = None
-                    continue
-
-                if last_inference_at is not None and timestamp - last_inference_at < config.stride_seconds:
-                    continue
-                if prediction_future is not None:
-                    continue
-
-                buffered_window = buffer.sample_window_buffered(
-                    num_frames=config.num_frames,
-                    sample_fps=config.sample_fps,
-                    end_timestamp=timestamp,
-                )
-                if len(buffered_window) < config.num_frames:
-                    skipped_windows += 1
-                    if skipped_windows == 1 or skipped_windows % 100 == 0:
-                        LOGGER.info(
-                            (
-                                "Aguardando janela para inferencia: camera_id=%s buffer=%s "
-                                "frames_janela=%s/%s sample_fps=%.2f timestamp=%.3f"
-                            ),
-                            self.spec.camera_id,
-                            len(buffer),
-                            len(buffered_window),
-                            config.num_frames,
-                            config.sample_fps,
-                            timestamp,
-                        )
-                    continue
-
-                skipped_windows = 0
-                last_inference_at = timestamp
-                inference_count += 1
-                window = [item.frame for item in buffered_window]
-                window_start = buffered_window[0].timestamp
-                window_end = buffered_window[-1].timestamp
-                LOGGER.info(
-                    (
-                        "Inferencia #%s camera_id=%s camera=%s frames=%s buffer=%s "
-                        "janela=%.3fs-%.3fs checkpoint=%s"
-                    ),
-                    inference_count,
-                    self.spec.camera_id,
-                    self.spec.name,
-                    len(window),
-                    len(buffer),
-                    window_start,
-                    window_end,
-                    config.checkpoint,
-                )
-                prediction_context = (inference_count, timestamp, buffered_window)
-                prediction_future = prediction_executor.submit(
-                    self.classifier_provider.predict_frames,
-                    window,
-                    checkpoint=config.checkpoint,
-                    device=config.device,
-                )
         except Exception as exc:
             self.failed_at = time.monotonic()
-            LOGGER.exception("fall monitor job failed: camera_id=%s", self.spec.camera_id)
+            LOGGER.exception("Monitor de camera falhou: camera_id=%s", self.spec.camera_id)
             self._update_camera_status("error", error=str(exc))
         finally:
-            prediction_executor.shutdown(wait=False, cancel_futures=True)
+            executor.shutdown(wait=False, cancel_futures=True)
+            release = getattr(worker, "release", None)
+            if release:
+                release()
             if preview is not None:
                 preview.close()
-            if not self._stop_event.is_set():
+            if self.failed_at is None and not self._stop_event.is_set():
                 self._update_camera_status("offline")
 
-    def _create_notification(self, *, prediction: dict, smoothing, inference_count: int, clip_frames, clip_fps: float):
-        from datetime import UTC, datetime
+    def _process_layer(self, layer: DetectionLayer, buffer: FrameBuffer, timestamp: float, executor=None):
+        config = layer.config
+        if timestamp < layer.resume_at:
+            return
+        if layer.pending_alert is not None:
+            pending = layer.pending_alert
+            latest = buffer.frames()[-1]
+            if not pending["frames"] or pending["frames"][-1].timestamp < pending["end"]:
+                if not pending["frames"] or latest.timestamp > pending["frames"][-1].timestamp:
+                    pending["frames"].append(latest)
+            if timestamp >= pending["end"]:
+                if self._finish_alert(layer, pending["timestamp"], clip_frames=pending["frames"]):
+                    layer.pending_alert = None
+            return
+        if layer.future is not None:
+            if not layer.future.done():
+                return
+            future, layer.future = layer.future, None
+            prediction = future.result()
+            self._accept_prediction(layer, prediction, buffer, layer.last_inference_at, timestamp)
+            return
+        if layer.last_inference_at is not None and timestamp - layer.last_inference_at < config.stride_seconds:
+            return
+        buffered_window = buffer.sample_window_buffered(
+            num_frames=config.num_frames, sample_fps=config.sample_fps, end_timestamp=timestamp,
+        )
+        if len(buffered_window) < config.num_frames:
+            return
+        layer.last_inference_at = timestamp
+        layer.inference_count += 1
+        kwargs = dict(checkpoint=config.checkpoint, device=config.device,
+                      detector=layer.kind, sample_fps=config.sample_fps)
+        frames = [item.frame for item in buffered_window]
+        if executor is not None:
+            layer.future = executor.submit(self.classifier_provider.predict_frames, frames, **kwargs)
+            return
+        prediction = self.classifier_provider.predict_frames(frames, **kwargs)
+        self._accept_prediction(layer, prediction, buffer, timestamp, timestamp)
 
-        from api.services.fall_events import record_fall_event
+    def _accept_prediction(self, layer, prediction, buffer, timestamp, current_timestamp):
+        probability = float(prediction[layer.probability_key])
+        smoothing = layer.smoother.update(probability)
+        layer.prediction, layer.smoothing = prediction, smoothing
+        LOGGER.info("Resultado camera_id=%s detector=%s inferencia=%s classe=%s prob=%.4f media=%.4f hits=%s alerta=%s",
+                    self.spec.camera_id, layer.kind, layer.inference_count, prediction["predicted_class"],
+                    probability, smoothing.moving_average, smoothing.consecutive_hits, smoothing.alert)
+        if not smoothing.alert or timestamp - layer.last_alert_at < layer.cooldown_seconds:
+            return
+        if layer.kind == "fall" and (self.spec.clip_pre_seconds or self.spec.clip_post_seconds):
+            layer.pending_alert = {
+                "timestamp": timestamp, "end": current_timestamp + self.spec.clip_post_seconds,
+                "frames": [item for item in buffer.frames()
+                           if timestamp - self.spec.clip_pre_seconds <= item.timestamp <= current_timestamp],
+            }
+            if self.spec.clip_post_seconds > 0:
+                return
+            if self._finish_alert(layer, timestamp, clip_frames=layer.pending_alert["frames"]):
+                layer.pending_alert = None
+            return
+        self._finish_alert(layer, timestamp)
 
+    def _finish_alert(self, layer, timestamp, clip_frames=None):
+        try:
+            kwargs = {} if clip_frames is None else {"clip_frames": clip_frames,
+                "clip_fps": self.spec.capture_fps or max(30.0, layer.config.sample_fps)}
+            self._create_notification(layer=layer, timestamp=timestamp, **kwargs)
+        except Exception:
+            # Nao descartar o evento nem impedir a outra camada quando o banco falhar.
+            LOGGER.exception("Falha ao persistir alerta: camera_id=%s detector=%s", self.spec.camera_id, layer.kind)
+            return False
+        layer.last_alert_at = timestamp
+        if layer.freeze_seconds > 0:
+            layer.resume_at = time.monotonic() + layer.freeze_seconds
+            layer.smoother.reset()
+        LOGGER.warning("ALERTA_CONFIRMADO camera_id=%s detector=%s prob=%.4f",
+                       self.spec.camera_id, layer.kind, layer.prediction[layer.probability_key])
+        return True
+
+    def _create_notification(self, *, layer: DetectionLayer, timestamp: float, clip_frames=None, clip_fps=30.0):
+        prediction, smoothing = layer.prediction, layer.smoothing
+        probability = float(prediction[layer.probability_key])
         payload = {
             "camera_id": str(self.spec.camera_id),
             "workspace_id": str(self.spec.workspace_id),
             "camera_name": self.spec.name,
             "source": _mask_source(self.spec.source),
-            "inference_count": inference_count,
-            "fall_probability": float(prediction["fall_probability"]),
+            "detector": layer.kind,
+            "checkpoint": str(layer.config.checkpoint),
+            "inference_count": layer.inference_count,
+            layer.probability_key: probability,
+            "confidence": probability * 100,
             "predicted_class": prediction["predicted_class"],
             "probabilities": prediction.get("probabilities", {}),
-            "threshold": self.spec.config.threshold,
+            "threshold": layer.config.threshold,
             "moving_average": float(smoothing.moving_average),
             "consecutive_hits": int(smoothing.consecutive_hits),
+            "monitor_timestamp": float(timestamp),
         }
+        create_notification, event_description = {
+            "fall": (create_fall_detected_notification, "Uma possivel queda foi detectada"),
+            "armed": (create_armed_person_detected_notification, "Uma possivel pessoa armada foi detectada"),
+            "confrontation": (create_confrontation_detected_notification, "Um possivel confronto foi detectado"),
+        }[layer.kind]
         with SessionLocal() as db:
-            clip_result = ClipExporter(LOGGER).export_mp4(clip_frames, fps=clip_fps)
-            try:
-                event = record_fall_event(
-                    db,
-                    workspace_id=self.spec.workspace_id,
-                    camera_id=self.spec.camera_id,
-                    occurred_at=datetime.now(UTC),
-                    clip_bytes=clip_result.path.read_bytes() if clip_result else None,
-                )
-            finally:
-                if clip_result:
-                    clip_result.path.unlink(missing_ok=True)
-            notification = create_fall_detected_notification(
-                db,
-                workspace_id=self.spec.workspace_id,
-                camera_id=self.spec.camera_id,
+            event = None
+            if layer.kind == "fall":
+                from datetime import UTC, datetime
+                from api.services.fall_events import record_fall_event
+
+                clip = ClipExporter(LOGGER).export_mp4(clip_frames, fps=clip_fps) if clip_frames else None
+                try:
+                    event = record_fall_event(db, workspace_id=self.spec.workspace_id,
+                        camera_id=self.spec.camera_id, occurred_at=datetime.now(UTC),
+                        clip_bytes=clip.path.read_bytes() if clip else None)
+                finally:
+                    if clip:
+                        clip.path.unlink(missing_ok=True)
+            notification = create_notification(
+                db, workspace_id=self.spec.workspace_id, camera_id=self.spec.camera_id,
                 payload=payload,
-                body=f"Uma possível queda foi detectada pela câmera {self.spec.name}.",
-                created_by="fall_monitor_job",
+                body=f"{event_description} pela camera {self.spec.name}.",
+                created_by=f"{layer.kind}_monitor_job",
             )
-            event.notification_id = notification.id
-            db.commit()
-        LOGGER.warning(
-            "fall monitor notification created: camera_id=%s fall=%.4f",
-            self.spec.camera_id,
-            prediction["fall_probability"],
-        )
+            if event is not None:
+                event.notification_id = notification.id
+                db.commit()
 
     def _update_camera_status(self, status: str, error: str | None = None):
         with SessionLocal() as db:
@@ -532,11 +452,6 @@ class CameraMonitorSupervisor:
         elapsed = time.monotonic() - job.failed_at
         return elapsed >= max(1.0, self.settings.fall_monitor_restart_backoff_seconds)
 
-    def snapshot_jpeg(self, camera_id: uuid.UUID) -> bytes | None:
-        with self._lock:
-            job = self._jobs.get(camera_id)
-        return job.snapshot_jpeg() if job and job.is_alive() else None
-
     def _stop_all_jobs(self):
         with self._lock:
             jobs = list(self._jobs.values())
@@ -544,99 +459,76 @@ class CameraMonitorSupervisor:
         for job in jobs:
             job.stop()
 
+    def snapshot_jpeg(self, camera_id: uuid.UUID) -> bytes | None:
+        with self._lock:
+            job = self._jobs.get(camera_id)
+        return job.snapshot_jpeg() if job and job.is_alive() else None
+
     def _load_active_specs(self) -> list[CameraMonitorSpec]:
         with SessionLocal() as db:
             cameras = list(db.scalars(select(Camera).where(Camera.is_active.is_(True))).all())
-            return [
-                spec
-                for camera in cameras
-                if (spec := self._spec_from_camera(camera)) is not None
-            ]
+            specs = []
+            for camera in cameras:
+                try:
+                    spec = self._spec_from_camera(camera)
+                except (TypeError, ValueError):
+                    LOGGER.exception("Configuracao invalida: camera_id=%s", camera.id)
+                    continue
+                if spec is not None:
+                    specs.append(spec)
+            return specs
 
     def _spec_from_camera(self, camera: Camera) -> CameraMonitorSpec | None:
         metadata = dict(camera.metadata_json or {})
         monitor_metadata = dict(metadata.get("fall_monitor") or {})
-        if monitor_metadata.get("enabled") is not True:
+        armed_metadata = dict(metadata.get("armed_monitor") or {})
+        confrontation_metadata = dict(metadata.get("confrontation_monitor") or {})
+        fall_enabled = monitor_metadata.get("enabled") is True
+        armed_enabled = armed_metadata.get("enabled", self.settings.armed_monitor_enabled and fall_enabled) is True
+        confrontation_enabled = confrontation_metadata.get(
+            "enabled", self.settings.confrontation_monitor_enabled and (fall_enabled or armed_enabled)
+        ) is True
+        if not (fall_enabled or armed_enabled or confrontation_enabled):
             return None
 
-        config = FallDetectionConfig(
-            checkpoint=Path(monitor_metadata.get("checkpoint") or self.settings.fall_monitor_checkpoint),
-            num_frames=int(monitor_metadata.get("num_frames") or self.settings.fall_monitor_num_frames),
-            sample_fps=float(monitor_metadata.get("sample_fps") or self.settings.fall_monitor_sample_fps),
-            stride_seconds=float(monitor_metadata.get("stride_seconds") or self.settings.fall_monitor_stride_seconds),
-            threshold=float(monitor_metadata.get("threshold") or self.settings.fall_monitor_threshold),
-            smoothing_window=int(monitor_metadata.get("smoothing_window") or self.settings.fall_monitor_smoothing_window),
-            min_consecutive_hits=int(
-                monitor_metadata.get("min_consecutive_hits")
-                or self.settings.fall_monitor_min_consecutive_hits
-            ),
-            buffer_seconds=float(monitor_metadata.get("buffer_seconds") or self.settings.fall_monitor_buffer_seconds),
-            device=monitor_metadata.get("device") or self.settings.fall_monitor_device,
-        )
-        capture_fps = float(monitor_metadata.get("capture_fps") or self.settings.fall_monitor_capture_fps)
-        if capture_fps <= 0:
-            capture_fps = None
-        clip_pre_seconds = max(
-            0.0,
-            float(
-                monitor_metadata["clip_pre_seconds"]
-                if "clip_pre_seconds" in monitor_metadata
-                else self.settings.fall_monitor_clip_pre_seconds
-            ),
-        )
-        clip_post_seconds = max(
-            0.0,
-            float(
-                monitor_metadata["clip_post_seconds"]
-                if "clip_post_seconds" in monitor_metadata
-                else self.settings.fall_monitor_clip_post_seconds
-            ),
-        )
-        freeze_seconds = float(
-            monitor_metadata.get("freeze_seconds")
-            or self.settings.fall_monitor_freeze_seconds
-        )
-        show_preview = bool(
-            monitor_metadata.get("show_preview")
-            if "show_preview" in monitor_metadata
-            else self.settings.fall_monitor_show_preview
-        )
-        cooldown = float(
-            monitor_metadata.get("alert_cooldown_seconds")
-            or self.settings.fall_monitor_alert_cooldown_seconds
-        )
-        signature = (
-            camera.stream_url,
-            str(config.checkpoint),
-            config.num_frames,
-            config.sample_fps,
-            config.stride_seconds,
-            config.threshold,
-            config.smoothing_window,
-            config.min_consecutive_hits,
-            config.buffer_seconds,
-            config.device,
-            capture_fps,
-            clip_pre_seconds,
-            clip_post_seconds,
-            freeze_seconds,
-            show_preview,
-            cooldown,
-        )
+        def detection_config(values: dict, prefix: str) -> FallDetectionConfig:
+            names = ("checkpoint", "num_frames", "sample_fps", "stride_seconds", "threshold",
+                     "smoothing_window", "min_consecutive_hits", "buffer_seconds", "device")
+            config_values = {name: values.get(name, getattr(self.settings, f"{prefix}_monitor_{name}")) for name in names}
+            config_values["checkpoint"] = Path(config_values["checkpoint"])
+            for name in ("num_frames", "smoothing_window", "min_consecutive_hits"):
+                config_values[name] = int(config_values[name])
+            for name in ("sample_fps", "stride_seconds", "threshold", "buffer_seconds"):
+                config_values[name] = float(config_values[name])
+            return FallDetectionConfig(**config_values)
+
+        armed_config = detection_config(armed_metadata, "armed") if armed_enabled else None
+        confrontation_config = detection_config(confrontation_metadata, "confrontation") if confrontation_enabled else None
+        config = detection_config(monitor_metadata, "fall") if fall_enabled else (armed_config or confrontation_config)
+        capture_metadata = monitor_metadata if fall_enabled else (armed_metadata if armed_enabled else confrontation_metadata)
+        capture_fps = float(capture_metadata.get("capture_fps", self.settings.fall_monitor_capture_fps))
+        capture_fps = capture_fps if capture_fps > 0 else None
+        clip_pre = max(0.0, float(monitor_metadata.get("clip_pre_seconds", self.settings.fall_monitor_clip_pre_seconds)))
+        clip_post = max(0.0, float(monitor_metadata.get("clip_post_seconds", self.settings.fall_monitor_clip_post_seconds)))
+        freeze_seconds = float(monitor_metadata.get("freeze_seconds", self.settings.fall_monitor_freeze_seconds))
+        show_preview = bool(capture_metadata.get("show_preview", self.settings.fall_monitor_show_preview))
+        cooldown = float(monitor_metadata.get("alert_cooldown_seconds", self.settings.fall_monitor_alert_cooldown_seconds))
+        armed_cooldown = float(armed_metadata.get("alert_cooldown_seconds", self.settings.armed_monitor_alert_cooldown_seconds))
+        confrontation_cooldown = float(confrontation_metadata.get("alert_cooldown_seconds", self.settings.confrontation_monitor_alert_cooldown_seconds))
+        if min(freeze_seconds, cooldown, armed_cooldown, confrontation_cooldown) < 0:
+            raise ValueError("Freeze e cooldown nao podem ser negativos.")
+        signature = (camera.stream_url, camera.name, camera.workspace_id, config, armed_config, confrontation_config,
+                     fall_enabled, capture_fps, clip_pre, clip_post, freeze_seconds, show_preview, cooldown, armed_cooldown, confrontation_cooldown)
         return CameraMonitorSpec(
-            camera_id=camera.id,
-            workspace_id=camera.workspace_id,
-            name=camera.name,
-            source=camera.stream_url,
-            config=config,
-            capture_fps=capture_fps,
-            clip_pre_seconds=clip_pre_seconds,
-            clip_post_seconds=clip_post_seconds,
-            freeze_seconds=freeze_seconds,
-            show_preview=show_preview,
-            alert_cooldown_seconds=cooldown,
-            signature=signature,
+            camera_id=camera.id, workspace_id=camera.workspace_id, name=camera.name,
+            source=camera.stream_url, config=config, capture_fps=capture_fps,
+            clip_pre_seconds=clip_pre, clip_post_seconds=clip_post,
+            freeze_seconds=freeze_seconds, show_preview=show_preview,
+            alert_cooldown_seconds=cooldown, signature=signature, fall_enabled=fall_enabled,
+            armed_config=armed_config, armed_alert_cooldown_seconds=armed_cooldown,
+            confrontation_config=confrontation_config, confrontation_alert_cooldown_seconds=confrontation_cooldown,
         )
+
 
 
 def _mask_source(source: str) -> str:
@@ -649,74 +541,26 @@ def _mask_source(source: str) -> str:
     return f"{scheme}://***:***@{host}"
 
 
-def _render_preview_frame(
-    frame_rgb,
-    prediction: dict | None,
-    smoothing,
-    freeze_until_monotonic: float | None,
-):
+def _render_preview_frame(frame_rgb, layers: list[DetectionLayer]):
     frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
     overlay = frame_bgr.copy()
-    cv2.rectangle(overlay, (12, 12), (660, 156), (20, 20, 20), -1)
+    cv2.rectangle(overlay, (12, 12), (780, 60 + 64 * len(layers)), (20, 20, 20), -1)
     frame_bgr = cv2.addWeighted(overlay, 0.45, frame_bgr, 0.55, 0)
-
-    freeze_remaining = 0.0
-    if freeze_until_monotonic is not None:
-        freeze_remaining = max(0.0, freeze_until_monotonic - time.monotonic())
-
-    alert = bool(smoothing and smoothing.alert)
-    if freeze_remaining > 0:
-        title = f"FREEZE ATIVO: {int(max(1, round(freeze_remaining)))}s restantes"
-        title_color = (0, 180, 255)
-    elif alert:
-        title = "ALERTA: queda provavel"
-        title_color = (0, 0, 255)
-    else:
-        title = "Monitorando"
-        title_color = (0, 200, 0)
-
-    cv2.putText(frame_bgr, title, (24, 44), cv2.FONT_HERSHEY_SIMPLEX, 0.82, title_color, 2, cv2.LINE_AA)
-    if prediction is None:
-        cv2.putText(
-            frame_bgr,
-            "Aguardando inferencia...",
-            (24, 84),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.62,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-    else:
-        cv2.putText(
-            frame_bgr,
-            f"Classe: {prediction['predicted_class']}",
-            (24, 84),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.62,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-        cv2.putText(
-            frame_bgr,
-            f"Prob. queda: {prediction['fall_probability']:.3f}  Media: {smoothing.moving_average:.3f}",
-            (24, 114),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.62,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-        cv2.putText(
-            frame_bgr,
-            f"Hits consecutivos: {smoothing.consecutive_hits}",
-            (24, 144),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.62,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-
+    cv2.putText(frame_bgr, "VARD - Monitoramento", (24, 42),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+    for index, layer in enumerate(layers):
+        label = {"armed": "Pessoa armada", "fall": "Queda", "confrontation": "Confronto"}[layer.kind]
+        text = f"{label}: aguardando janela"
+        color = (0, 200, 0)
+        if layer.prediction is not None:
+            text = (f"{label}: {layer.prediction[layer.probability_key]:.3f} "
+                    f"media={layer.smoothing.moving_average:.3f} hits={layer.smoothing.consecutive_hits}")
+            if layer.smoothing.alert:
+                text += " ALERTA"
+                color = (0, 0, 255)
+        remaining = layer.resume_at - time.monotonic()
+        if remaining > 0:
+            text += f" pausa={remaining:.0f}s"
+        cv2.putText(frame_bgr, text, (24, 82 + index * 64),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
     return frame_bgr

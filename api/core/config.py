@@ -56,6 +56,34 @@ class Settings(BaseSettings):
     fall_monitor_alert_cooldown_seconds: float = Field(60.0, alias="FALL_MONITOR_ALERT_COOLDOWN_SECONDS")
     fall_monitor_restart_backoff_seconds: float = Field(30.0, alias="FALL_MONITOR_RESTART_BACKOFF_SECONDS")
 
+    armed_monitor_enabled: bool = Field(False, alias="ARMED_MONITOR_ENABLED")
+    armed_monitor_checkpoint: str = Field(
+        "fall_detection/models/best_gun_binary_classifier_head.pt", alias="ARMED_MONITOR_CHECKPOINT"
+    )
+    armed_monitor_device: str | None = Field(default=None, alias="ARMED_MONITOR_DEVICE")
+    armed_monitor_num_frames: int = Field(16, ge=2, alias="ARMED_MONITOR_NUM_FRAMES")
+    armed_monitor_sample_fps: float = Field(5.0, gt=0, alias="ARMED_MONITOR_SAMPLE_FPS")
+    armed_monitor_stride_seconds: float = Field(1.0, gt=0, alias="ARMED_MONITOR_STRIDE_SECONDS")
+    armed_monitor_threshold: float = Field(0.85, ge=0, le=1, alias="ARMED_MONITOR_THRESHOLD")
+    armed_monitor_smoothing_window: int = Field(5, ge=1, alias="ARMED_MONITOR_SMOOTHING_WINDOW")
+    armed_monitor_min_consecutive_hits: int = Field(2, ge=1, alias="ARMED_MONITOR_MIN_CONSECUTIVE_HITS")
+    armed_monitor_buffer_seconds: float = Field(8.0, gt=0, alias="ARMED_MONITOR_BUFFER_SECONDS")
+    armed_monitor_alert_cooldown_seconds: float = Field(60.0, ge=0, alias="ARMED_MONITOR_ALERT_COOLDOWN_SECONDS")
+
+    confrontation_monitor_enabled: bool = Field(False, alias="CONFRONTATION_MONITOR_ENABLED")
+    confrontation_monitor_checkpoint: str = Field(
+        "fall_detection/models/best_confrontation_classifier_head.pt", alias="CONFRONTATION_MONITOR_CHECKPOINT"
+    )
+    confrontation_monitor_device: str | None = Field(default=None, alias="CONFRONTATION_MONITOR_DEVICE")
+    confrontation_monitor_num_frames: int = Field(16, ge=2, alias="CONFRONTATION_MONITOR_NUM_FRAMES")
+    confrontation_monitor_sample_fps: float = Field(7.5, gt=0, alias="CONFRONTATION_MONITOR_SAMPLE_FPS")
+    confrontation_monitor_stride_seconds: float = Field(1.0, gt=0, alias="CONFRONTATION_MONITOR_STRIDE_SECONDS")
+    confrontation_monitor_threshold: float = Field(0.41, ge=0, le=1, alias="CONFRONTATION_MONITOR_THRESHOLD")
+    confrontation_monitor_smoothing_window: int = Field(5, ge=1, alias="CONFRONTATION_MONITOR_SMOOTHING_WINDOW")
+    confrontation_monitor_min_consecutive_hits: int = Field(2, ge=1, alias="CONFRONTATION_MONITOR_MIN_CONSECUTIVE_HITS")
+    confrontation_monitor_buffer_seconds: float = Field(8.0, gt=0, alias="CONFRONTATION_MONITOR_BUFFER_SECONDS")
+    confrontation_monitor_alert_cooldown_seconds: float = Field(60.0, ge=0, alias="CONFRONTATION_MONITOR_ALERT_COOLDOWN_SECONDS")
+
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]

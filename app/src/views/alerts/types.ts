@@ -1,7 +1,7 @@
 export type AlertItem = {
   id: string;
   title: string;
-  kind: "fall" | "fight" | "general";
+  kind: "fall" | "fight" | "armed" | "general";
   room: string;
   time: string;
   precision: number;

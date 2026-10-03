@@ -31,7 +31,7 @@ def send_push_to_subscription_ids(
         "include_subscription_ids": subscription_ids[:20000],
         "headings": {"en": title},
         "contents": {"en": body},
-        "custom_data": data or {},
+        "data": data or {},
     }
     request = Request(
         "https://api.onesignal.com/notifications",
@@ -52,5 +52,5 @@ def send_push_to_subscription_ids(
             exc.code,
             exc.read().decode("utf-8", errors="replace"),
         )
-    except URLError as exc:
-        logger.warning("OneSignal push failed: %s", exc.reason)
+    except (URLError, TimeoutError, OSError) as exc:
+        logger.warning("OneSignal push failed: %s", exc)

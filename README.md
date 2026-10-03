@@ -152,6 +152,12 @@ python -m scripts.run_fall_monitor_jobs --demo --demo-seed-only
 `--webcam-source`, `--demo-checkpoint` e `--demo-threshold` permitem ajustar a
 origem, o checkpoint e o limiar exclusivamente para a câmera demo.
 
+O monitor integrado agora inclui uma segunda camada para pessoas armadas, com
+checkpoint binario, notificacoes e push. Veja [ativacao e validacao](docs/armed_detection.md).
+
+A terceira camada detecta `confronto` / `nao_confronto` com um checkpoint
+treinado em SCFD, AIRTLab e VID domestico. Veja [treinamento, resultados e ativacao](docs/confrontation_detection.md).
+
 ## Estrutura
 
 ```text
