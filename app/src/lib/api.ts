@@ -64,7 +64,7 @@ export type NotificationResponse = {
   workspace_id: string;
   camera_id: string | null;
   notification_type: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
+  severity: "low" | "medium" | "high" | "critical";
   title: string;
   body: string;
   payload: Record<string, unknown>;
@@ -92,7 +92,7 @@ type CameraCreatePayload = {
 type NotificationUpdatePayload = {
   body?: string;
   payload?: Record<string, unknown>;
-  severity?: 'low' | 'medium' | 'high' | 'critical';
+  severity?: "low" | "medium" | "high" | "critical";
   title?: string;
 };
 
@@ -118,34 +118,38 @@ type ApiErrorPayload = {
 };
 
 const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || 'http://127.0.0.1:8000';
+  process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || "http://127.0.0.1:8000";
 
 export class ApiRequestError extends Error {
   fieldErrors?: Record<string, string>;
 
   constructor(message: string, fieldErrors?: Record<string, string>) {
     super(message);
-    this.name = 'ApiRequestError';
+    this.name = "ApiRequestError";
     this.fieldErrors = fieldErrors;
   }
 }
 
 function resolveApiBaseUrl() {
-  return API_BASE_URL.replace(/\/+$/, '');
+  return API_BASE_URL.replace(/\/+$/, "");
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return requestWithToken<T>(path, undefined, init);
 }
 
-async function requestWithToken<T>(path: string, token?: string, init?: RequestInit): Promise<T> {
+async function requestWithToken<T>(
+  path: string,
+  token?: string,
+  init?: RequestInit,
+): Promise<T> {
   const url = `${resolveApiBaseUrl()}${path}`;
   let response: Response;
 
   try {
     response = await fetch(url, {
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init?.headers ?? {}),
       },
@@ -156,7 +160,7 @@ async function requestWithToken<T>(path: string, token?: string, init?: RequestI
   }
 
   if (!response.ok) {
-    let message = 'Não foi possível completar a solicitação.';
+    let message = "Não foi possível completar a solicitação.";
     let fieldErrors: Record<string, string> | undefined;
 
     try {
@@ -176,8 +180,8 @@ async function requestWithToken<T>(path: string, token?: string, init?: RequestI
   return (await response.json()) as T;
 }
 
-function normalizeApiError(detail: ApiErrorPayload['detail']) {
-  if (typeof detail === 'string') {
+function normalizeApiError(detail: ApiErrorPayload["detail"]) {
+  if (typeof detail === "string") {
     const message = translateApiMessage(detail);
     return {
       message,
@@ -189,9 +193,11 @@ function normalizeApiError(detail: ApiErrorPayload['detail']) {
     const fieldErrors: Record<string, string> = {};
     const messages = detail.map((item) => {
       const field = item.loc?.[item.loc.length - 1];
-      const translatedMessage = translateApiMessage(item.msg ?? 'Valor inválido.');
+      const translatedMessage = translateApiMessage(
+        item.msg ?? "Valor inválido.",
+      );
 
-      if (typeof field === 'string') {
+      if (typeof field === "string") {
         fieldErrors[field] = translatedMessage;
         return `${humanizeField(field)}: ${translatedMessage}`;
       }
@@ -200,27 +206,30 @@ function normalizeApiError(detail: ApiErrorPayload['detail']) {
     });
 
     return {
-      message: messages.join('\n'),
+      message: messages.join("\n"),
       fieldErrors,
     };
   }
 
   return {
-    message: 'Não foi possível completar a solicitação.',
+    message: "Não foi possível completar a solicitação.",
   };
 }
 
-function inferFieldErrorsFromMessage(rawMessage: string, translatedMessage: string) {
+function inferFieldErrorsFromMessage(
+  rawMessage: string,
+  translatedMessage: string,
+) {
   const normalized = rawMessage.trim();
 
-  if (normalized === 'Email already registered') {
+  if (normalized === "Email already registered") {
     return { email: translatedMessage } as Record<string, string>;
   }
 
-  if (normalized === 'Invalid credentials') {
+  if (normalized === "Invalid credentials") {
     return {
-      email: 'Confira seu e-mail.',
-      password: 'Confira sua senha.',
+      email: "Confira seu e-mail.",
+      password: "Confira sua senha.",
     } as Record<string, string>;
   }
 
@@ -231,38 +240,39 @@ function translateApiMessage(message: string) {
   const normalized = message.trim();
 
   const exactTranslations: Record<string, string> = {
-    'Invalid credentials': 'Credenciais inválidas.',
-    'Email already registered': 'Este e-mail já está cadastrado.',
-    'String should have at least 8 characters': 'Deve ter pelo menos 8 caracteres.',
-    'Field required': 'Campo obrigatório.',
-    'Input should be a valid string': 'Valor inválido.',
-    'Value error, Invalid access token': 'Token de acesso inválido.',
+    "Invalid credentials": "Credenciais inválidas.",
+    "Email already registered": "Este e-mail já está cadastrado.",
+    "String should have at least 8 characters":
+      "Deve ter pelo menos 8 caracteres.",
+    "Field required": "Campo obrigatório.",
+    "Input should be a valid string": "Valor inválido.",
+    "Value error, Invalid access token": "Token de acesso inválido.",
   };
 
   if (exactTranslations[normalized]) {
     return exactTranslations[normalized];
   }
 
-  if (normalized.includes('value is not a valid email address')) {
-    return 'Digite um e-mail válido.';
+  if (normalized.includes("value is not a valid email address")) {
+    return "Digite um e-mail válido.";
   }
 
-  if (normalized.includes('An email address must have an @-sign')) {
-    return 'Digite um e-mail válido.';
+  if (normalized.includes("An email address must have an @-sign")) {
+    return "Digite um e-mail válido.";
   }
 
-  if (normalized.includes('password cannot be longer than 72 bytes')) {
-    return 'Não foi possível processar sua senha.';
+  if (normalized.includes("password cannot be longer than 72 bytes")) {
+    return "Não foi possível processar sua senha.";
   }
 
-  if (normalized.includes('String should have at least')) {
+  if (normalized.includes("String should have at least")) {
     const match = normalized.match(/at least (\d+) characters/);
     if (match) {
       return `Deve ter pelo menos ${match[1]} caracteres.`;
     }
   }
 
-  if (normalized.includes('String should have at most')) {
+  if (normalized.includes("String should have at most")) {
     const match = normalized.match(/at most (\d+) characters/);
     if (match) {
       return `Deve ter no máximo ${match[1]} caracteres.`;
@@ -274,117 +284,160 @@ function translateApiMessage(message: string) {
 
 function humanizeField(field: string) {
   const labels: Record<string, string> = {
-    email: 'E-mail',
-    password: 'Senha',
-    full_name: 'Nome completo',
-    avatar_url: 'Foto de perfil',
-    birth_date: 'Data de aniversário',
-    phone: 'Telefone',
-    onesignal_subscription_id: 'Token de notificação',
+    email: "E-mail",
+    password: "Senha",
+    full_name: "Nome completo",
+    avatar_url: "Foto de perfil",
+    birth_date: "Data de aniversário",
+    phone: "Telefone",
+    onesignal_subscription_id: "Token de notificação",
   };
 
   return labels[field] ?? field;
 }
 
 export async function login(payload: AuthPayload) {
-  return request<TokenResponse>('/auth/login', {
-    method: 'POST',
+  return request<TokenResponse>("/auth/login", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function register(payload: RegisterPayload) {
-  return request<TokenResponse>('/auth/register', {
-    method: 'POST',
+  return request<TokenResponse>("/auth/register", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function getMe(token: string) {
-  return requestWithToken<UserResponse>('/auth/me', token);
+  return requestWithToken<UserResponse>("/auth/me", token);
 }
 
 export async function updateMyOneSignalSubscription(
   token: string,
-  onesignalSubscriptionId?: string | null
+  onesignalSubscriptionId?: string | null,
 ) {
-  return requestWithToken<UserResponse>('/auth/me/onesignal-subscription', token, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      onesignal_subscription_id: onesignalSubscriptionId || null,
-    }),
-  });
+  return requestWithToken<UserResponse>(
+    "/auth/me/onesignal-subscription",
+    token,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        onesignal_subscription_id: onesignalSubscriptionId || null,
+      }),
+    },
+  );
 }
 
 export async function checkEmail(email: string) {
-  return request<EmailCheckResponse>('/auth/check-email', {
-    method: 'POST',
+  return request<EmailCheckResponse>("/auth/check-email", {
+    method: "POST",
     body: JSON.stringify({ email }),
   });
 }
 
 export async function listWorkspaces(token: string) {
-  return requestWithToken<WorkspaceResponse[]>('/workspaces', token);
+  return requestWithToken<WorkspaceResponse[]>("/workspaces", token);
 }
 
-export async function createWorkspace(token: string, payload: WorkspaceCreatePayload) {
-  return requestWithToken<WorkspaceResponse>('/workspaces', token, {
-    method: 'POST',
+export async function createWorkspace(
+  token: string,
+  payload: WorkspaceCreatePayload,
+) {
+  return requestWithToken<WorkspaceResponse>("/workspaces", token, {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function updateWorkspace(token: string, workspaceId: string, payload: Partial<WorkspaceCreatePayload>) {
-  return requestWithToken<WorkspaceResponse>(`/workspaces/${workspaceId}`, token, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+export async function updateWorkspace(
+  token: string,
+  workspaceId: string,
+  payload: Partial<WorkspaceCreatePayload>,
+) {
+  return requestWithToken<WorkspaceResponse>(
+    `/workspaces/${workspaceId}`,
+    token,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export async function deleteWorkspace(token: string, workspaceId: string) {
   return requestWithToken<void>(`/workspaces/${workspaceId}`, token, {
-    method: 'DELETE',
+    method: "DELETE",
   });
 }
 
 export async function listCameras(token: string, workspaceId: string) {
   const query = new URLSearchParams({ workspace_id: workspaceId });
-  return requestWithToken<CameraResponse[]>(`/cameras?${query.toString()}`, token);
+  return requestWithToken<CameraResponse[]>(
+    `/cameras?${query.toString()}`,
+    token,
+  );
 }
 
 export async function listNotifications(token: string, workspaceId: string) {
   const query = new URLSearchParams({ workspace_id: workspaceId });
-  return requestWithToken<NotificationResponse[]>(`/notifications?${query.toString()}`, token);
+  return requestWithToken<NotificationResponse[]>(
+    `/notifications?${query.toString()}`,
+    token,
+  );
 }
 
 export async function getNotification(token: string, notificationId: string) {
-  return requestWithToken<NotificationResponse>(`/notifications/${notificationId}`, token);
+  return requestWithToken<NotificationResponse>(
+    `/notifications/${notificationId}`,
+    token,
+  );
 }
 
-export async function updateNotification(token: string, notificationId: string, payload: NotificationUpdatePayload) {
-  return requestWithToken<NotificationResponse>(`/notifications/${notificationId}`, token, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+export async function updateNotification(
+  token: string,
+  notificationId: string,
+  payload: NotificationUpdatePayload,
+) {
+  return requestWithToken<NotificationResponse>(
+    `/notifications/${notificationId}`,
+    token,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
-export async function createCamera(token: string, payload: CameraCreatePayload) {
-  return requestWithToken<CameraResponse>('/cameras', token, {
-    method: 'POST',
+export async function createCamera(
+  token: string,
+  payload: CameraCreatePayload,
+) {
+  return requestWithToken<CameraResponse>("/cameras", token, {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function pingCamera(token: string, cameraId: string) {
-  return requestWithToken<CameraPingResponse>(`/cameras/${cameraId}/ping`, token, {
-    method: 'POST',
-  });
+  return requestWithToken<CameraPingResponse>(
+    `/cameras/${cameraId}/ping`,
+    token,
+    {
+      method: "POST",
+    },
+  );
 }
 
 export async function startCameraHlsStream(token: string, cameraId: string) {
-  return requestWithToken<CameraStreamResponse>(`/camera-streams/${cameraId}/hls`, token, {
-    method: 'POST',
-  });
+  return requestWithToken<CameraStreamResponse>(
+    `/camera-streams/${cameraId}/hls`,
+    token,
+    {
+      method: "POST",
+    },
+  );
 }
 
 export type WorkspaceFallAlert = {
@@ -394,8 +447,14 @@ export type WorkspaceFallAlert = {
   ambulancePhoneNumber?: string;
 };
 
-export async function getWorkspaceFallAlert(token: string, workspaceId: string) {
-  return requestWithToken<WorkspaceFallAlert>(`/workspaces/${workspaceId}/fall-alert`, token);
+export async function getWorkspaceFallAlert(
+  token: string,
+  workspaceId: string,
+) {
+  return requestWithToken<WorkspaceFallAlert>(
+    `/workspaces/${workspaceId}/fall-alert`,
+    token,
+  );
 }
 
 export function buildIntelbrasIm4RtspUrl(host: string, accessKey: string) {
@@ -408,11 +467,33 @@ export function buildIntelbrasIm4RtspUrl(host: string, accessKey: string) {
 export function buildDefaultWorkspaceSlug(nameOrEmail: string) {
   const base = nameOrEmail
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
     .slice(0, 48);
 
-  return `${base || 'vard'}-${Date.now().toString().slice(-6)}`;
+  return `${base || "vard"}-${Date.now().toString().slice(-6)}`;
+}
+
+export async function requestPasswordReset(email: string) {
+  return request<{ message: string }>("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function confirmPasswordReset(payload: {
+  email: string;
+  code: string;
+  newPassword: string;
+}) {
+  return request<{ message: string }>("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({
+      email: payload.email,
+      code: payload.code,
+      new_password: payload.newPassword,
+    }),
+  });
 }

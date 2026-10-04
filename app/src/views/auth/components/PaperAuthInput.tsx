@@ -1,22 +1,24 @@
 import { Feather } from '@expo/vector-icons';
 import { GestureResponderEvent } from 'react-native';
 import { TextInput } from 'react-native-paper';
-
+import { KeyboardTypeOptions, TextInputProps } from "react-native";
 import { styles } from '../auth_screen';
 
 type PaperAuthInputProps = {
   label: string;
   onChangeText: (value: string) => void;
   value: string;
-  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   editable?: boolean;
-  keyboardType?: 'default' | 'email-address';
+  keyboardType?: KeyboardTypeOptions;
+  maxLength?: number;
+  autoCapitalize?: TextInputProps["autoCapitalize"];
   onClear?: () => void;
   onPress?: (event: GestureResponderEvent) => void;
   rightIcon?: keyof typeof Feather.glyphMap;
   onToggleVisibility?: () => void;
   passwordVisible?: boolean;
   secureTextEntry?: boolean;
+  selected?: boolean;
 };
 
 export function PaperAuthInput({
@@ -32,8 +34,10 @@ export function PaperAuthInput({
   onToggleVisibility,
   passwordVisible = false,
   secureTextEntry = false,
+  selected = false,
 }: PaperAuthInputProps) {
   const isPassword = Boolean(onToggleVisibility);
+  const activeColor = '#03CDF4';
 
   return (
     <TextInput
@@ -44,8 +48,8 @@ export function PaperAuthInput({
       mode="outlined"
       onPressIn={onPress}
       onChangeText={onChangeText}
-      outlineColor="#C9C9C9"
-      activeOutlineColor="#03CDF4"
+      outlineColor={selected ? activeColor : '#C9C9C9'}
+      activeOutlineColor={activeColor}
       placeholderTextColor="#B5B5B5"
       right={
         isPassword ? (
@@ -54,9 +58,9 @@ export function PaperAuthInput({
             onPress={onToggleVisibility}
           />
         ) : value && onClear ? (
-          <TextInput.Icon icon={() => <Feather color="#777777" name="x" size={16} />} onPress={onClear} />
+          <TextInput.Icon icon={() => <Feather color={selected ? activeColor : '#777777'} name="x" size={16} />} onPress={onClear} />
         ) : rightIcon ? (
-          <TextInput.Icon icon={() => <Feather color="#B5B5B5" name={rightIcon} size={17} />} onPress={onPress} />
+          <TextInput.Icon icon={() => <Feather color={selected ? activeColor : '#B5B5B5'} name={rightIcon} size={17} />} onPress={onPress} />
         ) : undefined
       }
       secureTextEntry={secureTextEntry}
@@ -65,8 +69,8 @@ export function PaperAuthInput({
       theme={{
         colors: {
           background: '#FFFFFF',
-          onSurfaceVariant: '#B0B0B0',
-          primary: '#03CDF4',
+          onSurfaceVariant: selected ? activeColor : '#B0B0B0',
+          primary: activeColor,
         },
         roundness: 12,
       }}
