@@ -44,78 +44,112 @@ export function SignupAuthScreen({
   isBirthDatePickerOpen,
 }: SignupAuthScreenProps) {
   return (
-    <ScrollView contentContainerStyle={styles.signupContent} keyboardShouldPersistTaps="handled">
-      <BackButton gradientLabel onPress={onBack} label="Concluir a criacao da conta" />
+    <View style={styles.signupScreen}>
+      <ScrollView
+        contentContainerStyle={styles.signupContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <BackButton
+          gradientLabel
+          onPress={onBack}
+          label="Concluir a criacão da conta"
+        />
 
-      <Pressable onPress={onPickAvatar} style={styles.avatarPicker}>
-        {form.avatarUrl ? (
-          <Image source={{ uri: form.avatarUrl }} style={styles.avatarImage} />
-        ) : (
-          <Feather color="#A7A7A7" name="camera" size={44} />
-        )}
-        <View style={styles.avatarPlus}>
-          <Text style={styles.avatarPlusText}>+</Text>
-        </View>
-      </Pressable>
+        <Pressable onPress={onPickAvatar} style={styles.avatarPicker}>
+          {form.avatarUrl ? (
+            <Image
+              source={{ uri: form.avatarUrl }}
+              style={styles.avatarImage}
+            />
+          ) : (
+            <Feather color="#A7A7A7" name="camera" size={44} />
+          )}
+          <View style={styles.avatarPlus}>
+            <Text style={styles.avatarPlusText}>+</Text>
+          </View>
+        </Pressable>
 
-      <PaperAuthInput
-        label="Primeiro Nome"
-        onChangeText={(value) => onChangeField('firstName', value)}
-        onClear={() => onChangeField('firstName', '')}
-        value={form.firstName}
-      />
-      <PaperAuthInput
-        label="Ultimo Nome"
-        onChangeText={(value) => onChangeField('lastName', value)}
-        onClear={() => onChangeField('lastName', '')}
-        value={form.lastName}
-      />
-      <PaperAuthInput
-        label="Data de Aniversario"
-        editable={false}
-        onChangeText={(value) => onChangeField('birthDate', value)}
-        onClear={() => {
-          onChangeField('birthDate', '');
-          onChangeField('birthDateIso', '');
-        }}
-        onPress={onOpenBirthDatePicker}
-        rightIcon="calendar"
-        value={form.birthDate}
-      />
-      <PaperAuthInput
-        label="Senha"
-        onChangeText={(value) => onChangeField('password', value)}
-        onToggleVisibility={onTogglePassword}
-        passwordVisible={isPasswordVisible}
-        secureTextEntry={!isPasswordVisible}
-        value={form.password}
-      />
-      <PaperAuthInput
-        label="Repita sua senha"
-        onChangeText={(value) => onChangeField('confirmPassword', value)}
-        onToggleVisibility={onTogglePassword}
-        passwordVisible={isPasswordVisible}
-        secureTextEntry={!isPasswordVisible}
-        value={form.confirmPassword}
-      />
+        <PaperAuthInput
+          label="Primeiro Nome"
+          onChangeText={(value) => onChangeField("firstName", value)}
+          onClear={() => onChangeField("firstName", "")}
+          value={form.firstName}
+        />
 
-      <Pressable onPress={onToggleTerms} style={styles.termsRow}>
-        <View style={[styles.checkbox, acceptedTerms && styles.checkboxActive]}>
-          {acceptedTerms ? <Feather color="#FFFFFF" name="check" size={12} /> : null}
-        </View>
-        <Text style={styles.termsRowText}>
-          Ao criar a conta, eu concordo com os <Text style={styles.linkText}>Termos de{'\n'}Servico</Text> e a <Text style={styles.linkText}>Politica de Privacidade.</Text>
-        </Text>
-      </Pressable>
+        <PaperAuthInput
+          label="Ultimo Nome"
+          onChangeText={(value) => onChangeField("lastName", value)}
+          onClear={() => onChangeField("lastName", "")}
+          value={form.lastName}
+        />
 
-      {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+        <PaperAuthInput
+          label="Data de Aniversario"
+          editable={false}
+          selected={Boolean(form.birthDate)}
+          onChangeText={(value) => onChangeField("birthDate", value)}
+          onClear={() => {
+            onChangeField("birthDate", "");
+            onChangeField("birthDateIso", "");
+          }}
+          onPress={onOpenBirthDatePicker}
+          rightIcon="calendar"
+          value={form.birthDate}
+        />
 
-      <View style={styles.signupButtonWrap}>
-        <GradientButton disabled={isSubmitting} label={isSubmitting ? 'CRIANDO...' : 'CRIAR CONTA'} onPress={onCreateAccount} />
+        <PaperAuthInput
+          label="Senha"
+          onChangeText={(value) => onChangeField("password", value)}
+          onToggleVisibility={onTogglePassword}
+          passwordVisible={isPasswordVisible}
+          secureTextEntry={!isPasswordVisible}
+          value={form.password}
+        />
+
+        <PaperAuthInput
+          label="Repita sua senha"
+          onChangeText={(value) => onChangeField("confirmPassword", value)}
+          onToggleVisibility={onTogglePassword}
+          passwordVisible={isPasswordVisible}
+          secureTextEntry={!isPasswordVisible}
+          value={form.confirmPassword}
+        />
+
+        <Pressable onPress={onToggleTerms} style={styles.termsRow}>
+          <View
+            style={[styles.checkbox, acceptedTerms && styles.checkboxActive]}
+          >
+            {acceptedTerms ? (
+              <Feather color="#FFFFFF" name="check" size={12} />
+            ) : null}
+          </View>
+          <Text style={styles.termsRowText}>
+            Ao criar a conta, eu concordo com os{" "}
+            <Text style={styles.linkText}>Termos de{"\n"}Servico</Text> e a{" "}
+            <Text style={styles.linkText}>Politica de Privacidade.</Text>
+          </Text>
+        </Pressable>
+
+        {errorMessage ? (
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        ) : null}
+      </ScrollView>
+
+      <View style={styles.signupFixedButtonWrap}>
+        <GradientButton
+          disabled={isSubmitting}
+          label={isSubmitting ? "CRIANDO..." : "CRIAR CONTA"}
+          onPress={onCreateAccount}
+        />
       </View>
 
       <DatePickerModal
-        date={form.birthDateIso ? new Date(`${form.birthDateIso}T12:00:00`) : undefined}
+        date={
+          form.birthDateIso
+            ? new Date(`${form.birthDateIso}T12:00:00`)
+            : undefined
+        }
         locale="pt"
         mode="single"
         onConfirm={({ date }) => {
@@ -129,6 +163,6 @@ export function SignupAuthScreen({
         visible={isBirthDatePickerOpen}
         validRange={{ endDate: new Date() }}
       />
-    </ScrollView>
+    </View>
   );
 }
