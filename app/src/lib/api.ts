@@ -52,6 +52,7 @@ export type CameraResponse = {
   stream_url: string;
   status: string;
   is_active: boolean;
+  last_seen_at: string | null;
   metadata?: Record<string, unknown>;
   metadata_json?: Record<string, unknown>;
   room_image_url?: string;

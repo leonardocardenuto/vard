@@ -130,6 +130,7 @@ class CameraResponse(BaseModel):
     stream_url: str
     status: str
     is_active: bool
+    last_seen_at: datetime | None
     metadata: dict = Field(alias="metadata_json")
     created_by_user_id: uuid.UUID | None
     created_at: datetime

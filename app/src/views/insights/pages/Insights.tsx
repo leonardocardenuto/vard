@@ -1,4 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
@@ -32,11 +35,14 @@ import { LayoutWithNavbar } from "../../../components/LayoutWithNavbar";
 import {
   ApiRequestError,
   CameraResponse,
+  FallEventResponse,
   NotificationResponse,
   WorkspaceResponse,
+  listFallEvents,
   listCameras,
   listNotifications,
   listWorkspaces,
+  updateNotification,
 } from "../../../lib/api";
 import { AppTabParamList } from "../../../navigation/types";
 import {
@@ -50,12 +56,17 @@ import {
 type Period = "Últimos 15 dias" | "Últimos 30 dias" | "Últimos 60 dias" | "Últimos 90 dias";
 type CameraFilter = string;
 type InsightsRoute = RouteProp<AppTabParamList, "Insights">;
+type IncidentStatus = "new" | "confirmed" | "false_positive" | "resolved";
 
 type CameraData = {
-  activityLabel: string;
-  activitySegments: ActivitySegment[];
+  availabilityCameraName: string;
+  availabilityMessage: string;
+  availabilitySegments: AvailabilitySegment[];
+  availabilityStatusLabel: string;
   dailyIncidentMessage: string;
   dailyIncidentTotal: number;
+  falsePositiveTotal: number;
+  incidentDetails: IncidentDetail[];
   incidentSeries: IncidentSeriesPoint[];
   incidentTotal: number;
   roomIncidents: Array<{
@@ -76,6 +87,26 @@ type ActivitySegment = {
   width: `${number}%`;
 };
 
+type AvailabilitySegment = ActivitySegment & {
+  status: "offline" | "online";
+};
+
+type IncidentDetail = {
+  body: string;
+  cameraName: string;
+  dateLabel: string;
+  hasClip: boolean;
+  id: string;
+  notification: NotificationResponse;
+  probabilityLabel: string;
+  room: string;
+  severity: NotificationResponse["severity"];
+  status: IncidentStatus;
+  statusLabel: string;
+  timeLabel: string;
+  title: string;
+};
+
 const PERIOD_OPTIONS: Period[] = [
   "Últimos 15 dias",
   "Últimos 30 dias",
@@ -85,6 +116,7 @@ const PERIOD_OPTIONS: Period[] = [
 
 const DEFAULT_PERIOD: Period = "Últimos 90 dias";
 const ALL_CAMERAS_FILTER = "Todas";
+const ALL_WORKSPACES_ID = "__all_workspaces__";
 
 const PERIOD_DAYS: Record<Period, number> = {
   "Últimos 15 dias": 15,
@@ -111,19 +143,42 @@ export function Insights() {
   const [workspaces, setWorkspaces] = useState<WorkspaceResponse[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [cameras, setCameras] = useState<CameraResponse[]>([]);
+  const [selectedAvailabilityCameraId, setSelectedAvailabilityCameraId] = useState<string | null>(null);
+  const [fallEvents, setFallEvents] = useState<FallEventResponse[]>([]);
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(true);
   const [isRefreshingInsights, setIsRefreshingInsights] = useState(false);
   const [insightsError, setInsightsError] = useState("");
-  const [exportLabel, setExportLabel] = useState("Exportar relatório mensal");
+  const [exportLabel, setExportLabel] = useState("Exportar relatório PDF");
+  const [updatingIncidentId, setUpdatingIncidentId] = useState<string | null>(null);
   const sheetAnimation = useRef(new Animated.Value(0)).current;
   const sheetDragY = useRef(new Animated.Value(0)).current;
 
   const effectivePeriod = period ?? DEFAULT_PERIOD;
   const effectiveCamera = selectedCamera ?? ALL_CAMERAS_FILTER;
+  const isAllWorkspacesSelected = selectedWorkspaceId === ALL_WORKSPACES_ID;
   const selectedWorkspace = useMemo(
-    () => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0],
-    [selectedWorkspaceId, workspaces],
+    () =>
+      isAllWorkspacesSelected
+        ? null
+        : workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
+    [isAllWorkspacesSelected, selectedWorkspaceId, workspaces],
+  );
+  const workspaceNamesById = useMemo(
+    () => new Map(workspaces.map((workspace) => [workspace.id, workspace.name])),
+    [workspaces],
+  );
+  const selectedWorkspaceLabel = isAllWorkspacesSelected
+    ? "Todos os workspaces"
+    : selectedWorkspace?.name ?? "Selecione";
+  const selectedWorkspaceGroup = useMemo(
+    () =>
+      isAllWorkspacesSelected
+        ? workspaces
+        : selectedWorkspace
+          ? [selectedWorkspace]
+          : [],
+    [isAllWorkspacesSelected, selectedWorkspace, workspaces],
   );
   const cameraOptions = useMemo(
     () => [ALL_CAMERAS_FILTER, ...cameras.map((camera) => camera.name)],
@@ -133,10 +188,21 @@ export function Insights() {
     () => buildInsightsData({
       cameras,
       cameraName: effectiveCamera,
+      fallEvents,
       notifications,
       period: effectivePeriod,
+      selectedAvailabilityCameraId,
+      workspaceNamesById,
     }),
-    [cameras, effectiveCamera, effectivePeriod, notifications],
+    [
+      cameras,
+      effectiveCamera,
+      effectivePeriod,
+      fallEvents,
+      notifications,
+      selectedAvailabilityCameraId,
+      workspaceNamesById,
+    ],
   );
 
   const loadWorkspaces = useCallback(async () => {
@@ -151,7 +217,7 @@ export function Insights() {
       setIsLoadingInsights(true);
       const workspaceList = await listWorkspaces(accessToken);
       setWorkspaces(workspaceList);
-      setSelectedWorkspaceId((current) => current ?? workspaceList[0]?.id ?? null);
+      setSelectedWorkspaceId((current) => current ?? ALL_WORKSPACES_ID);
     } catch (error) {
       setInsightsError(
         error instanceof ApiRequestError ? error.message : "Não foi possível carregar os workspaces."
@@ -161,8 +227,10 @@ export function Insights() {
   }, [accessToken]);
 
   const loadWorkspaceInsights = useCallback(async () => {
-    if (!accessToken || !selectedWorkspace) {
+    if (!accessToken || selectedWorkspaceGroup.length === 0) {
       setCameras([]);
+      setSelectedAvailabilityCameraId(null);
+      setFallEvents([]);
       setNotifications([]);
       setIsLoadingInsights(false);
       return;
@@ -171,12 +239,28 @@ export function Insights() {
     try {
       setInsightsError("");
       setIsLoadingInsights(true);
-      const [workspaceCameras, workspaceNotifications] = await Promise.all([
-        listCameras(accessToken, selectedWorkspace.id),
-        listNotifications(accessToken, selectedWorkspace.id),
-      ]);
+      const workspaceResults = await Promise.all(
+        selectedWorkspaceGroup.map(async (workspace) => {
+          const [workspaceCameras, workspaceNotifications, workspaceFallEvents] = await Promise.all([
+            listCameras(accessToken, workspace.id),
+            listNotifications(accessToken, workspace.id),
+            listFallEvents(accessToken, workspace.id),
+          ]);
+
+          return { workspaceCameras, workspaceNotifications, workspaceFallEvents };
+        }),
+      );
+      const workspaceCameras = workspaceResults.flatMap((result) => result.workspaceCameras);
+      const workspaceNotifications = workspaceResults.flatMap((result) => result.workspaceNotifications);
+      const workspaceFallEvents = workspaceResults.flatMap((result) => result.workspaceFallEvents);
       setCameras(workspaceCameras);
+      setFallEvents(workspaceFallEvents);
       setNotifications(workspaceNotifications);
+      setSelectedAvailabilityCameraId((current) =>
+        current && workspaceCameras.some((camera) => camera.id === current)
+          ? current
+          : workspaceCameras[0]?.id ?? null,
+      );
       setSelectedCamera((current) => {
         if (!current || current === ALL_CAMERAS_FILTER) {
           return current;
@@ -190,7 +274,7 @@ export function Insights() {
     } finally {
       setIsLoadingInsights(false);
     }
-  }, [accessToken, selectedWorkspace]);
+  }, [accessToken, selectedWorkspaceGroup]);
 
   useEffect(() => {
     void loadWorkspaces();
@@ -285,39 +369,122 @@ export function Insights() {
     return null;
   }
 
-  function handleExportReport() {
-    const report = buildExportReport({
+  async function handleExportReport() {
+    const reportNotifications = filterNotificationsBySelection({
+      cameras,
+      cameraName: effectiveCamera,
+      notifications,
+      period: effectivePeriod,
+    });
+    const html = buildPdfReportHtml({
       cameraName: effectiveCamera,
       cameras,
       data: selectedData,
-      notifications: filterNotificationsBySelection({
-        cameras,
-        cameraName: effectiveCamera,
-        notifications,
-        period: effectivePeriod,
-      }),
+      notifications: reportNotifications,
       period: effectivePeriod,
-      workspaceName: selectedWorkspace?.name ?? "Workspace",
+      workspaceName: selectedWorkspaceLabel,
+      workspaceNamesById,
     });
-    const fileName = `vard-insights-${slugify(selectedWorkspace?.name ?? "workspace")}-${Date.now()}.csv`;
+    const fileName = `vard-insights-${slugify(selectedWorkspaceLabel)}-${Date.now()}.pdf`;
 
-    if (Platform.OS === "web" && typeof document !== "undefined") {
-      const blob = new Blob([report], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      link.click();
-      URL.revokeObjectURL(url);
+    try {
+      const generated = await Print.printToFileAsync({ html, base64: true });
+      let fileUri = generated.uri;
+      let savedInFilesApp = false;
+
+      if (Platform.OS === "android" && generated.base64) {
+        const directoryPermission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!directoryPermission.granted) {
+          setExportLabel("Exportar relatório PDF");
+          Alert.alert(
+            "Exportação cancelada",
+            "Escolha uma pasta, como Downloads ou Documentos, para salvar o PDF e vê-lo no app Files.",
+          );
+          return;
+        }
+
+        fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+          directoryPermission.directoryUri,
+          fileName,
+          "application/pdf",
+        );
+        await FileSystem.writeAsStringAsync(fileUri, generated.base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        savedInFilesApp = true;
+      } else if (generated.base64 && FileSystem.documentDirectory) {
+        fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(fileUri, generated.base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      }
+
       setExportLabel("Relatório exportado");
+
+      const canShare = Platform.OS !== "web" && await Sharing.isAvailableAsync();
+      Alert.alert(
+        "Relatório exportado",
+        savedInFilesApp
+          ? `PDF salvo na pasta escolhida: ${fileName}\nQuedas: ${selectedData.incidentTotal}`
+          : `PDF gerado: ${fileName}\nQuedas: ${selectedData.incidentTotal}`,
+        [
+          { text: "OK" },
+          ...(canShare
+            ? [{
+                text: "Compartilhar",
+                onPress: () => void Sharing.shareAsync(fileUri, {
+                  dialogTitle: "Compartilhar relatório VARD",
+                  mimeType: "application/pdf",
+                  UTI: "com.adobe.pdf",
+                }),
+              }]
+            : []),
+        ],
+      );
+    } catch {
+      setExportLabel("Exportar relatório PDF");
+      Alert.alert("Falha ao exportar", "Não foi possível gerar o PDF.");
+    }
+  }
+
+  async function handleIncidentStatusUpdate(
+    incident: IncidentDetail,
+    status: IncidentStatus,
+  ) {
+    if (!accessToken || updatingIncidentId) {
       return;
     }
 
-    setExportLabel("Relatório pronto");
-    Alert.alert(
-      "Relatório gerado",
-      `Workspace: ${selectedWorkspace?.name ?? "Workspace"}\nPeríodo: ${effectivePeriod}\nCâmera: ${effectiveCamera}\nIncidentes: ${selectedData.incidentTotal}`,
-    );
+    setUpdatingIncidentId(incident.id);
+    try {
+      const now = new Date().toISOString();
+      const updatedNotification = await updateNotification(accessToken, incident.id, {
+        payload: {
+          ...incident.notification.payload,
+          detection_validation: {
+            answered_at: now,
+            is_valid: status !== "false_positive",
+          },
+          incident_resolution: {
+            status,
+            updated_at: now,
+            updated_by: "insights",
+          },
+        },
+      });
+      setNotifications((currentNotifications) =>
+        currentNotifications.map((notification) =>
+          notification.id === updatedNotification.id ? updatedNotification : notification,
+        ),
+      );
+    } catch (error) {
+      Alert.alert(
+        "Não foi possível atualizar",
+        error instanceof ApiRequestError ? error.message : "Tente novamente em instantes.",
+      );
+    } finally {
+      setUpdatingIncidentId(null);
+    }
   }
 
   const sheetTranslateY = sheetAnimation.interpolate({
@@ -391,7 +558,7 @@ export function Insights() {
                       numberOfLines={1}
                       style={styles.heroChipText}
                     >
-                      {selectedWorkspace?.name ?? "Selecione"}
+                      {selectedWorkspaceLabel}
                     </Text>
                     <Ionicons
                       color={INSIGHTS_COLORS.gradientMiddle}
@@ -402,6 +569,32 @@ export function Insights() {
 
                   {isWorkspaceMenuOpen ? (
                     <View style={styles.workspaceMenu}>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => handleWorkspaceSelect(ALL_WORKSPACES_ID)}
+                        style={({ pressed }) => [
+                          styles.workspaceMenuItem,
+                          isAllWorkspacesSelected && styles.workspaceMenuItemSelected,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.workspaceMenuItemText,
+                            isAllWorkspacesSelected && styles.workspaceMenuItemTextSelected,
+                          ]}
+                        >
+                          Todos os workspaces
+                        </Text>
+                        {isAllWorkspacesSelected ? (
+                          <Ionicons
+                            color={INSIGHTS_COLORS.gradientMiddle}
+                            name="checkmark"
+                            size={16}
+                          />
+                        ) : null}
+                      </Pressable>
                       {workspaces.length === 0 ? (
                         <Text style={styles.workspaceMenuItemText}>
                           Nenhum workspace encontrado
@@ -462,8 +655,8 @@ export function Insights() {
             <View style={styles.cardLarge}>
               <View style={styles.incidentsHeader}>
                 <View>
-                  <Text style={styles.cardTitle}>Incidentes</Text>
-                  <Text style={styles.cardSubtitle}>Incidentes x dias</Text>
+                  <Text style={styles.cardTitle}>Quedas</Text>
+                  <Text style={styles.cardSubtitle}>Quedas x dias</Text>
                 </View>
 
                 <View style={styles.incidentsControls}>
@@ -485,8 +678,23 @@ export function Insights() {
               <IncidentsChart series={selectedData.incidentSeries} />
             </View>
 
+            <View style={styles.metricsGrid}>
+              <MetricCard
+                label="Total no período"
+                value={String(selectedData.incidentTotal)}
+              />
+              <MetricCard
+                label="Últimas 24h"
+                value={String(selectedData.dailyIncidentTotal)}
+              />
+              <MetricCard
+                label="Falsas detecções"
+                value={String(selectedData.falsePositiveTotal)}
+              />
+            </View>
+
             <View style={styles.cardRooms}>
-              <Text style={styles.roomsTitle}>Incidentes por cômodo</Text>
+              <Text style={styles.roomsTitle}>Quedas por cômodo</Text>
               <View style={styles.roomList}>
                 {selectedData.roomIncidents.map((item) => (
                   <View key={item.room} style={styles.roomItem}>
@@ -523,28 +731,156 @@ export function Insights() {
               </Text>
             </View>
 
+            <View style={styles.incidentHistoryCard}>
+              <View style={styles.incidentHistoryHeader}>
+                <View>
+                  <Text style={styles.roomsTitle}>Histórico de quedas</Text>
+                  <Text style={styles.cardSubtitle}>
+                    Confirme ou marque falsas detecções.
+                  </Text>
+                </View>
+              </View>
+
+              {selectedData.incidentDetails.length === 0 ? (
+                <View style={styles.emptyIncidentHistory}>
+                  <Ionicons
+                    color="#92A0B6"
+                    name="checkmark-circle-outline"
+                    size={28}
+                  />
+                  <Text style={styles.emptyIncidentHistoryText}>
+                    Nenhuma queda no período selecionado.
+                  </Text>
+                </View>
+              ) : null}
+
+              <View style={styles.incidentList}>
+                {selectedData.incidentDetails.map((incident) => (
+                  <View key={incident.id} style={styles.incidentItem}>
+                    <View style={styles.incidentItemHeader}>
+                      <View style={styles.incidentIconWrap}>
+                        <Ionicons
+                          color="#CA171B"
+                          name="alert-circle-outline"
+                          size={21}
+                        />
+                      </View>
+                      <View style={styles.incidentTitleWrap}>
+                        <Text numberOfLines={1} style={styles.incidentTitle}>
+                          {incident.room}
+                        </Text>
+                        <Text numberOfLines={1} style={styles.incidentMeta}>
+                          {incident.dateLabel} às {incident.timeLabel} • {incident.cameraName}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.incidentStatusBadge,
+                          incident.status === "confirmed" && styles.incidentStatusDanger,
+                          incident.status === "resolved" && styles.incidentStatusSuccess,
+                          incident.status === "false_positive" && styles.incidentStatusMuted,
+                        ]}
+                      >
+                        {incident.statusLabel}
+                      </Text>
+                    </View>
+
+                    <View style={styles.incidentFacts}>
+                      <Text style={styles.incidentFact}>
+                        Prob.: {incident.probabilityLabel}
+                      </Text>
+                      <Text style={styles.incidentFact}>
+                        Clipe: {incident.hasClip ? "sim" : "não"}
+                      </Text>
+                      <Text style={styles.incidentFact}>
+                        Severidade: {incident.severity}
+                      </Text>
+                    </View>
+
+                    <View style={styles.incidentActions}>
+                      <IncidentActionButton
+                        disabled={updatingIncidentId === incident.id}
+                        label="Confirmar"
+                        onPress={() => void handleIncidentStatusUpdate(incident, "confirmed")}
+                        selected={incident.status === "confirmed"}
+                      />
+                      <IncidentActionButton
+                        disabled={updatingIncidentId === incident.id}
+                        label="Falsa detecção"
+                        onPress={() => void handleIncidentStatusUpdate(incident, "false_positive")}
+                        selected={incident.status === "false_positive"}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+
             <GradientTitle
               fontFamily={INSIGHTS_FONTS.semiBold}
               fontSize={40}
               height={52}
               style={styles.activityTitle}
-              text="Atividade"
+              text="Horários"
               width={200}
               y={39}
             />
 
             <View style={styles.activityCard}>
               <Text style={styles.cameraTitle}>
-                {selectedData.activityLabel}
+                {selectedData.availabilityCameraName}
               </Text>
-              <Text style={styles.cameraSubtitle}>Últimas 24 horas</Text>
+              <Text style={styles.cameraSubtitle}>
+                {selectedData.availabilityStatusLabel}
+              </Text>
+              <ScrollView
+                contentContainerStyle={styles.availabilityFilterContent}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.availabilityFilter}
+              >
+                {cameras.length === 0 ? (
+                  <Text style={styles.availabilityEmptyText}>
+                    Nenhuma câmera cadastrada
+                  </Text>
+                ) : null}
+                {cameras.map((camera) => {
+                  const selected = camera.id === selectedAvailabilityCameraId;
+                  const label = isAllWorkspacesSelected
+                    ? `${workspaceNamesById.get(camera.workspace_id) ?? "Workspace"} • ${camera.name}`
+                    : camera.name;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={camera.id}
+                      onPress={() => setSelectedAvailabilityCameraId(camera.id)}
+                      style={({ pressed }) => [
+                        styles.availabilityCameraChip,
+                        selected && styles.availabilityCameraChipSelected,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.availabilityCameraChipText,
+                          selected && styles.availabilityCameraChipTextSelected,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
               <View style={styles.activityChart}>
                 <View style={styles.activityTrack}>
-                  {selectedData.activitySegments.map((segment, index) => (
+                  {selectedData.availabilitySegments.map((segment, index) => (
                     <View
                       key={index}
                       style={[
                         styles.activitySegment,
+                        segment.status === "offline" && styles.activitySegmentOffline,
                         { left: segment.left, width: segment.width },
                       ]}
                     />
@@ -563,19 +899,22 @@ export function Insights() {
               <View style={styles.legend}>
                 <View style={styles.legendRow}>
                   <View style={styles.legendActiveDot} />
-                  <Text style={styles.legendText}>Ativo</Text>
+                  <Text style={styles.legendText}>Disponível</Text>
                 </View>
                 <View style={styles.legendRow}>
-                  <View style={styles.legendInactiveDot} />
-                  <Text style={styles.legendText}>Inativo</Text>
+                  <View style={styles.legendOfflineDot} />
+                  <Text style={styles.legendText}>Fora do ar</Text>
                 </View>
               </View>
+              <Text style={styles.availabilityNote}>
+                {selectedData.availabilityMessage}
+              </Text>
             </View>
 
             <Pressable
               accessibilityLabel="Exportar relatório mensal em PDF"
               accessibilityRole="button"
-              onPress={handleExportReport}
+              onPress={() => void handleExportReport()}
               style={({ pressed }) => [
                 styles.exportButton,
                 pressed && styles.pressed,
@@ -668,6 +1007,7 @@ export function Insights() {
             </Animated.View>
           </View>
         </Modal>
+
       </View>
     </LayoutWithNavbar>
   );
@@ -676,13 +1016,19 @@ export function Insights() {
 function buildInsightsData({
   cameras,
   cameraName,
+  fallEvents,
   notifications,
   period,
+  selectedAvailabilityCameraId,
+  workspaceNamesById,
 }: {
   cameras: CameraResponse[];
   cameraName: string;
+  fallEvents: FallEventResponse[];
   notifications: NotificationResponse[];
   period: Period;
+  selectedAvailabilityCameraId: string | null;
+  workspaceNamesById: Map<string, string>;
 }): CameraData {
   const { filteredNotifications, now, startTime } = filterNotificationsBySelection({
     cameras,
@@ -692,17 +1038,32 @@ function buildInsightsData({
     withBounds: true,
   });
   const camerasById = new Map(cameras.map((camera) => [camera.id, camera]));
-  const selectedCamera = cameras.find((camera) => camera.name === cameraName);
+  const fallEventsByNotificationId = new Map(
+    fallEvents
+      .filter((event) => event.notification_id)
+      .map((event) => [event.notification_id as string, event]),
+  );
+  const availabilityCamera =
+    cameras.find((camera) => camera.id === selectedAvailabilityCameraId) ?? cameras[0];
+  const availabilitySegments = buildAvailabilitySegments({
+    camera: availabilityCamera,
+    endTime: now,
+    notifications,
+  });
+  const countableNotifications = filteredNotifications.filter(
+    (notification) => getIncidentStatus(notification) !== "false_positive",
+  );
   const last24HoursStart = now - 24 * 60 * 60 * 1000;
-  const dailyIncidentTotal = filteredNotifications.filter((notification) => {
+  const dailyIncidentTotal = countableNotifications.filter((notification) => {
     const createdAt = new Date(notification.created_at).getTime();
     return Number.isFinite(createdAt) && createdAt >= last24HoursStart;
   }).length;
 
   const roomCounts = new Map<string, number>();
-  filteredNotifications.forEach((notification) => {
+  countableNotifications.forEach((notification) => {
     const camera = notification.camera_id ? camerasById.get(notification.camera_id) : undefined;
-    const room = resolveNotificationRoom(notification, camera);
+    const workspaceName = workspaceNamesById.get(notification.workspace_id) ?? "Workspace";
+    const room = `${workspaceName} • ${resolveNotificationRoom(notification, camera)}`;
     roomCounts.set(room, (roomCounts.get(room) ?? 0) + 1);
   });
 
@@ -725,19 +1086,53 @@ function buildInsightsData({
     }));
 
   return {
-    activityLabel: selectedCamera?.name ? `Câmera ${selectedCamera.name}` : "Todas as câmeras",
-    activitySegments: buildActivitySegments(filteredNotifications, now),
+    availabilityCameraName: availabilityCamera
+      ? `${workspaceNamesById.get(availabilityCamera.workspace_id) ?? "Workspace"} • ${availabilityCamera.name}`
+      : "Câmeras",
+    availabilityMessage: buildAvailabilityMessage(availabilityCamera, availabilitySegments),
+    availabilitySegments,
+    availabilityStatusLabel: availabilityCamera
+      ? `Status atual: ${availabilityCamera.status.toLowerCase() === "online" ? "online" : "fora do ar"}`
+      : "Cadastre uma câmera para visualizar disponibilidade.",
     dailyIncidentMessage:
       dailyIncidentTotal > 0
-        ? `${dailyIncidentTotal} incidente${dailyIncidentTotal === 1 ? "" : "s"} detectado${dailyIncidentTotal === 1 ? "" : "s"} nas últimas 24 horas.`
-        : "Nenhuma anomalia detectada nas últimas 24 horas.",
+        ? `${dailyIncidentTotal} queda${dailyIncidentTotal === 1 ? "" : "s"} detectada${dailyIncidentTotal === 1 ? "" : "s"} nas últimas 24 horas.`
+        : "Nenhuma queda detectada nas últimas 24 horas.",
     dailyIncidentTotal,
-    incidentSeries: buildIncidentSeries(filteredNotifications, startTime, now),
-    incidentTotal: filteredNotifications.length,
+    falsePositiveTotal: filteredNotifications.length - countableNotifications.length,
+    incidentDetails: filteredNotifications
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .slice(0, 12)
+      .map((notification) => {
+        const camera = notification.camera_id ? camerasById.get(notification.camera_id) : undefined;
+        const status = getIncidentStatus(notification);
+        const event = fallEventsByNotificationId.get(notification.id);
+        return {
+          body: notification.body,
+          cameraName: camera?.name ?? "Sem câmera",
+          dateLabel: formatIncidentDate(notification.created_at),
+          hasClip: event?.has_clip ?? false,
+          id: notification.id,
+          notification,
+          probabilityLabel: formatProbabilityLabel(notification),
+          room: resolveNotificationRoom(notification, camera),
+          severity: notification.severity,
+          status,
+          statusLabel: getIncidentStatusLabel(status),
+          timeLabel: formatIncidentTime(notification.created_at),
+          title: notification.title,
+        };
+      }),
+    incidentSeries: buildIncidentSeries(countableNotifications, startTime, now),
+    incidentTotal: countableNotifications.length,
     roomIncidents:
       roomIncidents.length > 0
         ? roomIncidents
-        : [{ room: "Sem incidentes no período", value: 0, barStyle: { width: "0%" }, isEmpty: true }],
+        : [{ room: "Sem quedas no período", value: 0, barStyle: { width: "0%" }, isEmpty: true }],
   };
 }
 
@@ -769,48 +1164,211 @@ function buildIncidentSeries(
   return series;
 }
 
-function buildActivitySegments(
-  notifications: NotificationResponse[],
-  endTime: number,
-): ActivitySegment[] {
+function buildAvailabilitySegments({
+  camera,
+  endTime,
+  notifications,
+}: {
+  camera?: CameraResponse;
+  endTime: number;
+  notifications: NotificationResponse[];
+}): AvailabilitySegment[] {
+  if (!camera) {
+    return [];
+  }
+
   const startTime = endTime - 24 * 60 * 60 * 1000;
   const bucketCount = 24;
-  const bucketSize = Math.max(1, (endTime - startTime) / bucketCount);
-  const activeBuckets = Array.from({ length: bucketCount }, () => false);
+  const bucketSize = (endTime - startTime) / bucketCount;
+  const currentCameraStatus = camera.status.toLowerCase();
+  const initialStatus: "offline" | "online" =
+    currentCameraStatus === "online" ? "online" : "offline";
+  const bucketStatuses = Array.from({ length: bucketCount }, () => initialStatus);
+  const lastSeenAt = camera.last_seen_at ? new Date(camera.last_seen_at).getTime() : NaN;
 
-  notifications.forEach((notification) => {
-    const createdAt = new Date(notification.created_at).getTime();
-    if (!Number.isFinite(createdAt) || createdAt < startTime || createdAt > endTime) {
-      return;
-    }
+  if (currentCameraStatus !== "online" && Number.isFinite(lastSeenAt) && lastSeenAt > startTime) {
+    bucketStatuses.forEach((_, index) => {
+      const bucketStart = startTime + index * bucketSize;
+      bucketStatuses[index] = bucketStart <= lastSeenAt ? "online" : "offline";
+    });
+  }
 
-    const bucketIndex = Math.min(
-      bucketCount - 1,
-      Math.max(0, Math.floor((createdAt - startTime) / bucketSize)),
-    );
-    activeBuckets[bucketIndex] = true;
-  });
+  notifications
+    .filter((notification) => notification.camera_id === camera.id)
+    .map((notification) => ({
+      createdAt: new Date(notification.created_at).getTime(),
+      status: resolveAvailabilityEventStatus(notification),
+    }))
+    .filter(
+      (event): event is { createdAt: number; status: "offline" | "online" } =>
+        Number.isFinite(event.createdAt) &&
+        event.createdAt >= startTime &&
+        event.createdAt <= endTime &&
+        event.status !== null,
+    )
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .forEach((event) => {
+      const startBucket = Math.min(
+        bucketCount - 1,
+        Math.max(0, Math.floor((event.createdAt - startTime) / bucketSize)),
+      );
+      for (let index = startBucket; index < bucketCount; index += 1) {
+        bucketStatuses[index] = event.status;
+      }
+    });
 
-  const segments: ActivitySegment[] = [];
-  let segmentStart: number | null = null;
+  const segments: AvailabilitySegment[] = [];
+  let segmentStart = 0;
+  let currentStatus = bucketStatuses[0];
 
-  activeBuckets.forEach((isActive, index) => {
-    if (isActive && segmentStart === null) {
-      segmentStart = index;
-    }
-
-    const isLastBucket = index === activeBuckets.length - 1;
-    if (segmentStart !== null && (!isActive || isLastBucket)) {
-      const segmentEnd = isActive && isLastBucket ? index + 1 : index;
+  bucketStatuses.forEach((status, index) => {
+    const isLastBucket = index === bucketStatuses.length - 1;
+    if (status !== currentStatus || isLastBucket) {
+      const segmentEnd = status !== currentStatus ? index : index + 1;
       segments.push({
         left: `${Math.round((segmentStart / bucketCount) * 100)}` as `${number}%`,
+        status: currentStatus,
         width: `${Math.max(4, Math.round(((segmentEnd - segmentStart) / bucketCount) * 100))}` as `${number}%`,
       });
-      segmentStart = null;
+      segmentStart = index;
+      currentStatus = status;
     }
   });
 
   return segments;
+}
+
+function resolveAvailabilityEventStatus(notification: NotificationResponse) {
+  const searchableText = `${notification.notification_type} ${notification.title} ${notification.body}`.toLowerCase();
+  if (
+    searchableText.includes("offline") ||
+    searchableText.includes("desconect") ||
+    searchableText.includes("fora do ar")
+  ) {
+    return "offline" as const;
+  }
+
+  if (
+    searchableText.includes("online") ||
+    searchableText.includes("conectada") ||
+    searchableText.includes("disponivel") ||
+    searchableText.includes("disponível")
+  ) {
+    return "online" as const;
+  }
+
+  return null;
+}
+
+function buildAvailabilityMessage(
+  camera: CameraResponse | undefined,
+  segments: AvailabilitySegment[],
+) {
+  if (!camera) {
+    return "Sem câmera selecionada para calcular disponibilidade.";
+  }
+
+  const offlineSegments = segments.filter((segment) => segment.status === "offline");
+  if (offlineSegments.length === 0) {
+    return "Sem períodos fora do ar identificados nas últimas 24 horas.";
+  }
+
+  return `${offlineSegments.length} período${offlineSegments.length === 1 ? "" : "s"} fora do ar nas últimas 24 horas.`;
+}
+
+function isFallNotification(notification: NotificationResponse) {
+  const searchableText = `${notification.notification_type} ${notification.title}`.toLowerCase();
+  return searchableText.includes("fall") || searchableText.includes("queda");
+}
+
+function getIncidentStatus(notification: NotificationResponse): IncidentStatus {
+  const resolution = notification.payload?.incident_resolution;
+  if (resolution && typeof resolution === "object") {
+    const status = (resolution as Record<string, unknown>).status;
+    if (
+      status === "confirmed" ||
+      status === "false_positive" ||
+      status === "resolved"
+    ) {
+      return status;
+    }
+  }
+
+  const validation = notification.payload?.detection_validation;
+  if (validation && typeof validation === "object") {
+    const isValid = (validation as Record<string, unknown>).is_valid;
+    if (isValid === false) {
+      return "false_positive";
+    }
+    if (isValid === true) {
+      return "confirmed";
+    }
+  }
+
+  return "new";
+}
+
+function getIncidentStatusLabel(status: IncidentStatus) {
+  const labels: Record<IncidentStatus, string> = {
+    confirmed: "Confirmada",
+    false_positive: "Falsa detecção",
+    new: "Nova",
+    resolved: "Resolvida",
+  };
+  return labels[status];
+}
+
+function formatProbabilityLabel(notification: NotificationResponse) {
+  const probability = numberFromPayload(notification.payload ?? {}, [
+    "fall_probability",
+    "probability",
+    "confidence",
+    "precision",
+  ]);
+  if (probability === null) {
+    return "--";
+  }
+  const percentage = probability <= 1 ? probability * 100 : probability;
+  return `${Math.round(percentage)}%`;
+}
+
+function formatIncidentDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--/--";
+  }
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
+function formatIncidentTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--:--";
+  }
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function numberFromPayload(payload: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "number") {
+      return value;
+    }
+    if (
+      typeof value === "string" &&
+      value.trim() &&
+      !Number.isNaN(Number(value))
+    ) {
+      return Number(value);
+    }
+  }
+  return null;
 }
 
 function resolveNotificationRoom(
@@ -874,7 +1432,7 @@ function filterNotificationsBySelection({
     const matchesCamera =
       cameraName === ALL_CAMERAS_FILTER || notification.camera_id === selectedCamera?.id;
 
-    return isInsidePeriod && matchesCamera;
+    return isFallNotification(notification) && isInsidePeriod && matchesCamera;
   });
 
   if (withBounds) {
@@ -884,13 +1442,14 @@ function filterNotificationsBySelection({
   return filteredNotifications;
 }
 
-function buildExportReport({
+function buildPdfReportHtml({
   cameraName,
   cameras,
   data,
   notifications,
   period,
   workspaceName,
+  workspaceNamesById,
 }: {
   cameraName: string;
   cameras: CameraResponse[];
@@ -898,30 +1457,132 @@ function buildExportReport({
   notifications: NotificationResponse[];
   period: Period;
   workspaceName: string;
+  workspaceNamesById: Map<string, string>;
 }) {
-  const camerasById = new Map(cameras.map((camera) => [camera.id, camera.name]));
-  const rows = [
-    ["workspace", workspaceName],
-    ["período", period],
-    ["câmera", cameraName],
-    ["total_incidentes", String(data.incidentTotal)],
-    [],
-    ["data", "câmera", "tipo", "severidade", "título", "descrição"],
-    ...notifications.map((notification) => [
-      new Date(notification.created_at).toLocaleString("pt-BR"),
-      notification.camera_id ? camerasById.get(notification.camera_id) ?? "Câmera removida" : "Sem câmera",
-      notification.notification_type,
-      notification.severity,
-      notification.title,
-      notification.body,
-    ]),
-  ];
+  const camerasById = new Map(cameras.map((camera) => [camera.id, camera]));
+  const generatedAt = new Date().toLocaleString("pt-BR");
+  const incidentRows = notifications.length > 0
+    ? notifications.map((notification) => {
+        const camera = notification.camera_id ? camerasById.get(notification.camera_id) : undefined;
+        return `
+          <tr>
+            <td>${escapeHtml(new Date(notification.created_at).toLocaleString("pt-BR"))}</td>
+            <td>${escapeHtml(workspaceNamesById.get(notification.workspace_id) ?? "Workspace")}</td>
+            <td>${escapeHtml(camera?.name ?? "Sem câmera")}</td>
+            <td>${escapeHtml(resolveNotificationRoom(notification, camera))}</td>
+            <td>${escapeHtml(getIncidentStatusLabel(getIncidentStatus(notification)))}</td>
+            <td>${escapeHtml(formatProbabilityLabel(notification))}</td>
+            <td>${escapeHtml(notification.severity)}</td>
+            <td>${escapeHtml(notification.title)}</td>
+          </tr>
+        `;
+      }).join("")
+    : `<tr><td colspan="8">Nenhuma queda no período selecionado.</td></tr>`;
+  const roomRows = data.roomIncidents.map((item) => `
+    <tr>
+      <td>${escapeHtml(item.room)}</td>
+      <td>${item.value}</td>
+    </tr>
+  `).join("");
+  const dayRows = data.incidentSeries.map((point) => `
+    <tr>
+      <td>${escapeHtml(point.label)}</td>
+      <td>${point.value}</td>
+    </tr>
+  `).join("");
+  const cameraRows = cameras.length > 0
+    ? cameras.map((camera) => `
+        <tr>
+          <td>${escapeHtml(workspaceNamesById.get(camera.workspace_id) ?? "Workspace")}</td>
+          <td>${escapeHtml(camera.name)}</td>
+          <td>${escapeHtml(camera.status)}</td>
+          <td>${escapeHtml(camera.connection_type)}</td>
+          <td>${escapeHtml(camera.last_seen_at ? new Date(camera.last_seen_at).toLocaleString("pt-BR") : "Sem registro")}</td>
+        </tr>
+      `).join("")
+    : `<tr><td colspan="5">Nenhuma câmera cadastrada.</td></tr>`;
 
-  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { color: #171C1F; font-family: Arial, sans-serif; margin: 32px; }
+          h1 { color: #019BDE; font-size: 28px; margin: 0 0 6px; }
+          h2 { border-bottom: 1px solid #D8E6F1; color: #171C1F; font-size: 18px; margin: 28px 0 10px; padding-bottom: 6px; }
+          .meta { color: #667085; font-size: 12px; margin-bottom: 18px; }
+          .grid { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); margin: 18px 0; }
+          .metric { background: #F6FAFE; border: 1px solid #E1ECF4; border-radius: 10px; padding: 12px; }
+          .metric span { color: #667085; display: block; font-size: 11px; margin-bottom: 6px; }
+          .metric strong { font-size: 24px; }
+          table { border-collapse: collapse; font-size: 11px; margin-top: 8px; width: 100%; }
+          th { background: #EDF6FC; color: #404850; text-align: left; }
+          th, td { border: 1px solid #D8E6F1; padding: 7px; vertical-align: top; }
+          .note { background: #FFF8E8; border: 1px solid #F4D58D; border-radius: 10px; color: #6B4E00; font-size: 12px; padding: 10px; }
+        </style>
+      </head>
+      <body>
+        <h1>Relatório de Insights VARD</h1>
+        <div class="meta">
+          Gerado em ${escapeHtml(generatedAt)}<br />
+          Workspaces: ${escapeHtml(workspaceName)}<br />
+          Período: ${escapeHtml(period)}<br />
+          Filtro de câmera: ${escapeHtml(cameraName)}
+        </div>
+
+        <div class="grid">
+          <div class="metric"><span>Total de quedas</span><strong>${data.incidentTotal}</strong></div>
+          <div class="metric"><span>Últimas 24h</span><strong>${data.dailyIncidentTotal}</strong></div>
+          <div class="metric"><span>Falsas detecções</span><strong>${data.falsePositiveTotal}</strong></div>
+        </div>
+
+        <h2>Resumo</h2>
+        <p>${escapeHtml(data.dailyIncidentMessage)}</p>
+
+        <h2>Quedas por Cômodo</h2>
+        <table>
+          <thead><tr><th>Workspace e local</th><th>Total</th></tr></thead>
+          <tbody>${roomRows}</tbody>
+        </table>
+
+        <h2>Quedas por Dia</h2>
+        <table>
+          <thead><tr><th>Data</th><th>Total</th></tr></thead>
+          <tbody>${dayRows}</tbody>
+        </table>
+
+        <h2>Disponibilidade das Câmeras</h2>
+        <div class="note">
+          ${escapeHtml(data.availabilityMessage)} A disponibilidade histórica ainda depende dos registros de status disponíveis no sistema.
+        </div>
+        <table>
+          <thead><tr><th>Workspace</th><th>Câmera</th><th>Status atual</th><th>Tipo</th><th>Última vez online</th></tr></thead>
+          <tbody>${cameraRows}</tbody>
+        </table>
+
+        <h2>Histórico de Quedas</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th><th>Workspace</th><th>Câmera</th><th>Local</th>
+              <th>Status</th><th>Prob.</th><th>Severidade</th><th>Título</th>
+            </tr>
+          </thead>
+          <tbody>${incidentRows}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
 }
 
-function csvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function slugify(value: string) {
@@ -953,6 +1614,49 @@ type GradientTitleProps = {
   width: number;
   y: number;
 };
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metricCard}>
+      <Text numberOfLines={1} style={styles.metricLabel}>{label}</Text>
+      <Text numberOfLines={1} style={styles.metricValue}>{value}</Text>
+    </View>
+  );
+}
+
+function IncidentActionButton({
+  disabled,
+  label,
+  onPress,
+  selected,
+}: {
+  disabled: boolean;
+  label: string;
+  onPress: () => void;
+  selected: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.incidentActionButton,
+        selected && styles.incidentActionButtonSelected,
+        (pressed || disabled) && styles.pressed,
+      ]}
+    >
+      <Text
+        style={[
+          styles.incidentActionButtonText,
+          selected && styles.incidentActionButtonTextSelected,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
 function FilterOptionButton({
   iconName,

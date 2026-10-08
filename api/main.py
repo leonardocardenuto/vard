@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 
 from api.cache.model_hooks import register_cache_invalidation_hooks
 from api.core.config import get_settings
-from api.routers import auth, camera_streams, cameras, encryption_keys, fall_events, invites, notifications, users, workspaces
+from api.routers import auth, camera_streams, cameras, encryption_keys, fall_events, insights, invites, notifications, users, workspaces
 from api.services.camera_streams import STREAMS_ROOT
 
 settings = get_settings()
@@ -55,4 +55,5 @@ app.include_router(cameras.router)
 app.include_router(invites.router)
 app.include_router(notifications.router)
 app.include_router(fall_events.router)
+app.include_router(insights.router)
 app.include_router(encryption_keys.router)
