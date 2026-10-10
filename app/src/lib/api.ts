@@ -31,6 +31,15 @@ export type WorkspaceResponse = {
   updated_at: string;
 };
 
+export type WorkspaceMemberResponse = {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  role: 'admin' | 'member' | 'caregiver' | 'viewer';
+  status: string;
+  joined_at: string | null;
+};
+
 type UserResponse = {
   id: string;
   email: string;
@@ -235,6 +244,10 @@ async function requestWithToken<T>(path: string, token?: string, init?: RequestI
     throw new ApiRequestError(message, fieldErrors, response.status);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return (await response.json()) as T;
 }
 
@@ -414,6 +427,10 @@ export async function listCameras(token: string, workspaceId: string) {
   return requestWithToken<CameraResponse[]>(`/cameras?${query.toString()}`, token);
 }
 
+export async function listWorkspaceMembers(token: string, workspaceId: string) {
+  return requestWithToken<WorkspaceMemberResponse[]>(`/workspaces/${workspaceId}/members`, token);
+}
+
 export async function listNotifications(token: string, workspaceId: string) {
   const query = new URLSearchParams({ workspace_id: workspaceId });
   return requestWithToken<NotificationResponse[]>(`/notifications?${query.toString()}`, token);
@@ -458,6 +475,12 @@ export async function updateCamera(token: string, cameraId: string, payload: Cam
   return requestWithToken<CameraResponse>(`/cameras/${cameraId}`, token, {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCamera(token: string, cameraId: string) {
+  return requestWithToken<void>(`/cameras/${cameraId}`, token, {
+    method: 'DELETE',
   });
 }
 

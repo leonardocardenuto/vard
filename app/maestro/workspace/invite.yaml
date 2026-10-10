@@ -18,7 +18,7 @@ name: Workspace - convite, feedback e copia do codigo
     id: workspace-invite-email
 - inputText: ${MAESTRO_INVITE_EMAIL}
 - hideKeyboard
-- tapOn: "Cuidador"
+- tapOn: "Administrador"
 - tapOn: "Gerar código"
 - extendedWaitUntil:
     visible: "Toque para copiar"
@@ -27,4 +27,4 @@ name: Workspace - convite, feedback e copia do codigo
 - assertVisible: "Código copiado!"
 - tapOn: "Concluir"
 - assertVisible: ${MAESTRO_INVITE_EMAIL}
-- assertVisible: "Cuidador"
+- assertVisible: "Administrador"

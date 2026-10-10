@@ -313,6 +313,12 @@ const styles = StyleSheet.create({
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 10,
   },
+  cameraInlineDangerAction: {
+    backgroundColor: '#FFF1F0',
+  },
+  cameraInlineDangerActionText: {
+    color: '#B42318',
+  },
   occurrencesCameraName: {
     color: '#667085',
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
@@ -647,6 +653,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 18,
     width: '100%',
+  },
+  deleteCameraIcon: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: '#FEE4E2',
+    borderRadius: 999,
+    height: 52,
+    justifyContent: 'center',
+    marginBottom: 12,
+    width: 52,
   },
   keyboardModalWrap: {
     width: '100%',

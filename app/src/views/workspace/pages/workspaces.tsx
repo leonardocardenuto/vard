@@ -53,12 +53,6 @@ type AddWorkspaceProps = NativeStackScreenProps<WorkspaceStackParamList, 'AddWor
 type EditWorkspaceProps = NativeStackScreenProps<WorkspaceStackParamList, 'EditWorkspace'>;
 
 const Stack = createNativeStackNavigator<WorkspaceStackParamList>();
-const WORKSPACE_CARD_IMAGES = [
-  'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=900&q=80',
-];
 
 export default function Workspaces() {
   const route = useRoute<WorkspaceTabRoute>();
@@ -312,7 +306,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
             </Text>
           </View>
         ) : (
-          workspaces.map((workspace, index) => (
+          workspaces.map((workspace) => (
               <Pressable
                 accessibilityRole="button"
                 key={workspace.id}
@@ -333,10 +327,17 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
                 ]}
               >
                 <View style={styles.workspaceImageWrap}>
-                  <Image
-                    source={{ uri: workspace.image_url || imageForWorkspace(index) }}
-                    style={styles.workspaceImage}
-                  />
+                  {workspace.image_url?.trim() ? (
+                    <Image
+                      source={{ uri: workspace.image_url.trim() }}
+                      style={styles.workspaceImage}
+                    />
+                  ) : (
+                    <View style={styles.workspaceImagePlaceholder}>
+                      <MaterialCommunityIcons color="#7B8A9A" name="image-off-outline" size={38} />
+                      <Text style={styles.workspaceImagePlaceholderText}>Sem foto</Text>
+                    </View>
+                  )}
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Opções de ${workspace.name}`}
@@ -376,7 +377,6 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         >
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <Pressable onPress={() => undefined} style={styles.workspaceActionsCard}>
-              <View style={styles.workspaceActionsHandle} />
               <Text style={styles.workspaceActionsTitle}>Aceitar convite</Text>
               <Text style={styles.workspaceActionsSubtitle}>
                 Cole o código que você recebeu para entrar no espaço.
@@ -424,7 +424,6 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
       >
         <Pressable onPress={closeWorkspaceMenu} style={styles.workspaceActionsOverlay}>
           <Pressable onPress={() => undefined} style={styles.workspaceActionsCard}>
-            <View style={styles.workspaceActionsHandle} />
             <Text style={styles.workspaceActionsTitle}>Ações do espaço</Text>
             <Text numberOfLines={1} style={styles.workspaceActionsSubtitle}>
               {menuWorkspace?.name}
@@ -479,7 +478,6 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
       >
         <Pressable onPress={closeDeleteWorkspaceSheet} style={styles.deleteSheetOverlay}>
           <Pressable onPress={() => undefined} style={styles.deleteSheetCard}>
-            <View style={styles.deleteSheetHandle} />
             <View style={styles.deleteSheetWarningIcon}>
               <Feather color="#B42318" name="trash-2" size={24} />
             </View>
@@ -823,10 +821,6 @@ function GradientTitle({ text }: { height?: number; text: string; width?: number
       </SvgText>
     </Svg>
   );
-}
-
-function imageForWorkspace(index: number) {
-  return WORKSPACE_CARD_IMAGES[index % WORKSPACE_CARD_IMAGES.length];
 }
 
 function uniqueWorkspaces(workspaces: WorkspaceResponse[]) {

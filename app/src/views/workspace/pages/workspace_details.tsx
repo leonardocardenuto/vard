@@ -23,10 +23,12 @@ import {
   NotificationResponse,
   autoConfigureCamera,
   createInvite,
+  deleteCamera,
   getCameraMjpegUrl,
   getWorkspaceFallAlert,
   listCameras,
   listNotifications,
+  listWorkspaceMembers,
   startCameraHlsStream,
 } from '../../../lib/api';
 import { CameraLiveViewScreen as CameraHistoryLiveViewScreen } from '../../settings/pages/CameraLiveViewScreen';
@@ -71,7 +73,6 @@ const initialCameraForm: CameraFormState = {
 
 const memberRoleOptions: Array<{ label: string; value: MemberRole }> = [
   { label: 'Membro', value: 'member' },
-  { label: 'Cuidador', value: 'caregiver' },
   { label: 'Administrador', value: 'admin' },
   { label: 'Visualizador', value: 'viewer' },
 ];
@@ -99,6 +100,8 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
   const [isCameraFormOpen, setIsCameraFormOpen] = useState(false);
   const [isSavingCamera, setIsSavingCamera] = useState(false);
   const [editingCamera, setEditingCamera] = useState<CameraResponse | null>(null);
+  const [cameraToDelete, setCameraToDelete] = useState<CameraResponse | null>(null);
+  const [isDeletingCamera, setIsDeletingCamera] = useState(false);
   const [feedback, setFeedback] = useState<WorkspaceFeedback | null>(null);
 
   useEffect(() => {
@@ -138,7 +141,16 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
     try {
       setErrorMessage('');
       setIsLoading(true);
-      setCameras(await listCameras(accessToken, workspace.id));
+      const [workspaceCameras, workspaceMembers] = await Promise.all([
+        listCameras(accessToken, workspace.id),
+        listWorkspaceMembers(accessToken, workspace.id),
+      ]);
+      setCameras(workspaceCameras);
+      setFamilyMembers(workspaceMembers.map((member) => ({
+        id: member.user_id,
+        contact: member.email,
+        role: member.role,
+      })));
     } catch (error) {
       setErrorMessage(
         error instanceof ApiRequestError ? error.message : 'Não foi possível carregar os detalhes.'
@@ -390,6 +402,40 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
     }
   }
 
+  function closeDeleteCameraConfirmation() {
+    if (isDeletingCamera) {
+      return;
+    }
+    setCameraToDelete(null);
+  }
+
+  async function handleDeleteCamera() {
+    if (!cameraToDelete || isDeletingCamera) {
+      return;
+    }
+
+    const camera = cameraToDelete;
+    setIsDeletingCamera(true);
+    try {
+      await deleteCamera(accessToken, camera.id);
+      setCameras((current) => current.filter((currentCamera) => currentCamera.id !== camera.id));
+      setCameraToDelete(null);
+      setFeedback({
+        title: 'Câmera excluída',
+        message: `${camera.name} foi removida deste espaço.`,
+        tone: 'success',
+      });
+    } catch (error) {
+      setFeedback({
+        title: 'Não foi possível excluir a câmera',
+        message: error instanceof ApiRequestError ? error.message : 'Tente novamente em instantes.',
+        tone: 'error',
+      });
+    } finally {
+      setIsDeletingCamera(false);
+    }
+  }
+
   async function handleAddMember() {
     if (isInvitingMember) {
       return;
@@ -581,6 +627,21 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                       <Feather color="#475467" name="edit-2" size={15} />
                       <Text style={styles.cameraInlineActionText}>Editar</Text>
                     </Pressable>
+                    <Pressable
+                      accessibilityLabel={`Excluir câmera ${room.name}`}
+                      accessibilityRole="button"
+                      onPress={() => setCameraToDelete(room.camera)}
+                      style={({ pressed }) => [
+                        styles.cameraInlineAction,
+                        styles.cameraInlineDangerAction,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Feather color="#B42318" name="trash-2" size={15} />
+                      <Text style={[styles.cameraInlineActionText, styles.cameraInlineDangerActionText]}>
+                        Excluir
+                      </Text>
+                    </Pressable>
                   </View>
                 </View>
               ))
@@ -718,6 +779,42 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                 </Pressable>
               </Pressable>
             </KeyboardAvoidingView>
+          </Pressable>
+        </Modal>
+
+        <Modal
+          animationType="fade"
+          transparent
+          visible={cameraToDelete !== null}
+          onRequestClose={closeDeleteCameraConfirmation}
+        >
+          <Pressable onPress={closeDeleteCameraConfirmation} style={styles.modalOverlay}>
+            <Pressable onPress={() => undefined} style={styles.modalCard}>
+              <View style={styles.deleteCameraIcon}>
+                <Feather color="#B42318" name="trash-2" size={24} />
+              </View>
+              <Text style={styles.modalTitle}>Excluir câmera?</Text>
+              <Text style={styles.modalSubtitle}>
+                {cameraToDelete
+                  ? `${cameraToDelete.name} será removida deste espaço.`
+                  : 'A câmera será removida deste espaço.'}
+              </Text>
+
+              <Pressable
+                disabled={isDeletingCamera}
+                onPress={() => void handleDeleteCamera()}
+                style={[styles.modalActionButton, styles.modalDangerButton, isDeletingCamera && styles.buttonDisabled]}
+              >
+                {isDeletingCamera ? <ActivityIndicator color="#B42318" /> : null}
+                <Text style={[styles.modalActionText, styles.modalDangerText]}>
+                  {isDeletingCamera ? 'Excluindo...' : 'Excluir câmera'}
+                </Text>
+              </Pressable>
+
+              <Pressable disabled={isDeletingCamera} onPress={closeDeleteCameraConfirmation} style={styles.modalCancelButton}>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </Pressable>
+            </Pressable>
           </Pressable>
         </Modal>
 

@@ -55,7 +55,7 @@ elif sys.argv[1] == 'verify':
         workspace_id = next(w['id'] for w in workspaces if w['name'] == 'Casa Maestro')
         invites = request(f'/invites?workspace_id={workspace_id}', token=login(EMAIL))
         matching = [invite for invite in invites if invite['email'] == 'maestro.invite@example.com']
-        assert len(matching) == 1 and matching[0]['role'] == 'caregiver', invites
+        assert len(matching) == 1 and matching[0]['role'] == 'admin', invites
         print('Convite criado pela interface e persistido com o papel correto.')
     if case in ('all', 'camera'):
         workspaces = request('/workspaces', token=login(EMAIL))
