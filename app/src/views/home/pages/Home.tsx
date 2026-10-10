@@ -3,23 +3,16 @@ import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
-import Svg, {
-  Defs,
-  LinearGradient,
-  Stop,
-  Text as SvgText,
-} from "react-native-svg";
 import { LayoutWithNavbar } from "../../../components/LayoutWithNavbar";
 import {
   ApiRequestError,
@@ -30,13 +23,11 @@ import {
 import { AppTabParamList } from "../../../navigation/types";
 import { AlertItem } from "../../alerts/types";
 import {
-  HOME_FONTS,
   styles,
 } from "../styles/Home";
 
 import AmbulanceIcon from "../../../../assets/ambulance_icon.svg";
 import FirefighterIcon from "../../../../assets/firefighters_icon.svg";
-import NoIncidentsIcon from "../../../../assets/no_incident_icon.svg";
 import PoliceIcon from "../../../../assets/police_icon.svg";
 
 type HomeRoute = RouteProp<AppTabParamList, "Home">;
@@ -46,7 +37,6 @@ type HomeAlert = NotificationResponse & {
   workspaceName: string;
 };
 
-const REAL_TIME_TITLE_GRADIENT_ID = "realTimeMonitoringTitleGradient";
 const STATUS_CARD_GRADIENT_COLORS = ["#03CDF4", "#019BDE", "#01EBD0"] as const;
 const STATUS_CARD_GRADIENT_LOCATIONS = [0.08, 0.38, 1] as const;
 
@@ -64,9 +54,19 @@ export function Home() {
   const [alertsError, setAlertsError] = useState("");
   const hasAlerts = alerts.length > 0;
   const visibleAlerts = alerts.slice(0, 3);
-  const emptyAlertRows = Math.max(0, 3 - visibleAlerts.length);
+  const requestVersion = useRef(0);
+  const statusColor = alertsError ? "#64748B" : hasAlerts ? "#C2410C" : "#00ACC8";
+  const statusTitle = isLoadingAlerts ? "CONSULTANDO" : alertsError ? "SEM ATUALIZAÇÃO" : hasAlerts ? "ATENÇÃO" : "TUDO BEM!";
+  const statusText = isLoadingAlerts
+    ? "Verificando os alertas do seu ambiente."
+    : alertsError
+      ? "Não foi possível verificar as ocorrências."
+      : hasAlerts
+        ? `${alerts.length} ${alerts.length === 1 ? "alerta registrado hoje. Confira os detalhes." : "alertas registrados hoje. Confira os detalhes."}`
+        : "Nenhum alerta hoje. Acompanhando novas ocorrências.";
 
-  const loadAlerts = useCallback(async () => {
+  const loadAlerts = useCallback(async (silent = false) => {
+    const version = ++requestVersion.current;
     if (!accessToken) {
       setAlerts([]);
       setAlertsError("Sessão inválida. Faça login novamente.");
@@ -75,13 +75,9 @@ export function Home() {
     }
 
     try {
-      setAlertsError("");
-      setIsLoadingAlerts(true);
+      if (!silent) setIsLoadingAlerts(true);
       const workspaces = await listWorkspaces(accessToken);
-      if (workspaces.length === 0) {
-        setAlerts([]);
-        return;
-      }
+      if (version !== requestVersion.current) return;
 
       const workspaceNotifications = await Promise.all(
         workspaces.map(async (workspace) =>
@@ -111,29 +107,36 @@ export function Home() {
           );
         });
 
+      if (version !== requestVersion.current) return;
+      setAlertsError("");
       setAlerts(notifications);
     } catch (error) {
-      setAlerts([]);
+      if (version !== requestVersion.current) return;
       setAlertsError(
         error instanceof ApiRequestError
           ? error.message
           : "Não foi possível carregar os alertas.",
       );
     } finally {
-      setIsLoadingAlerts(false);
+      if (version === requestVersion.current) setIsLoadingAlerts(false);
     }
   }, [accessToken]);
 
   useFocusEffect(
     useCallback(() => {
       void loadAlerts();
+      const timer = setInterval(() => void loadAlerts(true), 30_000);
+      return () => {
+        clearInterval(timer);
+        requestVersion.current += 1;
+      };
     }, [loadAlerts]),
   );
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshingAlerts(true);
     try {
-      await loadAlerts();
+      await loadAlerts(true);
     } finally {
       setIsRefreshingAlerts(false);
     }
@@ -142,6 +145,9 @@ export function Home() {
   return (
     <LayoutWithNavbar>
       <ScrollView
+        style={styles.scrollView}
+        alwaysBounceVertical
+        bounces
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
@@ -156,7 +162,20 @@ export function Home() {
         <View>
           <Text style={styles.sectionTitle}>Últimos Alertas</Text>
           <View style={styles.alertsContainer}>
-            {hasAlerts ? (
+            {isLoadingAlerts ? (
+              <View style={styles.noAlerts} accessibilityRole="progressbar" accessibilityLabel="Consultando alertas">
+                <ActivityIndicator size="large" color="#019BDE" />
+                <Text style={[styles.noAlertsText, styles.feedbackText]}>Consultando alertas…</Text>
+              </View>
+            ) : alertsError ? (
+              <View style={[styles.noAlerts, styles.errorCard]} accessibilityLiveRegion="polite">
+                <Feather name="wifi-off" size={32} color="#64748B" />
+                <Text style={[styles.noAlertsText, styles.feedbackText]}>{alertsError}</Text>
+                <Pressable accessibilityRole="button" onPress={() => void loadAlerts()} style={styles.retryButton}>
+                  <Text style={styles.retryText}>Tentar novamente</Text>
+                </Pressable>
+              </View>
+            ) : hasAlerts ? (
               <View style={styles.alertsCard}>
                 {visibleAlerts.map((alert, index) => (
                   <Pressable
@@ -182,7 +201,7 @@ export function Home() {
                     }
                     style={({ pressed }) => [
                       styles.alertRow,
-                      index < 2 && styles.alertRowBorder,
+                      index < visibleAlerts.length - 1 && styles.alertRowBorder,
                       pressed && styles.alertButtonPressed,
                     ]}
                   >
@@ -190,24 +209,15 @@ export function Home() {
                       {renderAlertIcon(alert)}
                     </View>
                     <View style={styles.alertTextWrap}>
-                      <Text style={styles.alertTitle}>
+                      <Text style={styles.alertTitle} numberOfLines={2}>
                         {getAlertTitle(alert)}
                       </Text>
-                      <Text style={styles.alertWorkspace}>
+                      <Text style={styles.alertWorkspace} numberOfLines={1}>
                         {formatWorkspaceName(alert.workspaceName)}
                       </Text>
                     </View>
                     <Feather color="#737B84" name="chevron-right" size={26} />
                   </Pressable>
-                ))}
-                {Array.from({ length: emptyAlertRows }).map((_, index) => (
-                  <View
-                    key={`empty-alert-row-${index}`}
-                    style={[
-                      styles.alertPlaceholderRow,
-                      visibleAlerts.length + index < 2 && styles.alertRowBorder,
-                    ]}
-                  />
                 ))}
               </View>
             ) : (
@@ -216,11 +226,7 @@ export function Home() {
                 accessibilityRole="summary"
                 style={styles.noAlerts}
               >
-                <NoIncidentsIcon
-                  height={40}
-                  style={styles.noAlertsIcon}
-                  width={40}
-                />
+                <Feather name="check-circle" size={36} color="#A2ADB6" style={styles.noAlertsIcon} />
                 <Text style={styles.noAlertsText}>
                   Nenhum incidente{"\n"}detectado hoje.
                 </Text>
@@ -230,57 +236,18 @@ export function Home() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Monitoramento</Text>
-          <ExpoLinearGradient
-            colors={["#03CDF4", "#019BDE", "#01EBD0"]}
-            locations={[0.08, 0.38, 1]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={styles.realTimeMonitoringBorder}
-          >
-            <View style={styles.realTimeMonitoringContainer}>
+          <Text style={styles.monitoringLabel}>MONITORAMENTO EM TEMPO REAL</Text>
+          <View style={[styles.realTimeMonitoringBorder, { backgroundColor: statusColor }]}>
+            <View style={styles.realTimeMonitoringContainer} accessibilityLiveRegion="polite">
               <View style={styles.realTimeMonitoringHeader}>
-                <ExpoLinearGradient
-                  colors={STATUS_CARD_GRADIENT_COLORS}
-                  locations={STATUS_CARD_GRADIENT_LOCATIONS}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.realTimeCheckIcon}
-                >
-                  <Feather color="#FFFFFF" name="check" size={18} />
-                </ExpoLinearGradient>
-                <View style={styles.realTimeMonitoringTitle}>
-                  <Svg height={24} width={155}>
-                    <Defs>
-                      <LinearGradient
-                        id={REAL_TIME_TITLE_GRADIENT_ID}
-                        x1="0%"
-                        x2="100%"
-                        y1="0%"
-                        y2="0%"
-                      >
-                        <Stop offset="8%" stopColor="#03CDF4" />
-                        <Stop offset="38%" stopColor="#019BDE" />
-                        <Stop offset="100%" stopColor="#01EBD0" />
-                      </LinearGradient>
-                    </Defs>
-                    <SvgText
-                      fill={`url(#${REAL_TIME_TITLE_GRADIENT_ID})`}
-                      fontFamily={HOME_FONTS.bold}
-                      fontSize={28}
-                      x={0}
-                      y={23}
-                    >
-                      Tudo bem!
-                    </SvgText>
-                  </Svg>
+                <View style={[styles.realTimeCheckIcon, { backgroundColor: statusColor }]}>
+                  <Feather color="#FFFFFF" name={isLoadingAlerts ? "clock" : alertsError ? "wifi-off" : hasAlerts ? "alert-triangle" : "check"} size={18} />
                 </View>
+                <Text style={[styles.statusTitle, { color: statusColor }]}>{statusTitle}</Text>
               </View>
-              <Text style={styles.realTimeMonitoringText}>
-                O monitoramento{"\n"}está ativo.
-              </Text>
+              <Text style={styles.realTimeMonitoringText}>{statusText}</Text>
             </View>
-          </ExpoLinearGradient>
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -292,11 +259,10 @@ export function Home() {
             style={styles.emergencyButtonsContainer}
           >
             <Text style={styles.emergencyButtonsEstateText}>
-              O AMBIENTE DOMÉSTICO ESTÁ SEGURO
+              PRECISA DE AJUDA?
             </Text>
             <Text style={styles.emergencyButtonsDescriptionText}>
-              Monitoramento ativo para quedas, incêndios e brigas/agitação.
-              Todos os sensores estão transmitindo dados em tempo real.
+              Em caso de emergência, toque abaixo para ligar para o serviço adequado.
             </Text>
             <Pressable
               onPress={() => {
@@ -375,7 +341,7 @@ function renderAlertIcon(notification: NotificationResponse) {
   const kind = getAlertKind(notification);
 
   if (kind === "armed") {
-    return <Feather color="#C9181F" name="shield" size={26} />;
+    return <FontAwesome6 color="#C9181F" name="gun" size={23} />;
   }
 
   if (kind === "fall") {
@@ -383,10 +349,13 @@ function renderAlertIcon(notification: NotificationResponse) {
   }
 
   if (kind === "fight") {
-    return <Feather color="#06777D" name="alert-circle" size={28} />;
+    return <FontAwesome6 color="#B45309" name="hand-fist" size={24} />;
   }
 
-  return <Feather color="#019BDE" name="alert-circle" size={28} />;
+  if (/fire|incêndio|incendio|fogo/i.test(`${notification.notification_type} ${notification.title}`)) {
+    return <FontAwesome6 color="#EA580C" name="fire-flame-curved" size={25} />;
+  }
+  return <Feather color="#019BDE" name="bell" size={26} />;
 }
 
 function notificationToAlert(notification: HomeAlert): AlertItem {

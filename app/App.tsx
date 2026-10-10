@@ -47,6 +47,11 @@ function AppTabs({ navigation: stackNavigation, route }: AppTabsProps) {
         header: ({ navigation: tabNavigation }) => (
           <Header
             avatarUrl={userAvatarUrl}
+            profileFunction={() => {
+              tabNavigation.navigate('Settings', {
+                accessToken, userAvatarUrl, userEmail, userName,
+              });
+            }}
             notificationFunction={() => {
               tabNavigation.navigate('Alerts', {
                 accessToken,
