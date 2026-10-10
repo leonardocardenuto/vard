@@ -2,6 +2,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
+import { RootStackParamList } from "../../../navigation/types";
 import { useVideoPlayer, VideoView } from 'expo-video';
 import {
   ActivityIndicator,
@@ -12,6 +13,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { clearSession } from '../../../lib/session';
 
 import {
   ApiRequestError,
@@ -122,11 +124,20 @@ export function CameraSettingsPanel({
   const [cameras, setCameras] = useState<CameraResponse[]>([]);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isStartingStreamId, setIsStartingStreamId] = useState<string | null>(null);
-  const [pingingCameraIds, setPingingCameraIds] = useState<Record<string, boolean>>({});
+  const [isStartingStreamId, setIsStartingStreamId] = useState<string | null>(
+    null,
+  );
+  const [pingingCameraIds, setPingingCameraIds] = useState<
+    Record<string, boolean>
+  >({});
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
-  const [streamUrl, setStreamUrl] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [streamUrl, setStreamUrl] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  async function handleLogout() {
+    await clearSession();
+    onLogout();
+  }
 
   useEffect(() => {
     async function syncPlayerSource() {
@@ -139,7 +150,7 @@ export function CameraSettingsPanel({
         await player.replaceAsync(streamUrl);
         player.play();
       } catch {
-        setErrorMessage('Não foi possível carregar o vídeo ao vivo.');
+        setErrorMessage("Não foi possível carregar o vídeo ao vivo.");
       }
     }
 
@@ -148,13 +159,13 @@ export function CameraSettingsPanel({
 
   const loadDevices = useCallback(async () => {
     if (!accessToken) {
-      setErrorMessage('Sessão inválida. Faça login novamente.');
+      setErrorMessage("Sessão inválida. Faça login novamente.");
       setIsBootstrapping(false);
       return;
     }
 
     try {
-      setErrorMessage('');
+      setErrorMessage("");
       setIsBootstrapping(true);
 
       const resolvedWorkspace = await resolvePrimaryWorkspace({
@@ -162,7 +173,10 @@ export function CameraSettingsPanel({
         userEmail,
         userName,
       });
-      const workspaceCameras = await listCameras(accessToken, resolvedWorkspace.id);
+      const workspaceCameras = await listCameras(
+        accessToken,
+        resolvedWorkspace.id,
+      );
 
       setWorkspace(resolvedWorkspace);
       setCameras(workspaceCameras);
@@ -170,7 +184,7 @@ export function CameraSettingsPanel({
         workspaceCameras.reduce<Record<string, boolean>>((acc, camera) => {
           acc[camera.id] = true;
           return acc;
-        }, {})
+        }, {}),
       );
       setIsBootstrapping(false);
 
@@ -182,16 +196,16 @@ export function CameraSettingsPanel({
               current.map((currentCamera) =>
                 currentCamera.id === camera.id
                   ? { ...currentCamera, status: ping.status }
-                  : currentCamera
-              )
+                  : currentCamera,
+              ),
             );
           } catch {
             setCameras((current) =>
               current.map((currentCamera) =>
                 currentCamera.id === camera.id
-                  ? { ...currentCamera, status: 'offline' }
-                  : currentCamera
-              )
+                  ? { ...currentCamera, status: "offline" }
+                  : currentCamera,
+              ),
             );
           } finally {
             setPingingCameraIds((current) => ({
@@ -199,11 +213,13 @@ export function CameraSettingsPanel({
               [camera.id]: false,
             }));
           }
-        })
+        }),
       );
     } catch (error) {
       setErrorMessage(
-        error instanceof ApiRequestError ? error.message : 'Não foi possível carregar as configurações.'
+        error instanceof ApiRequestError
+          ? error.message
+          : "Não foi possível carregar as configurações.",
       );
     } finally {
       setIsBootstrapping(false);
@@ -217,7 +233,7 @@ export function CameraSettingsPanel({
   useFocusEffect(
     useCallback(() => {
       void loadDevices();
-    }, [loadDevices])
+    }, [loadDevices]),
   );
 
   const handleRefresh = useCallback(async () => {
@@ -231,36 +247,39 @@ export function CameraSettingsPanel({
 
   async function handleStartStream(camera: CameraResponse) {
     const metadata = getCameraMetadata(camera);
-    const protocol = typeof metadata.protocol === 'string' ? metadata.protocol : camera.connection_type;
+    const protocol =
+      typeof metadata.protocol === "string"
+        ? metadata.protocol
+        : camera.connection_type;
 
-    if (protocol === 'local-webview') {
+    if (protocol === "local-webview") {
       setSelectedCameraId(camera.id);
-      setStreamUrl('');
-      navigation.navigate('CameraLiveView', {
+      setStreamUrl("");
+      navigation.navigate("CameraLiveView", {
         cameraName: camera.name,
-        protocol: 'local-webview',
+        protocol: "local-webview",
         url: camera.stream_url,
       });
       return;
     }
 
     setIsStartingStreamId(camera.id);
-    setErrorMessage('');
+    setErrorMessage("");
 
     try {
       const response = await startCameraHlsStream(accessToken, camera.id);
       setSelectedCameraId(camera.id);
       setStreamUrl(response.playlist_url);
-      navigation.navigate('CameraLiveView', {
+      navigation.navigate("CameraLiveView", {
         cameraName: camera.name,
-        protocol: 'hls',
+        protocol: "hls",
         url: response.playlist_url,
       });
     } catch (error) {
       setErrorMessage(
         error instanceof ApiRequestError
           ? error.message
-          : 'Não foi possível iniciar o stream da câmera.'
+          : "Não foi possível iniciar o stream da câmera.",
       );
     } finally {
       setIsStartingStreamId(null);
@@ -273,7 +292,7 @@ export function CameraSettingsPanel({
       keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl
-          colors={['#0BA5EC']}
+          colors={["#0BA5EC"]}
           onRefresh={handleRefresh}
           refreshing={isRefreshing}
           tintColor="#0BA5EC"
@@ -287,7 +306,9 @@ export function CameraSettingsPanel({
         <Text style={styles.subtitle}>
           Gerencie seus dispositivos e preferencias de seguranca
         </Text>
-        {workspace ? <Text style={styles.workspaceName}>{workspace.name}</Text> : null}
+        {workspace ? (
+          <Text style={styles.workspaceName}>{workspace.name}</Text>
+        ) : null}
       </View>
 
       {isBootstrapping ? (
@@ -302,7 +323,7 @@ export function CameraSettingsPanel({
             <Pressable
               accessibilityRole="button"
               onPress={() =>
-                navigation.navigate('CameraConnectionForm', {
+                navigation.navigate("CameraConnectionForm", {
                   accessToken,
                   userEmail,
                   userName,
@@ -314,11 +335,15 @@ export function CameraSettingsPanel({
             </Pressable>
           </View>
 
-          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+          {errorMessage ? (
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          ) : null}
 
           {cameras.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>Nenhum dispositivo conectado</Text>
+              <Text style={styles.emptyTitle}>
+                Nenhum dispositivo conectado
+              </Text>
               <Text style={styles.emptySubtitle}>
                 Toque no + para cadastrar sua primeira camera.
               </Text>
@@ -334,22 +359,31 @@ export function CameraSettingsPanel({
                   key={camera.id}
                   disabled={isStarting}
                   onPress={() => handleStartStream(camera)}
-                  style={[styles.deviceCard, isSelected && styles.deviceCardActive]}
+                  style={[
+                    styles.deviceCard,
+                    isSelected && styles.deviceCardActive,
+                  ]}
                 >
                   <View style={styles.deviceIconWrap}>
-                    <MaterialCommunityIcons color="#00B6FF" name="cctv" size={24} />
+                    <MaterialCommunityIcons
+                      color="#00B6FF"
+                      name="cctv"
+                      size={24}
+                    />
                   </View>
 
                   <View style={styles.deviceContent}>
                     <Text numberOfLines={2} style={styles.deviceName}>
                       {camera.name}
                     </Text>
-                    <Text style={styles.deviceProtocol}>{getCameraProtocol(camera)}</Text>
+                    <Text style={styles.deviceProtocol}>
+                      {getCameraProtocol(camera)}
+                    </Text>
                     <View style={styles.statusRow}>
                       <View
                         style={[
                           styles.statusDot,
-                          camera.status === 'online'
+                          camera.status === "online"
                             ? styles.statusDotOnline
                             : styles.statusDotOffline,
                         ]}
@@ -357,15 +391,15 @@ export function CameraSettingsPanel({
                       <Text
                         style={[
                           styles.statusText,
-                          camera.status === 'online'
+                          camera.status === "online"
                             ? styles.statusTextOnline
                             : styles.statusTextOffline,
                         ]}
                       >
                         {isPinging && !isStarting
-                          ? 'Testando...'
+                          ? "Testando..."
                           : isStarting
-                            ? 'Conectando...'
+                            ? "Conectando..."
                             : getCameraStatusLabel(camera)}
                       </Text>
                     </View>
@@ -394,7 +428,7 @@ export function CameraSettingsPanel({
           <View style={styles.accountSection}>
             <Pressable
               accessibilityRole="button"
-              onPress={onLogout}
+              onPress={handleLogout}
               style={styles.logoutButton}
             >
               <Feather color="#B42318" name="log-out" size={18} />
