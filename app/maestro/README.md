@@ -29,6 +29,9 @@ npm run test:e2e -- login
 npm run test:e2e -- signup
 npm run test:e2e -- navigation
 npm run test:e2e -- workspace
+npm run test:e2e -- invite
+npm run test:e2e -- accept
+npm run test:e2e -- camera
 ```
 
 `MAESTRO_DEVICE` seleciona o Android (padrão `emulator-5554`). `MAESTRO_PYTHON`
@@ -64,6 +67,9 @@ Não é necessário limpar os dados ou reinstalar o app entre execuções.
 | signup | Senha curta, confirmação divergente, termos obrigatórios, cadastro e login; persistência conferida pela API |
 | navigation | Home sem incidentes, workspace da fixture, análises, dispositivos vazios e logout |
 | workspace | Nome obrigatório, criação pela interface e persistência associada ao usuário pela API |
+| invite | Feedback padronizado para e-mail vazio, criação como cuidador, cópia do código e persistência pela API |
+| accept | Geração e cópia do código, troca para a conta convidada, aceite e acesso ao workspace |
+| camera | Formulário simplificado, validação dos três campos e acesso às ocorrências da câmera |
 
 Relatórios JUnit, logs da API/Metro e evidências de falhas do Maestro ficam em
 `results/<data-hora-pid>/` (ignorado pelo Git). O runner interrompe no primeiro

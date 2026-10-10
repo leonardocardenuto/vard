@@ -1,0 +1,30 @@
+appId: com.devsilogix.vard
+name: Workspace - convite, feedback e copia do codigo
+---
+- runFlow: ../shared/login.yaml
+- tapOn:
+    id: tab-Workspace
+- assertVisible: ${MAESTRO_WORKSPACE_NAME}
+- tapOn: ${MAESTRO_WORKSPACE_NAME}
+- assertVisible: "Membros"
+- tapOn: "Convidar"
+- assertVisible: "Gerar código de convite"
+- tapOn: "Gerar código"
+- assertVisible: "Informe o e-mail"
+- assertVisible: "Digite o e-mail do membro para gerar o convite."
+- tapOn: "Entendi"
+- assertNotVisible: "Informe o e-mail"
+- tapOn:
+    id: workspace-invite-email
+- inputText: ${MAESTRO_INVITE_EMAIL}
+- hideKeyboard
+- tapOn: "Cuidador"
+- tapOn: "Gerar código"
+- extendedWaitUntil:
+    visible: "Toque para copiar"
+    timeout: 15000
+- tapOn: "Copiar código de convite"
+- assertVisible: "Código copiado!"
+- tapOn: "Concluir"
+- assertVisible: ${MAESTRO_INVITE_EMAIL}
+- assertVisible: "Cuidador"

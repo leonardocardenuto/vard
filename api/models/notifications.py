@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Index, Text, func, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,8 +41,8 @@ class NotificationDelivery(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="SET NULL"))
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'queued'"))
     error_message: Mapped[str | None] = mapped_column(Text)
-    sent_at: Mapped[datetime | None] = mapped_column()
-    read_at: Mapped[datetime | None] = mapped_column()
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 Index("idx_notification_channels_user", NotificationChannel.user_id)

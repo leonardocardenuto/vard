@@ -8,7 +8,6 @@ import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -26,6 +25,7 @@ import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
 import {
   ApiRequestError,
   WorkspaceResponse,
+  acceptInvite,
   buildDefaultWorkspaceSlug,
   createWorkspace,
   deleteWorkspace,
@@ -33,6 +33,7 @@ import {
   updateWorkspace,
 } from '../../../lib/api';
 import { AppTabParamList } from '../../../navigation/types';
+import { WorkspaceFeedback, WorkspaceFeedbackModal } from '../components/WorkspaceFeedbackModal';
 import {
   WORKSPACE_GRADIENT_COLORS,
   WORKSPACE_GRADIENT_LOCATIONS,
@@ -40,7 +41,10 @@ import {
   styles,
 } from '../styles/workspaces';
 import { WorkspaceStackParamList } from '../types/workspace';
-import WorkspaceDetailsScreen, { WorkspaceCameraLiveViewScreen } from './workspace_details';
+import WorkspaceDetailsScreen, {
+  WorkspaceCameraLiveViewScreen,
+  WorkspaceCameraOccurrencesScreen,
+} from './workspace_details';
 
 type WorkspaceTabRoute = RouteProp<AppTabParamList, 'Workspace'>;
 type WorkspacesListNavigation = NativeStackNavigationProp<WorkspaceStackParamList, 'WorkspacesList'>;
@@ -71,6 +75,7 @@ export default function Workspaces() {
       />
       <Stack.Screen name="WorkspaceDetails" component={WorkspaceDetailsScreen} />
       <Stack.Screen name="CameraLiveView" component={WorkspaceCameraLiveViewScreen} />
+      <Stack.Screen name="CameraOccurrences" component={WorkspaceCameraOccurrencesScreen} />
       <Stack.Screen
         name="AddWorkspace"
         component={AddWorkspaceScreen}
@@ -90,6 +95,10 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
   const [errorMessage, setErrorMessage] = useState('');
   const [menuWorkspace, setMenuWorkspace] = useState<WorkspaceResponse | null>(null);
   const [deleteWorkspaceTarget, setDeleteWorkspaceTarget] = useState<WorkspaceResponse | null>(null);
+  const [isAcceptInviteOpen, setIsAcceptInviteOpen] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [isAcceptingInvite, setIsAcceptingInvite] = useState(false);
+  const [feedback, setFeedback] = useState<WorkspaceFeedback | null>(null);
   const fontsLoaded = useWorkspaceFonts();
 
   const loadWorkspaces = useCallback(async () => {
@@ -160,15 +169,22 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
       return;
     }
 
+    const workspaceName = deleteWorkspaceTarget.name;
     void (async () => {
       try {
         await deleteWorkspace(accessToken, deleteWorkspaceTarget.id);
         setWorkspaces((current) => current.filter((workspace) => workspace.id !== deleteWorkspaceTarget.id));
+        setFeedback({
+          title: 'Espaço excluído',
+          message: `${workspaceName} foi excluído com sucesso.`,
+          tone: 'success',
+        });
       } catch (error) {
-        Alert.alert(
-          'Não foi possível excluir',
-          error instanceof ApiRequestError ? error.message : 'Tente novamente em instantes.'
-        );
+        setFeedback({
+          title: 'Não foi possível excluir',
+          message: error instanceof ApiRequestError ? error.message : 'Tente novamente em instantes.',
+          tone: 'error',
+        });
       } finally {
         closeDeleteWorkspaceSheet();
       }
@@ -183,6 +199,39 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
       setIsRefreshing(false);
     }
   }, [loadWorkspaces]);
+
+  async function handleAcceptInvite() {
+    const trimmedCode = inviteCode.trim();
+    if (!trimmedCode) {
+      setFeedback({
+        title: 'Informe o código',
+        message: 'Cole o código recebido para aceitar o convite.',
+        tone: 'warning',
+      });
+      return;
+    }
+
+    setIsAcceptingInvite(true);
+    try {
+      await acceptInvite(accessToken, trimmedCode);
+      setIsAcceptInviteOpen(false);
+      setInviteCode('');
+      await loadWorkspaces();
+      setFeedback({
+        title: 'Convite aceito!',
+        message: 'O novo espaço já está disponível para você.',
+        tone: 'success',
+      });
+    } catch (error) {
+      setFeedback({
+        title: 'Não foi possível aceitar',
+        message: error instanceof ApiRequestError ? error.message : 'Confira o código e tente novamente.',
+        tone: 'error',
+      });
+    } finally {
+      setIsAcceptingInvite(false);
+    }
+  }
 
   if (!fontsLoaded) {
     return null;
@@ -212,23 +261,33 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
             <Text style={styles.subtitle}>Escolha o espaço de família</Text>
           </View>
 
-          <Pressable
-            accessibilityLabel="Adicionar workspace"
-            accessibilityRole="button"
-            onPress={() =>
-              navigation.navigate("AddWorkspace", {
-                accessToken,
-                userEmail,
-                userName,
-              })
-            }
-            style={({ pressed }) => [
-              styles.addButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Feather color="#019BDE" name="plus" size={40} />
-          </Pressable>
+          <View style={styles.heroActions}>
+            <Pressable
+              accessibilityLabel="Aceitar convite"
+              accessibilityRole="button"
+              onPress={() => setIsAcceptInviteOpen(true)}
+              style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}
+            >
+              <Feather color="#019BDE" name="key" size={21} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Adicionar workspace"
+              accessibilityRole="button"
+              onPress={() =>
+                navigation.navigate("AddWorkspace", {
+                  accessToken,
+                  userEmail,
+                  userName,
+                })
+              }
+              style={({ pressed }) => [
+                styles.addButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Feather color="#019BDE" name="plus" size={40} />
+            </Pressable>
+          </View>
         </View>
 
         {errorMessage ? (
@@ -293,22 +352,6 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
                     />
                   </Pressable>
 
-                  {menuWorkspace?.id === workspace.id ? (
-                    <View style={styles.menuCardInline}>
-                      <Text style={styles.menuTitle}>{workspace.name}</Text>
-                      <Text style={styles.menuSubtitle}>Escolha uma ação para este espaço.</Text>
-
-                      <Pressable onPress={handleEditWorkspace} style={styles.menuItem}>
-                        <Feather color="#475467" name="edit-3" size={16} />
-                        <Text style={styles.menuItemText}>Editar</Text>
-                      </Pressable>
-
-                      <Pressable onPress={handleDeleteWorkspace} style={styles.menuItem}>
-                        <Feather color="#B42318" name="trash-2" size={16} />
-                        <Text style={[styles.menuItemText, styles.menuDangerText]}>Excluir</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
                 </View>
                 <View style={styles.workspaceCardFooter}>
                   <Text numberOfLines={1} style={styles.workspaceName}>
@@ -324,19 +367,129 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
       <Modal
         animationType="fade"
         transparent
+        visible={isAcceptInviteOpen}
+        onRequestClose={() => !isAcceptingInvite && setIsAcceptInviteOpen(false)}
+      >
+        <Pressable
+          onPress={() => !isAcceptingInvite && setIsAcceptInviteOpen(false)}
+          style={styles.workspaceActionsOverlay}
+        >
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <Pressable onPress={() => undefined} style={styles.workspaceActionsCard}>
+              <View style={styles.workspaceActionsHandle} />
+              <Text style={styles.workspaceActionsTitle}>Aceitar convite</Text>
+              <Text style={styles.workspaceActionsSubtitle}>
+                Cole o código que você recebeu para entrar no espaço.
+              </Text>
+              <TextInput
+                autoCapitalize="characters"
+                autoCorrect={false}
+                editable={!isAcceptingInvite}
+                onChangeText={setInviteCode}
+                placeholder="Código do convite"
+                placeholderTextColor="#98A2B3"
+                style={styles.inviteCodeInput}
+                testID="workspace-accept-invite-code"
+                value={inviteCode}
+              />
+              <Pressable
+                accessibilityLabel="Confirmar aceite do convite"
+                accessibilityRole="button"
+                disabled={isAcceptingInvite}
+                onPress={() => void handleAcceptInvite()}
+                style={[styles.acceptInviteButton, isAcceptingInvite && styles.acceptInviteButtonDisabled]}
+              >
+                {isAcceptingInvite ? <ActivityIndicator color="#FFFFFF" /> : null}
+                <Text style={styles.acceptInviteButtonText}>
+                  {isAcceptingInvite ? 'Aceitando...' : 'Aceitar convite'}
+                </Text>
+              </Pressable>
+              <Pressable
+                disabled={isAcceptingInvite}
+                onPress={() => setIsAcceptInviteOpen(false)}
+                style={styles.workspaceActionsCancel}
+              >
+                <Text style={styles.workspaceActionsCancelText}>Cancelar</Text>
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={menuWorkspace !== null}
+        onRequestClose={closeWorkspaceMenu}
+      >
+        <Pressable onPress={closeWorkspaceMenu} style={styles.workspaceActionsOverlay}>
+          <Pressable onPress={() => undefined} style={styles.workspaceActionsCard}>
+            <View style={styles.workspaceActionsHandle} />
+            <Text style={styles.workspaceActionsTitle}>Ações do espaço</Text>
+            <Text numberOfLines={1} style={styles.workspaceActionsSubtitle}>
+              {menuWorkspace?.name}
+            </Text>
+
+            <Pressable
+              onPress={handleEditWorkspace}
+              style={({ pressed }) => [styles.workspaceActionRow, pressed && styles.pressed]}
+            >
+              <View style={styles.workspaceActionIcon}>
+                <Feather color="#00326D" name="edit-3" size={20} />
+              </View>
+              <View style={styles.workspaceActionCopy}>
+                <Text style={styles.workspaceActionTitle}>Editar espaço</Text>
+                <Text style={styles.workspaceActionDescription}>Alterar nome e imagem</Text>
+              </View>
+              <Feather color="#98A2B3" name="chevron-right" size={20} />
+            </Pressable>
+
+            <Pressable
+              onPress={handleDeleteWorkspace}
+              style={({ pressed }) => [
+                styles.workspaceActionRow,
+                styles.workspaceActionDangerRow,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={[styles.workspaceActionIcon, styles.workspaceActionDangerIcon]}>
+                <Feather color="#B42318" name="trash-2" size={20} />
+              </View>
+              <View style={styles.workspaceActionCopy}>
+                <Text style={[styles.workspaceActionTitle, styles.workspaceActionDangerTitle]}>
+                  Excluir espaço
+                </Text>
+                <Text style={styles.workspaceActionDescription}>Remover este espaço e suas configurações</Text>
+              </View>
+              <Feather color="#D92D20" name="chevron-right" size={20} />
+            </Pressable>
+
+            <Pressable onPress={closeWorkspaceMenu} style={styles.workspaceActionsCancel}>
+              <Text style={styles.workspaceActionsCancelText}>Cancelar</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent
         visible={deleteWorkspaceTarget !== null}
         onRequestClose={closeDeleteWorkspaceSheet}
       >
         <Pressable onPress={closeDeleteWorkspaceSheet} style={styles.deleteSheetOverlay}>
           <Pressable onPress={() => undefined} style={styles.deleteSheetCard}>
             <View style={styles.deleteSheetHandle} />
+            <View style={styles.deleteSheetWarningIcon}>
+              <Feather color="#B42318" name="trash-2" size={24} />
+            </View>
             <Text style={styles.deleteSheetTitle}>Confirmar exclusão</Text>
             <Text style={styles.deleteSheetDescription}>
               Você tem certeza que deseja excluir este espaço?
             </Text>
 
             <Pressable onPress={confirmDeleteWorkspace} style={styles.deleteSheetConfirmButton}>
-              <Text style={styles.deleteSheetConfirmText}>Sim, eu tenho certeza</Text>
+              <Text style={styles.deleteSheetConfirmText}>Excluir espaço</Text>
             </Pressable>
 
             <Pressable onPress={closeDeleteWorkspaceSheet} style={styles.deleteSheetCancelButton}>
@@ -346,14 +499,15 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         </Pressable>
       </Modal>
 
+      <WorkspaceFeedbackModal feedback={feedback} onClose={() => setFeedback(null)} />
+
     </LayoutWithNavbar>
   );
 }
 
 function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
   const { accessToken, userEmail, userName } = route.params;
-  const [name, setName] = useState(userName ? `Casa de ${userName}` : '');
-  const [timezone, setTimezone] = useState('America/Sao_Paulo');
+  const [name, setName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isPickingImage, setIsPickingImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -368,7 +522,6 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
     }
 
     const trimmedName = name.trim();
-    const trimmedTimezone = timezone.trim() || 'America/Sao_Paulo';
 
     if (!trimmedName) {
       setErrorMessage('Informe o nome do workspace.');
@@ -382,7 +535,7 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
       const workspace = await createWorkspace(accessToken, {
         name: trimmedName,
         slug,
-        timezone: trimmedTimezone,
+        timezone: 'America/Sao_Paulo',
         image_url: avatarUrl,
       });
       navigation.replace('WorkspaceDetails', { accessToken, workspace });
@@ -421,12 +574,16 @@ function AddWorkspaceScreen({ navigation, route }: AddWorkspaceProps) {
         <Text style={styles.inputLabel}>Nome do espaço</Text>
         <TextInput
           accessibilityLabel="Nome do espaço"
+          autoCapitalize="words"
+          autoCorrect={false}
           editable={!isSaving}
           maxLength={200}
           testID="workspace-name"
           onChangeText={setName}
-          placeholder="Ex.: Casa da Família"
+          onSubmitEditing={handleSave}
+          placeholder={userName ? `Ex.: Casa de ${userName}` : 'Ex.: Casa da família'}
           placeholderTextColor="#98A2B3"
+          returnKeyType="done"
           style={styles.input}
           value={name}
         />
@@ -439,7 +596,6 @@ function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
   const { accessToken, userEmail, userName, workspace } = route.params;
   const [name, setName] = useState(workspace.name);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(workspace.image_url ?? null);
-  const [timezone, setTimezone] = useState(workspace.timezone);
   const [isPickingImage, setIsPickingImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -453,7 +609,6 @@ function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
     }
 
     const trimmedName = name.trim();
-    const trimmedTimezone = timezone.trim() || 'America/Sao_Paulo';
 
     if (!trimmedName) {
       setErrorMessage('Informe o nome do workspace.');
@@ -466,7 +621,7 @@ function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
     try {
       const updatedWorkspace = await updateWorkspace(accessToken, workspace.id, {
         name: trimmedName,
-        timezone: trimmedTimezone,
+        timezone: workspace.timezone || 'America/Sao_Paulo',
         image_url: avatarUrl,
       });
       navigation.replace('WorkspaceDetails', { accessToken, workspace: updatedWorkspace });
@@ -505,12 +660,16 @@ function EditWorkspaceScreen({ navigation, route }: EditWorkspaceProps) {
         <Text style={styles.inputLabel}>Nome do espaço</Text>
         <TextInput
           accessibilityLabel="Nome do espaço"
+          autoCapitalize="words"
+          autoCorrect={false}
           editable={!isSaving}
           maxLength={200}
           testID="workspace-name"
           onChangeText={setName}
+          onSubmitEditing={handleSave}
           placeholder="Ex.: Casa da Família"
           placeholderTextColor="#98A2B3"
+          returnKeyType="done"
           style={styles.input}
           value={name}
         />

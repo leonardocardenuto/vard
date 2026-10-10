@@ -1,0 +1,47 @@
+appId: com.devsilogix.vard
+name: Workspace - aceite completo do convite
+---
+- runFlow: ../shared/login.yaml
+- tapOn:
+    id: tab-Workspace
+- tapOn: ${MAESTRO_WORKSPACE_NAME}
+- tapOn: "Convidar"
+- tapOn:
+    id: workspace-invite-email
+- inputText: ${MAESTRO_ACCEPT_EMAIL}
+- hideKeyboard
+- tapOn: "Gerar código"
+- extendedWaitUntil:
+    visible: "Toque para copiar"
+    timeout: 15000
+- tapOn: "Copiar código de convite"
+- assertVisible: "Código copiado!"
+- copyTextFrom:
+    id: workspace-invite-code-value
+- tapOn: "Concluir"
+- tapOn:
+    id: tab-Settings
+- scrollUntilVisible:
+    element:
+      text: "Sair da conta"
+    direction: DOWN
+- tapOn: "Sair da conta"
+- assertVisible: "ACESSAR SUA CONTA"
+- runFlow:
+    file: ../shared/login.yaml
+    env:
+      MAESTRO_EMAIL: ${MAESTRO_ACCEPT_EMAIL}
+- tapOn:
+    id: tab-Workspace
+- tapOn: "Aceitar convite"
+- tapOn:
+    id: workspace-accept-invite-code
+- pasteText
+- hideKeyboard
+- tapOn: "Confirmar aceite do convite"
+- extendedWaitUntil:
+    visible: "Convite aceito!"
+    timeout: 15000
+- assertVisible: "O novo espaço já está disponível para você."
+- tapOn: "Entendi"
+- assertVisible: ${MAESTRO_WORKSPACE_NAME}

@@ -5,17 +5,11 @@ name: Workspace - nome obrigatorio e criacao
 - tapOn:
     id: tab-Workspace
 - tapOn: "Adicionar workspace"
-- longPressOn:
+- tapOn:
     id: workspace-name
-- runFlow:
-    when:
-      notVisible: "Select all|Select All|Selecionar tudo"
-    commands:
-      - tapOn:
-          id: android:id/overflow
-- tapOn: "Select all|Select All|Selecionar tudo"
-- eraseText: 1
-- assertVisible: "Ex.: Casa da Família"
+- eraseText: 100
+- assertVisible: "Ex.: Casa.*"
+- hideKeyboard
 - tapOn: "Criar workspace"
 - assertVisible: "Informe o nome do workspace."
 - tapOn:

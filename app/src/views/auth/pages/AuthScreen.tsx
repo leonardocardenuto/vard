@@ -1,5 +1,4 @@
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFonts } from 'expo-font';
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
@@ -27,15 +26,16 @@ import { styles } from '../auth_screen';
 
 registerTranslation('pt', pt);
 
-export function AuthScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
+
+export function AuthScreen({ navigation, route }: Props) {
   const [fontsLoaded] = useFonts({
     'Poppins-Regular': require('../../../../assets/fonts/Poppins-Regular.ttf'),
     'Poppins-Medium': require('../../../../assets/fonts/Poppins-Medium.ttf'),
     'Poppins-SemiBold': require('../../../../assets/fonts/Poppins-SemiBold.ttf'),
     'Poppins-ExtraBold': require('../../../../assets/fonts/Poppins-ExtraBold.ttf'),
   });
-  const [step, setStep] = useState<AuthStep>('landing');
+  const [step, setStep] = useState<AuthStep>(route.params?.initialStep ?? 'landing');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -123,20 +123,24 @@ export function AuthScreen() {
     const resolvedName = me.full_name?.trim() || me.email;
     const resolvedAvatarUrl = me.avatar_url || fallbackAvatarUrl || null;
 
-    navigation.reset({
-      index: 0,
-      routes: [
-        {
-          name: 'AppTabs',
-          params: {
-            accessToken,
-            userEmail: me.email,
-            userAvatarUrl: resolvedAvatarUrl,
-            userName: resolvedName,
-          },
-        },
-      ],
-    });
+    const appTabsRoute = {
+      name: 'AppTabs' as const,
+      params: {
+        accessToken,
+        userEmail: me.email,
+        userAvatarUrl: resolvedAvatarUrl,
+        userName: resolvedName,
+      },
+    };
+    const pendingInviteToken = route.params?.pendingInviteToken;
+    navigation.reset(
+      pendingInviteToken
+        ? {
+            index: 1,
+            routes: [appTabsRoute, { name: 'AcceptInvite', params: { token: pendingInviteToken } }],
+          }
+        : { index: 0, routes: [appTabsRoute] }
+    );
   }
 
   async function syncOneSignalSubscription(accessToken: string, userId: string) {

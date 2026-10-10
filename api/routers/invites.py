@@ -1,21 +1,17 @@
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from api.cache import CachePolicy, CacheScope, CachedAPIRoute, cache_response
-from api.core.config import get_settings
 from api.db import get_db
 from api.deps import get_current_user, require_workspace_membership
 from api.models import AppUser, Workspace, WorkspaceInvite, WorkspaceMember
 from api.schemas import InviteAccept, InviteCreate, InviteResponse
-from api.services.invites import InviteEmailError, send_workspace_invite_email
 
-settings = get_settings()
 router = APIRouter(prefix="/invites", tags=["invites"], route_class=CachedAPIRoute)
 
 
@@ -74,12 +70,6 @@ def create_invite(
     db.commit()
     db.refresh(invite)
 
-    invite_url = f"{settings.app_base_url}/invites/accept?token={quote(token)}"
-    try:
-        send_workspace_invite_email(invite.email, workspace.name, invite_url, payload.role)
-    except InviteEmailError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-
     return invite
 
 
@@ -110,6 +100,11 @@ def accept_invite(
 
     if invite.status != "pending":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Invite is not pending")
+    if invite.email.lower() != current_user.email.lower():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invite belongs to another user",
+        )
     if invite.expires_at < datetime.now(UTC):
         invite.status = "expired"
         db.commit()

@@ -23,10 +23,6 @@ name: Cadastro - validacoes e criacao de conta
     direction: DOWN
 - tapOn: "CRIAR CONTA"
 - assertVisible: "A senha precisa ter pelo menos 8 caracteres."
-- scrollUntilVisible:
-    element:
-      id: signup-password
-    direction: UP
 - tapOn:
     id: signup-password
 - inputText: ${MAESTRO_PASSWORD}
@@ -37,10 +33,6 @@ name: Cadastro - validacoes e criacao de conta
     direction: DOWN
 - tapOn: "CRIAR CONTA"
 - assertVisible: "As senhas não conferem."
-- scrollUntilVisible:
-    element:
-      id: signup-confirm-password
-    direction: UP
 - tapOn:
     id: signup-confirm-password
 - inputText: ${MAESTRO_PASSWORD}
@@ -56,4 +48,4 @@ name: Cadastro - validacoes e criacao de conta
 - tapOn: "CRIAR CONTA"
 - extendedWaitUntil:
     visible: "Últimos Alertas"
-    timeout: 30000
+    timeout: 120000

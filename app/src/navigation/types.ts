@@ -1,5 +1,11 @@
 export type RootStackParamList = {
-  Auth: undefined;
+  Auth:
+    | {
+        initialStep?: 'landing' | 'email' | 'password' | 'signup';
+        pendingInviteToken?: string;
+      }
+    | undefined;
+  AcceptInvite: { token: string };
   AppTabs:
     | {
         accessToken: string;

@@ -1,0 +1,26 @@
+appId: com.devsilogix.vard
+name: Workspace - cadastro simplificado e ocorrencias da camera
+---
+- runFlow: ../shared/login.yaml
+- tapOn:
+    id: tab-Workspace
+- assertVisible: ${MAESTRO_WORKSPACE_NAME}
+- tapOn: ${MAESTRO_WORKSPACE_NAME}
+- assertVisible: "Câmeras cadastradas"
+- tapOn: "Adicionar"
+- assertVisible: "Adicionar câmera"
+- assertVisible: "Host ou IP da câmera"
+- assertVisible: "Nome de usuário"
+- assertVisible: "Senha"
+- assertVisible: "Detectar e adicionar"
+- tapOn: "Detectar e adicionar"
+- assertVisible: "Preencha host, nome de usuário e senha."
+- tapOn: "Cancelar"
+- assertVisible: ${MAESTRO_CAMERA_NAME}
+- tapOn: "Ocorrências"
+- assertVisible: "Ocorrências"
+- assertVisible: ${MAESTRO_CAMERA_NAME}
+- extendedWaitUntil:
+    visible: "Nenhuma ocorrência"
+    timeout: 15000
+- assertVisible: "Esta câmera não possui ocorrências registradas."
