@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Text, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,7 +35,7 @@ class WorkspaceMember(Base, CreatedAtMixin):
     role: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'active'"))
     invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="SET NULL"))
-    joined_at: Mapped[datetime | None] = mapped_column()
+    joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         CheckConstraint("role IN ('owner', 'admin', 'member', 'caregiver', 'viewer')", name="workspace_members_role_check"),
@@ -52,10 +52,10 @@ class WorkspaceInvite(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="SET NULL"))
     token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'pending'"))
-    expires_at: Mapped[datetime]
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     accepted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="SET NULL"))
-    accepted_at: Mapped[datetime | None] = mapped_column()
-    revoked_at: Mapped[datetime | None] = mapped_column()
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 Index("idx_workspace_members_user_id", WorkspaceMember.user_id)

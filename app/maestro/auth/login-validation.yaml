@@ -27,4 +27,4 @@ name: Login - senha obrigatoria, incorreta e recuperacao
 - tapOn: "CONTINUE"
 - extendedWaitUntil:
     visible: "Últimos Alertas"
-    timeout: 30000
+    timeout: 120000

@@ -60,8 +60,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-api.txt
 
-      - name: Install API dependencies
-        run: python -m pip install -r requirements-api.txt
+      - name: Install API and test dependencies
+        run: python -m pip install -r requirements-test.txt
 
       - name: Run database migrations
         env:
@@ -70,6 +70,9 @@ jobs:
 
       - name: Validate FastAPI app
         run: python -c "from api.main import app; assert app.title == 'Vard API'"
+
+      - name: Run API integration tests
+        run: python -m pytest tests/api -q
 
   app:
     name: App

@@ -19,6 +19,7 @@ import Workspaces from './src/views/workspace/pages/workspaces';
 import { Header } from './src/components/Header';
 import { initializeOneSignal } from './src/lib/onesignal';
 import { Alerts } from './src/views/alerts/pages/Alerts';
+import { AcceptInviteScreen } from './src/views/invites/AcceptInviteScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<AppTabParamList>();
@@ -129,6 +130,7 @@ export default function App() {
           <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
             <Stack.Screen name="Auth" component={AuthScreen} />
             <Stack.Screen name="AppTabs" component={AppTabs} />
+            <Stack.Screen name="AcceptInvite" component={AcceptInviteScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>

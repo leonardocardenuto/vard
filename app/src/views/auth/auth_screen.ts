@@ -154,34 +154,7 @@ const styles = StyleSheet.create({
   },
   emailSpacer: {
     flex: 1,
-    minHeight: 220,
-  },
-  orText: {
-    alignSelf: 'center',
-    color: '#989898',
-    fontFamily: 'Poppins-Regular',
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  googleButton: {
-    alignItems: 'center',
-    borderColor: '#D0D0D0',
-    borderRadius: 9,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 22,
-    height: 46,
-    justifyContent: 'center',
-  },
-  googleIcon: {
-    color: '#4285F4',
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 19,
-  },
-  googleText: {
-    color: '#777777',
-    fontFamily: 'Poppins-Medium',
-    fontSize: 14,
+    minHeight: 278,
   },
   termsText: {
     alignSelf: 'center',

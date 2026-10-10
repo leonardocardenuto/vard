@@ -113,6 +113,37 @@ type CameraCreatePayload = {
   metadata?: Record<string, unknown>;
 };
 
+type CameraUpdatePayload = Partial<Omit<CameraCreatePayload, 'workspace_id'>>;
+
+type CameraAutoConfigurePayload = {
+  workspace_id: string;
+  host: string;
+  username: string;
+  password: string;
+};
+
+type InviteCreatePayload = {
+  workspace_id: string;
+  email: string;
+  role?: 'owner' | 'admin' | 'member' | 'caregiver' | 'viewer';
+  expires_in_hours?: number;
+};
+
+type InviteResponse = {
+  id: string;
+  workspace_id: string;
+  email: string;
+  role: string;
+  token: string;
+  status: string;
+  expires_at: string;
+  invited_by_user_id: string | null;
+  accepted_by_user_id: string | null;
+  accepted_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+};
+
 type NotificationUpdatePayload = {
   body?: string;
   payload?: Record<string, unknown>;
@@ -158,6 +189,11 @@ export class ApiRequestError extends Error {
 
 function resolveApiBaseUrl() {
   return API_BASE_URL.replace(/\/+$/, '');
+}
+
+export function buildWebSocketUrl(path: string) {
+  const baseUrl = resolveApiBaseUrl().replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+  return `${baseUrl}${path}`;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -415,6 +451,39 @@ export async function createCamera(token: string, payload: CameraCreatePayload) 
   return requestWithToken<CameraResponse>('/cameras', token, {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export async function updateCamera(token: string, cameraId: string, payload: CameraUpdatePayload) {
+  return requestWithToken<CameraResponse>(`/cameras/${cameraId}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function autoConfigureCamera(
+  token: string,
+  payload: CameraAutoConfigurePayload,
+  cameraId?: string
+) {
+  const path = cameraId ? `/cameras/${cameraId}/auto-configure` : '/cameras/auto-configure';
+  return requestWithToken<CameraResponse>(path, token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createInvite(token: string, payload: InviteCreatePayload) {
+  return requestWithToken<InviteResponse>('/invites', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function acceptInvite(token: string, inviteToken: string) {
+  return requestWithToken<InviteResponse>('/invites/accept', token, {
+    method: 'POST',
+    body: JSON.stringify({ token: inviteToken }),
   });
 }
 

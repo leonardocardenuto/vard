@@ -32,13 +32,16 @@ add_tool_path "$HOME/Library/Android/sdk/platform-tools"
 add_tool_path "$HOME/Android/Sdk/platform-tools"
 
 case "$CASE" in
-  all) FLOWS=(auth/email-validation.yaml auth/login-validation.yaml auth/signup.yaml navigation/tabs-and-logout.yaml workspace/create.yaml) ;;
+  all) FLOWS=(auth/email-validation.yaml auth/login-validation.yaml auth/signup.yaml navigation/tabs-and-logout.yaml workspace/create.yaml workspace/invite.yaml workspace/accept-invite.yaml workspace/camera-actions.yaml) ;;
   email) FLOWS=(auth/email-validation.yaml) ;;
   login) FLOWS=(auth/login-validation.yaml) ;;
   signup) FLOWS=(auth/signup.yaml) ;;
   navigation) FLOWS=(navigation/tabs-and-logout.yaml) ;;
   workspace) FLOWS=(workspace/create.yaml) ;;
-  *) echo 'Uso: npm run test:e2e -- [all|email|login|signup|navigation|workspace]' >&2; exit 2 ;;
+  invite) FLOWS=(workspace/invite.yaml) ;;
+  accept) FLOWS=(workspace/accept-invite.yaml) ;;
+  camera) FLOWS=(workspace/camera-actions.yaml) ;;
+  *) echo 'Uso: npm run test:e2e -- [all|email|login|signup|navigation|workspace|invite|accept|camera]' >&2; exit 2 ;;
 esac
 for command in docker maestro adb node curl; do
   command -v "$command" >/dev/null || { echo "Comando ausente: $command" >&2; exit 1; }
@@ -129,6 +132,10 @@ for flow in "${FLOWS[@]}"; do
   maestro --device "$DEVICE" test "$MAESTRO_DIR/$flow" \
     -e MAESTRO_EMAIL=maestro.login@example.com \
     -e MAESTRO_SIGNUP_EMAIL=maestro.signup@example.com \
+    -e MAESTRO_INVITE_EMAIL=maestro.invite@example.com \
+    -e MAESTRO_ACCEPT_EMAIL=maestro.invited@example.com \
+    -e 'MAESTRO_CAMERA_NAME=Camera Maestro' \
+    -e 'MAESTRO_WORKSPACE_NAME=Casa Maestro' \
     -e 'MAESTRO_PASSWORD=MaestroLocal123!' \
     --format junit --output "$OUTPUT_DIR/$name.xml" --debug-output "$OUTPUT_DIR/$name"
 done

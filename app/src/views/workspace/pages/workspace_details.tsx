@@ -3,36 +3,78 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  Image,
+  Clipboard,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
-import { ApiRequestError, CameraResponse, getCameraMjpegUrl, listCameras, startCameraHlsStream, getWorkspaceFallAlert } from '../../../lib/api';
+import {
+  ApiRequestError,
+  CameraResponse,
+  NotificationResponse,
+  autoConfigureCamera,
+  createInvite,
+  getCameraMjpegUrl,
+  getWorkspaceFallAlert,
+  listCameras,
+  listNotifications,
+  startCameraHlsStream,
+} from '../../../lib/api';
 import { CameraLiveViewScreen as CameraHistoryLiveViewScreen } from '../../settings/pages/CameraLiveViewScreen';
+import { WorkspaceFeedback, WorkspaceFeedbackModal } from '../components/WorkspaceFeedbackModal';
 import { SettingsStackParamList } from '../../settings/types';
 import { WorkspaceFallAlert, WorkspaceStackParamList } from '../types/workspace';
 import { styles } from '../styles/workspace_details';
 
 type Props = NativeStackScreenProps<WorkspaceStackParamList, 'WorkspaceDetails'>;
 type CameraLiveViewProps = NativeStackScreenProps<WorkspaceStackParamList, 'CameraLiveView'>;
+type CameraOccurrencesProps = NativeStackScreenProps<WorkspaceStackParamList, 'CameraOccurrences'>;
 
 type FamilyMember = {
   id: string;
-  name: string;
-  phone: string;
+  contact: string;
   role: 'admin' | 'member' | 'caregiver' | 'viewer';
-  avatarUrl: string;
 };
+
+type CameraFormMode = 'create' | 'edit';
+
+type CameraProtocol =
+  | 'http-auto'
+  | 'https-manual'
+  | 'local-agent-webcam'
+  | 'local-webview'
+  | 'rtsp-auto'
+  | 'rtsp-manual';
+
+type CameraFormState = {
+  host: string;
+  password: string;
+  username: string;
+};
+
+type MemberRole = FamilyMember['role'];
+
+const initialCameraForm: CameraFormState = {
+  host: '',
+  password: '',
+  username: '',
+};
+
+const memberRoleOptions: Array<{ label: string; value: MemberRole }> = [
+  { label: 'Membro', value: 'member' },
+  { label: 'Cuidador', value: 'caregiver' },
+  { label: 'Administrador', value: 'admin' },
+  { label: 'Visualizador', value: 'viewer' },
+];
 
 export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
   const { accessToken, workspace, fallAlert } = route.params;
@@ -41,12 +83,23 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isOpeningCameraId, setIsOpeningCameraId] = useState<string | null>(null);
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>(() => seedFamilyMembers());
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [isMemberActionOpen, setIsMemberActionOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
-  const [newMemberPhone, setNewMemberPhone] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState<MemberRole>('member');
+  const [isInvitingMember, setIsInvitingMember] = useState(false);
+  const [generatedInviteCode, setGeneratedInviteCode] = useState('');
+  const [isInviteCodeCopied, setIsInviteCodeCopied] = useState(false);
   const [isFallAlertActive, setIsFallAlertActive] = useState(fallAlert?.active ?? false);
+  const [cameraFormMode, setCameraFormMode] = useState<CameraFormMode>('create');
+  const [cameraForm, setCameraForm] = useState<CameraFormState>(initialCameraForm);
+  const [cameraFormError, setCameraFormError] = useState('');
+  const [isCameraFormOpen, setIsCameraFormOpen] = useState(false);
+  const [isSavingCamera, setIsSavingCamera] = useState(false);
+  const [editingCamera, setEditingCamera] = useState<CameraResponse | null>(null);
+  const [feedback, setFeedback] = useState<WorkspaceFeedback | null>(null);
 
   useEffect(() => {
     setIsFallAlertActive(fallAlert?.active ?? false);
@@ -108,18 +161,18 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
     }
   }, [loadWorkspaceDetails]);
 
-  const mainCamera = cameras[0];
-  const secondCamera = cameras[1];
-  const roomName = fallAlert?.roomName?.trim() || mainCamera?.name || 'Quarto';
+  const mainCameraLocation = cameras[0] ? getCameraLocation(cameras[0]) : '';
+  const roomName = fallAlert?.roomName?.trim() || mainCameraLocation || 'Local monitorado';
   const alertTime = useMemo(() => formatAlertTime(fallAlert), [fallAlert]);
   const ambulancePhoneNumber = normalizeAmbulancePhoneNumber(fallAlert?.ambulancePhoneNumber);
   const roomCards = useMemo(() => buildRoomCards(cameras), [cameras]);
 
   async function handleAcknowledgeAlert() {
-    Alert.alert(
-      'Alerta registrado',
-      'O sistema recebeu a confirmação de que a queda está sendo verificada.'
-    );
+    setFeedback({
+      title: 'Alerta registrado',
+      message: 'O sistema recebeu a confirmação de que a queda está sendo verificada.',
+      tone: 'success',
+    });
   }
 
   async function handleCallAmbulance() {//ainda fazer para mandar para o aplicativo de ligação do celular com o numero preenchido
@@ -129,13 +182,21 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
     try {
       const canOpen = await Linking.canOpenURL(url);
       if (!canOpen) {
-        Alert.alert('Ligação indisponível', `Não foi possível abrir a ligação para ${ambulancePhoneNumber}.`);
+        setFeedback({
+          title: 'Ligação indisponível',
+          message: `Não foi possível abrir a ligação para ${ambulancePhoneNumber}.`,
+          tone: 'warning',
+        });
         return;
       }
 
       await Linking.openURL(url);
     } catch {
-      Alert.alert('Erro ao ligar', `Não foi possível iniciar a chamada para ${ambulancePhoneNumber}.`);
+      setFeedback({
+        title: 'Erro ao ligar',
+        message: `Não foi possível iniciar a chamada para ${ambulancePhoneNumber}.`,
+        tone: 'error',
+      });
     }
   }
 
@@ -178,13 +239,23 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
         workspaceId: workspace.id,
       });
     } catch (error) {
-      Alert.alert(
-        'Não foi possível abrir a câmera',
-        error instanceof ApiRequestError ? error.message : 'Tente novamente em instantes.'
-      );
+      setFeedback({
+        title: 'Não foi possível abrir a câmera',
+        message: error instanceof ApiRequestError ? error.message : 'Tente novamente em instantes.',
+        tone: 'error',
+      });
     } finally {
       setIsOpeningCameraId(null);
     }
+  }
+
+  function handleOpenCameraOccurrences(camera: CameraResponse) {
+    navigation.navigate('CameraOccurrences', {
+      accessToken,
+      cameraId: camera.id,
+      cameraName: camera.name,
+      workspaceId: workspace.id,
+    });
   }
 
   function openMemberActions(member: FamilyMember) {
@@ -209,8 +280,15 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           : member
       )
     );
+    const memberLabel = getMemberLabel(selectedMember);
     closeMemberActions();
-    Alert.alert('Permissão atualizada', `${selectedMember.name} agora pode administrar o espaço.`);
+    setFeedback({
+      title: 'Permissão atualizada',
+      message: `${memberLabel} agora está como ${formatMemberRole(
+        selectedMember.role === 'admin' ? 'member' : 'admin'
+      ).toLowerCase()}.`,
+      tone: 'success',
+    });
   }
 
   function handleRemoveMember() {
@@ -218,34 +296,154 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
       return;
     }
 
+    const memberLabel = getMemberLabel(selectedMember);
     setFamilyMembers((current) => current.filter((member) => member.id !== selectedMember.id));
     closeMemberActions();
-    Alert.alert('Membro removido', `${selectedMember.name} foi removido da família.`);
+    setFeedback({
+      title: 'Membro removido',
+      message: `${memberLabel} foi removido da família.`,
+      tone: 'success',
+    });
   }
 
-  function handleAddMember() {
-    const trimmedPhone = normalizeMemberPhoneNumber(newMemberPhone);
+  function openCreateCameraForm() {
+    setCameraFormMode('create');
+    setEditingCamera(null);
+    setCameraForm(initialCameraForm);
+    setCameraFormError('');
+    setIsCameraFormOpen(true);
+  }
 
-    if (!trimmedPhone) {
-      Alert.alert('Informe o número', 'Digite o número do membro para adicionar.');
+  function openEditCameraForm(camera: CameraResponse) {
+    const metadata = getCameraMetadata(camera);
+    const parsedConnection = parseCameraConnection(camera);
+    setCameraFormMode('edit');
+    setEditingCamera(camera);
+    setCameraForm({
+      host: firstString(metadata.host, parsedConnection.host),
+      password: '',
+      username: firstString(metadata.username, parsedConnection.username),
+    });
+    setCameraFormError('');
+    setIsCameraFormOpen(true);
+  }
+
+  function closeCameraForm() {
+    if (isSavingCamera) {
+      return;
+    }
+    setIsCameraFormOpen(false);
+    setEditingCamera(null);
+    setCameraFormError('');
+  }
+
+  function updateCameraFormField(field: keyof CameraFormState, value: string) {
+    setCameraForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setCameraFormError('');
+  }
+
+  async function handleSaveCamera() {
+    if (isSavingCamera) {
       return;
     }
 
-    const phoneLabel = formatPhoneLabel(trimmedPhone);
+    const host = cameraForm.host.trim();
+    const username = cameraForm.username.trim();
+    if (!host || !username || !cameraForm.password) {
+      setCameraFormError('Preencha host, nome de usuário e senha.');
+      return;
+    }
 
-    setFamilyMembers((current) => [
-      {
-        id: `member-${Date.now()}`,
-        name: phoneLabel,
-        phone: trimmedPhone,
-        role: 'member',
-        avatarUrl: `https://i.pravatar.cc/150?img=${Math.max(1, current.length + 3)}`,
-      },
-      ...current,
-    ]);
-    setNewMemberPhone('');
-    setIsAddMemberOpen(false);
-    Alert.alert('Convite pronto', `O membro ${phoneLabel} foi preparado para integração futura.`);
+    setIsSavingCamera(true);
+    setCameraFormError('');
+    try {
+      const configuredCamera = await autoConfigureCamera(
+        accessToken,
+        {
+          workspace_id: workspace.id,
+          host,
+          username,
+          password: cameraForm.password,
+        },
+        cameraFormMode === 'edit' ? editingCamera?.id : undefined
+      );
+      if (cameraFormMode === 'edit' && editingCamera) {
+        setCameras((current) =>
+          current.map((camera) => (camera.id === configuredCamera.id ? configuredCamera : camera))
+        );
+      } else {
+        setCameras((current) => [configuredCamera, ...current]);
+      }
+      setIsCameraFormOpen(false);
+      setEditingCamera(null);
+    } catch (error) {
+      setCameraFormError(
+        error instanceof ApiRequestError
+          ? error.message
+          : 'Não foi possível detectar uma câmera nesse host.'
+      );
+    } finally {
+      setIsSavingCamera(false);
+    }
+  }
+
+  async function handleAddMember() {
+    if (isInvitingMember) {
+      return;
+    }
+
+    const trimmedEmail = newMemberEmail.trim().toLowerCase();
+
+    if (!trimmedEmail) {
+      setFeedback({
+        title: 'Informe o e-mail',
+        message: 'Digite o e-mail do membro para gerar o convite.',
+        tone: 'warning',
+      });
+      return;
+    }
+
+    setIsInvitingMember(true);
+    try {
+      const invite = await createInvite(accessToken, {
+        workspace_id: workspace.id,
+        email: trimmedEmail,
+        role: newMemberRole,
+      });
+
+      setFamilyMembers((current) => [
+        {
+          id: `member-${Date.now()}`,
+          contact: trimmedEmail,
+          role: newMemberRole,
+        },
+        ...current,
+      ]);
+      setGeneratedInviteCode(invite.token);
+      setIsInviteCodeCopied(false);
+      setNewMemberEmail('');
+      setNewMemberRole('member');
+    } catch (error) {
+      setFeedback({
+        title: 'Não foi possível gerar o código',
+        message: error instanceof ApiRequestError ? error.message : 'Tente novamente em instantes.',
+        tone: 'error',
+      });
+    } finally {
+      setIsInvitingMember(false);
+    }
+  }
+
+  function handleCopyInviteCode() {
+    if (!generatedInviteCode) {
+      return;
+    }
+
+    Clipboard.setString(generatedInviteCode);
+    setIsInviteCodeCopied(true);
   }
 
   return (
@@ -267,134 +465,180 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
             <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
               <Feather color="#111827" name="chevron-left" size={20} />
             </Pressable>
-            <View>
+            <View style={styles.headerTitleWrap}>
               <Text numberOfLines={1} style={styles.title}>{workspace.name}</Text>
-              <Text numberOfLines={1} style={styles.subtitle}>{roomName}</Text>
+            </View>
+          </View>
+
+          <View style={styles.workspaceMetrics}>
+            <View style={styles.metricPill}>
+              <Feather color="#00326D" name="camera" size={15} />
+              <Text style={styles.metricText}>{cameras.length} câmeras</Text>
+            </View>
+            <View style={styles.metricPill}>
+              <Feather color="#00326D" name="users" size={15} />
+              <Text style={styles.metricText}>
+                {familyMembers.length} {familyMembers.length === 1 ? 'membro' : 'membros'}
+              </Text>
             </View>
           </View>
 
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
-          <View style={[styles.alertCard, !isFallAlertActive && styles.alertCardSafe]}>
-            <View style={styles.alertHeader}>
+          <View style={[styles.monitoringCard, isFallAlertActive && styles.monitoringCardAlert]}>
+            <View style={styles.monitoringHeader}>
               <Ionicons
-                color={isFallAlertActive ? '#C0392B' : '#0E7490'}
+                color={isFallAlertActive ? '#B42318' : '#00326D'}
                 name={isFallAlertActive ? 'warning' : 'shield-checkmark'}
-                size={24}
+                size={22}
               />
-              <View style={{ marginLeft: 10 }}>
-                <Text style={[styles.alertTitle, !isFallAlertActive && styles.alertTitleSafe]}>
-                  {isFallAlertActive ? 'QUEDA DETECTADA' : 'NENHUMA QUEDA DETECTADA'}
+              <View style={styles.monitoringTextWrap}>
+                <Text style={[styles.monitoringTitle, isFallAlertActive && styles.monitoringTitleAlert]}>
+                  {isFallAlertActive ? 'Queda detectada' : 'Monitoramento ativo'}
                 </Text>
-                <Text style={styles.alertSubtitle}>{roomName} - {alertTime}</Text>
-              </View>
-            </View>
-
-            <View style={styles.alertToggleRow}>
-              <View style={styles.alertToggleTextWrap}>
-                <Text style={styles.alertToggleTitle}>Teste de detecção</Text>
-                <Text style={styles.alertToggleSubtitle}>
-                  Ative para simular um evento de queda e desative para ver o estado seguro.
+                <Text numberOfLines={1} style={styles.monitoringSubtitle}>
+                  {isFallAlertActive ? `${roomName} - ${alertTime}` : 'Nenhuma ocorrência em aberto'}
                 </Text>
               </View>
-
-              <Switch
-                value={isFallAlertActive}
-                onValueChange={setIsFallAlertActive}
-                trackColor={{ false: '#B2F0FA', true: '#FFB4AA' }}
-                thumbColor={isFallAlertActive ? '#C0392B' : '#0E7490'}
-              />
             </View>
 
             {isFallAlertActive ? (
-              <>
+              <View style={styles.alertActions}>
                 <TouchableOpacity onPress={handleAcknowledgeAlert} style={styles.secondaryButton}>
-                  <Text style={styles.secondaryText}>Já estou verificando!</Text>
+                  <Text style={styles.secondaryText}>Verificando</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={handleCallAmbulance} style={styles.primaryButton}>
                   <Text style={styles.primaryText}>Chamar ambulância</Text>
                 </TouchableOpacity>
-              </>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>Câmeras cadastradas</Text>
+              <Text style={styles.sectionSubtitle}>Organize nome, local e conexão de cada câmera.</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={openCreateCameraForm}
+              style={({ pressed }) => [styles.sectionActionButton, pressed && styles.pressed]}
+            >
+              <Feather color="#00326D" name="plus" size={16} />
+              <Text style={styles.sectionActionText}>Adicionar</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.cameraList}>
+            {roomCards.length > 0 ? (
+              roomCards.map((room) => (
+                <View key={room.id} style={styles.cameraRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isOpeningCameraId === room.id}
+                    onPress={() => handleOpenRoomCamera(room.camera)}
+                    style={({ pressed }) => [styles.cameraRowMain, pressed && styles.pressed]}
+                  >
+                    <View style={styles.cameraIconBox}>
+                      <Feather color="#00326D" name="video" size={19} />
+                    </View>
+                    <View style={styles.cameraInfo}>
+                      <Text numberOfLines={1} style={styles.cameraName}>{room.name}</Text>
+                      <Text numberOfLines={1} style={styles.cameraMeta}>
+                        {room.location} · {room.connectionLabel}
+                      </Text>
+                    </View>
+                    <View style={[
+                      styles.cameraStatusDot,
+                      room.camera.status === 'online' && styles.cameraStatusDotOnline,
+                    ]} />
+                  </Pressable>
+
+                  <View style={styles.cameraRowActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => handleOpenRoomCamera(room.camera)}
+                      style={({ pressed }) => [styles.cameraInlineAction, pressed && styles.pressed]}
+                    >
+                      <Feather color="#00326D" name="play-circle" size={15} />
+                      <Text style={styles.cameraInlineActionText}>Ao vivo</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => handleOpenCameraOccurrences(room.camera)}
+                      style={({ pressed }) => [styles.cameraInlineAction, pressed && styles.pressed]}
+                    >
+                      <Feather color="#00326D" name="alert-circle" size={15} />
+                      <Text style={styles.cameraInlineActionText}>Ocorrências</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={`Editar câmera ${room.name}`}
+                      accessibilityRole="button"
+                      onPress={() => openEditCameraForm(room.camera)}
+                      style={({ pressed }) => [styles.cameraInlineAction, pressed && styles.pressed]}
+                    >
+                      <Feather color="#475467" name="edit-2" size={15} />
+                      <Text style={styles.cameraInlineActionText}>Editar</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))
             ) : (
-              <View style={styles.safeStateBox}>
-                <Text style={styles.safeStateText}>Nenhuma ocorrência de queda.</Text>
+              <View style={styles.emptyCameraState}>
+                <View style={styles.cameraIconBox}>
+                  <Feather color="#00326D" name="video" size={19} />
+                </View>
+                <View style={styles.emptyCameraCopy}>
+                  <Text style={styles.cameraName}>Nenhuma câmera cadastrada</Text>
+                  <Text style={styles.cameraMeta}>Adicione uma câmera para iniciar o monitoramento.</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={openCreateCameraForm}
+                  style={({ pressed }) => [styles.emptyCameraButton, pressed && styles.pressed]}
+                >
+                  <Feather color="#FFFFFF" name="plus" size={16} />
+                </Pressable>
               </View>
             )}
           </View>
 
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Atividade Recente</Text>
-          </View>
-
-          <View style={styles.snapshotCard}>
-            <View style={styles.snapshotHeader}>
-              <Ionicons color="#00A8CC" name="camera-outline" size={24} />
-              <View style={{ marginLeft: 10 }}>
-                <Text style={styles.activityText}>Cômodos monitorados</Text>
-                <Text style={styles.time}>{roomCards.length} ambiente(s) conectado(s)</Text>
-              </View>
+            <View>
+              <Text style={styles.sectionTitle}>Membros</Text>
+              <Text style={styles.sectionSubtitle}>Convites por código para acesso manual.</Text>
             </View>
-
-            <View style={styles.roomsGrid}>
-              {roomCards.length > 0 ? (
-                roomCards.map((room) => (
-                  <Pressable
-                    key={room.id}
-                    disabled={isOpeningCameraId === room.id}
-                    onPress={() => handleOpenRoomCamera(room.camera)}
-                    style={({ pressed }) => [styles.roomCard, pressed && styles.pressed]}
-                  >
-                    <Image source={{ uri: room.imageUrl }} style={styles.roomImage} />
-                    <View style={styles.roomContent}>
-                      <Text numberOfLines={1} style={styles.roomName}>
-                        {room.name}
-                      </Text>
-                      <Text numberOfLines={1} style={styles.roomMeta}>
-                        {isOpeningCameraId === room.id ? 'Abrindo câmera...' : room.updatedAtLabel}
-                      </Text>
-                    </View>
-                  </Pressable>
-                ))
-              ) : (
-                <View style={styles.roomContent}>
-                  <Text style={styles.roomName}>Nenhum cômodo disponível</Text>
-                  <Text style={styles.roomMeta}>Aguarde o backend enviar as imagens dos ambientes.</Text>
-                </View>
-              )}
-            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setGeneratedInviteCode('');
+                setIsAddMemberOpen(true);
+              }}
+              style={({ pressed }) => [styles.sectionActionButton, pressed && styles.pressed]}
+            >
+              <Feather color="#00326D" name="user-plus" size={16} />
+              <Text style={styles.sectionActionText}>Convidar</Text>
+            </Pressable>
           </View>
 
-          <View style={styles.familyHeaderRow}>
-            <Text style={styles.sectionTitle}>Família e Cuidadores</Text>
-            <Text style={styles.familySubtitle}>Segure um membro para gerenciar permissões</Text>
-          </View>
-
-          <View style={styles.caregivers}>
+          <View style={styles.memberList}>
             {familyMembers.map((member) => (
               <Pressable
                 key={member.id}
                 accessibilityRole="button"
-                delayLongPress={250}
-                onLongPress={() => openMemberActions(member)}
-                style={({ pressed }) => [styles.person, pressed && styles.pressed]}
+                onPress={() => openMemberActions(member)}
+                style={({ pressed }) => [styles.memberRow, pressed && styles.pressed]}
               >
-                <Image source={{ uri: member.avatarUrl }} style={styles.personImage} />
-                <Text numberOfLines={1} style={styles.personName}>
-                  {member.name}
-                </Text>
-                <Text style={styles.memberRole}>{member.role}</Text>
+                <View style={styles.memberAvatarPlaceholder}>
+                  <Feather color="#00326D" name="mail" size={19} />
+                </View>
+                <View style={styles.memberInfo}>
+                  <Text numberOfLines={1} style={styles.personName}>{member.contact}</Text>
+                </View>
+                <Text style={styles.memberRole}>{formatMemberRole(member.role)}</Text>
               </Pressable>
             ))}
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setIsAddMemberOpen(true)}
-              style={({ pressed }) => [styles.addPerson, pressed && styles.pressed]}
-            >
-              <Text style={styles.addPersonIcon}>+</Text>
-              <Text style={styles.addPersonText}>Adicionar</Text>
-            </Pressable>
           </View>
 
           {isLoading ? (
@@ -405,14 +649,88 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           ) : null}
         </ScrollView>
 
+        <Modal animationType="fade" transparent visible={isCameraFormOpen} onRequestClose={closeCameraForm}>
+          <Pressable onPress={closeCameraForm} style={styles.modalOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.keyboardModalWrap}
+            >
+              <Pressable onPress={() => undefined} style={styles.modalCard}>
+                <Text style={styles.modalTitle}>
+                  {cameraFormMode === 'edit' ? 'Editar câmera' : 'Adicionar câmera'}
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  Informe os dados de acesso. O VARD testará a conexão e identificará o método automaticamente.
+                </Text>
+
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  onChangeText={(value) => updateCameraFormField('host', value)}
+                  placeholder="Host ou IP da câmera"
+                  placeholderTextColor="#98A2B3"
+                  returnKeyType="next"
+                  style={styles.modalInput}
+                  value={cameraForm.host}
+                />
+
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  onChangeText={(value) => updateCameraFormField('username', value)}
+                  placeholder="Nome de usuário"
+                  placeholderTextColor="#98A2B3"
+                  returnKeyType="next"
+                  style={styles.modalInput}
+                  value={cameraForm.username}
+                />
+
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  onChangeText={(value) => updateCameraFormField('password', value)}
+                  placeholder="Senha"
+                  placeholderTextColor="#98A2B3"
+                  secureTextEntry
+                  style={styles.modalInput}
+                  value={cameraForm.password}
+                />
+
+                {cameraFormError ? <Text style={styles.errorText}>{cameraFormError}</Text> : null}
+
+                <Pressable
+                  disabled={isSavingCamera}
+                  onPress={handleSaveCamera}
+                  style={[styles.modalActionButton, isSavingCamera && styles.buttonDisabled]}
+                >
+                  <Text style={styles.modalActionText}>
+                    {isSavingCamera
+                      ? 'Testando conexão...'
+                      : cameraFormMode === 'edit'
+                        ? 'Testar e salvar'
+                        : 'Detectar e adicionar'}
+                  </Text>
+                </Pressable>
+
+                <Pressable onPress={closeCameraForm} style={styles.modalCancelButton}>
+                  <Text style={styles.modalCancelText}>Cancelar</Text>
+                </Pressable>
+              </Pressable>
+            </KeyboardAvoidingView>
+          </Pressable>
+        </Modal>
+
         <Modal animationType="fade" transparent visible={isMemberActionOpen} onRequestClose={closeMemberActions}>
           <Pressable onPress={closeMemberActions} style={styles.modalOverlay}>
             <Pressable onPress={() => undefined} style={styles.modalCard}>
-              <Text style={styles.modalTitle}>{selectedMember?.name ?? 'Membro'}</Text>
+              <Text style={styles.modalTitle}>{selectedMember ? getMemberLabel(selectedMember) : 'Membro'}</Text>
               <Text style={styles.modalSubtitle}>Escolha a ação que deseja aplicar.</Text>
 
               <Pressable onPress={handlePromoteMember} style={styles.modalActionButton}>
-                <Text style={styles.modalActionText}>Tornar admin</Text>
+                <Text style={styles.modalActionText}>
+                  {selectedMember?.role === 'admin' ? 'Remover administrador' : 'Tornar administrador'}
+                </Text>
               </Pressable>
 
               <Pressable onPress={handleRemoveMember} style={[styles.modalActionButton, styles.modalDangerButton]}>
@@ -426,31 +744,91 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           </Pressable>
         </Modal>
 
-        <Modal animationType="slide" transparent visible={isAddMemberOpen} onRequestClose={() => setIsAddMemberOpen(false)}>
+        <Modal animationType="fade" transparent visible={isAddMemberOpen} onRequestClose={() => setIsAddMemberOpen(false)}>
           <Pressable onPress={() => setIsAddMemberOpen(false)} style={styles.modalOverlay}>
             <Pressable onPress={() => undefined} style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Adicionar membro</Text>
-              <Text style={styles.modalSubtitle}>Informe o número de telefone para preparar o convite.</Text>
+              <Text style={styles.modalTitle}>Gerar código de convite</Text>
+              <Text style={styles.modalSubtitle}>
+                Informe o e-mail que poderá usar o código. Depois envie o código manualmente para essa pessoa.
+              </Text>
 
               <TextInput
-                keyboardType="phone-pad"
-                onChangeText={setNewMemberPhone}
-                placeholder="(11) 99999-9999"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                onChangeText={setNewMemberEmail}
+                placeholder="email@exemplo.com"
                 placeholderTextColor="#98A2B3"
                 style={styles.modalInput}
-                value={newMemberPhone}
+                testID="workspace-invite-email"
+                value={newMemberEmail}
               />
 
-              <Pressable onPress={handleAddMember} style={styles.modalActionButton}>
-                <Text style={styles.modalActionText}>Adicionar</Text>
+              <View style={styles.rolePicker}>
+                {memberRoleOptions.map((option) => {
+                  const isSelected = newMemberRole === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => setNewMemberRole(option.value)}
+                      style={[styles.roleChip, isSelected && styles.roleChipSelected]}
+                    >
+                      <Text style={[styles.roleChipText, isSelected && styles.roleChipTextSelected]}>
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {generatedInviteCode ? (
+                <Pressable
+                  accessibilityHint="Copia o código de convite"
+                  accessibilityLabel="Copiar código de convite"
+                  accessibilityRole="button"
+                  onPress={handleCopyInviteCode}
+                  style={({ pressed }) => [styles.inviteCodeBox, pressed && styles.inviteCodeBoxPressed]}
+                >
+                  <View style={styles.inviteCodeHeader}>
+                    <Text style={styles.inviteCodeLabel}>
+                      {isInviteCodeCopied ? 'Código copiado!' : 'Toque para copiar'}
+                    </Text>
+                    <Feather
+                      color={isInviteCodeCopied ? '#039855' : '#00326D'}
+                      name={isInviteCodeCopied ? 'check' : 'copy'}
+                      size={18}
+                    />
+                  </View>
+                  <Text selectable style={styles.inviteCodeText} testID="workspace-invite-code-value">
+                    {generatedInviteCode}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                disabled={isInvitingMember}
+                onPress={handleAddMember}
+                style={[styles.modalActionButton, isInvitingMember && styles.buttonDisabled]}
+              >
+                <Text style={styles.modalActionText}>
+                  {isInvitingMember ? 'Gerando...' : generatedInviteCode ? 'Gerar novo código' : 'Gerar código'}
+                </Text>
               </Pressable>
 
-              <Pressable onPress={() => setIsAddMemberOpen(false)} style={styles.modalCancelButton}>
-                <Text style={styles.modalCancelText}>Cancelar</Text>
+              <Pressable
+                onPress={() => {
+                  setIsAddMemberOpen(false);
+                  setGeneratedInviteCode('');
+                  setIsInviteCodeCopied(false);
+                }}
+                style={styles.modalCancelButton}
+              >
+                <Text style={styles.modalCancelText}>{generatedInviteCode ? 'Concluir' : 'Cancelar'}</Text>
               </Pressable>
             </Pressable>
           </Pressable>
         </Modal>
+        <WorkspaceFeedbackModal feedback={feedback} onClose={() => setFeedback(null)} />
       </View>
     </LayoutWithNavbar>
   );
@@ -461,6 +839,107 @@ export function WorkspaceCameraLiveViewScreen({ navigation, route }: CameraLiveV
     <CameraHistoryLiveViewScreen
       {...({ navigation, route } as unknown as NativeStackScreenProps<SettingsStackParamList, 'CameraLiveView'>)}
     />
+  );
+}
+
+export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOccurrencesProps) {
+  const { accessToken, cameraId, cameraName, workspaceId } = route.params;
+  const [occurrences, setOccurrences] = useState<NotificationResponse[]>([]);
+  const [isLoadingOccurrences, setIsLoadingOccurrences] = useState(true);
+  const [isRefreshingOccurrences, setIsRefreshingOccurrences] = useState(false);
+  const [occurrencesError, setOccurrencesError] = useState('');
+
+  const loadOccurrences = useCallback(async () => {
+    try {
+      setOccurrencesError('');
+      const notifications = await listNotifications(accessToken, workspaceId);
+      setOccurrences(notifications.filter((notification) => notification.camera_id === cameraId));
+    } catch (error) {
+      setOccurrencesError(
+        error instanceof ApiRequestError ? error.message : 'Não foi possível carregar as ocorrências.'
+      );
+    } finally {
+      setIsLoadingOccurrences(false);
+    }
+  }, [accessToken, cameraId, workspaceId]);
+
+  useEffect(() => {
+    void loadOccurrences();
+  }, [loadOccurrences]);
+
+  const handleRefreshOccurrences = useCallback(async () => {
+    setIsRefreshingOccurrences(true);
+    try {
+      await loadOccurrences();
+    } finally {
+      setIsRefreshingOccurrences(false);
+    }
+  }, [loadOccurrences]);
+
+  return (
+    <LayoutWithNavbar>
+      <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              colors={['#019BDE']}
+              onRefresh={handleRefreshOccurrences}
+              refreshing={isRefreshingOccurrences}
+              tintColor="#019BDE"
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.headerRow}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Feather color="#111827" name="chevron-left" size={20} />
+            </Pressable>
+            <View style={styles.headerTitleWrap}>
+              <Text style={styles.title}>Ocorrências</Text>
+              <Text numberOfLines={1} style={styles.occurrencesCameraName}>{cameraName}</Text>
+            </View>
+          </View>
+
+          {isLoadingOccurrences ? (
+            <View style={styles.occurrencesState}>
+              <ActivityIndicator color="#019BDE" />
+              <Text style={styles.occurrencesStateText}>Carregando ocorrências...</Text>
+            </View>
+          ) : occurrencesError ? (
+            <View style={styles.occurrencesState}>
+              <Feather color="#B42318" name="alert-circle" size={28} />
+              <Text style={[styles.occurrencesStateText, styles.occurrencesErrorText]}>
+                {occurrencesError}
+              </Text>
+            </View>
+          ) : occurrences.length === 0 ? (
+            <View style={styles.occurrencesState}>
+              <Feather color="#039855" name="check-circle" size={32} />
+              <Text style={styles.occurrencesEmptyTitle}>Nenhuma ocorrência</Text>
+              <Text style={styles.occurrencesStateText}>
+                Esta câmera não possui ocorrências registradas.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.occurrencesList}>
+              {occurrences.map((occurrence) => (
+                <View key={occurrence.id} style={styles.occurrenceCard}>
+                  <View style={styles.occurrenceIcon}>
+                    <Feather color="#B42318" name="alert-triangle" size={20} />
+                  </View>
+                  <View style={styles.occurrenceContent}>
+                    <Text style={styles.occurrenceTitle}>{occurrence.title}</Text>
+                    <Text style={styles.occurrenceBody}>{occurrence.body}</Text>
+                    <Text style={styles.occurrenceDate}>{formatOccurrenceDate(occurrence.created_at)}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    </LayoutWithNavbar>
   );
 }
 
@@ -475,53 +954,125 @@ function formatAlertTime(fallAlert?: WorkspaceFallAlert) {
   return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatOccurrenceDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
 function normalizeAmbulancePhoneNumber(value?: string) {
   const normalized = value?.trim();
   return normalized || '192';
 }
 
-function normalizeMemberPhoneNumber(value: string) {
-  return value.replace(/\s+/g, ' ').trim();
+function getMemberLabel(member: FamilyMember) {
+  return member.contact;
 }
 
-function formatPhoneLabel(phone: string) {
-  const digits = phone.replace(/\D/g, '');
-  if (!digits) {
-    return 'Novo membro';
+function formatMemberRole(role: MemberRole) {
+  const labels: Record<MemberRole, string> = {
+    admin: 'Administrador',
+    caregiver: 'Cuidador',
+    member: 'Membro',
+    viewer: 'Visualizador',
+  };
+
+  return labels[role];
+}
+
+function getCameraMetadata(camera: CameraResponse) {
+  return camera.metadata ?? camera.metadata_json ?? {};
+}
+
+function getCameraLocation(camera: CameraResponse) {
+  const metadata = getCameraMetadata(camera);
+  const location = firstString(metadata.location, metadata.room, metadata.roomName);
+  return location || camera.name || 'Local não definido';
+}
+
+function getCameraProtocolValue(camera: CameraResponse): CameraProtocol {
+  const metadata = getCameraMetadata(camera);
+  const protocol = firstString(metadata.protocol);
+
+  if (
+    protocol === 'http-auto' ||
+    protocol === 'https-manual' ||
+    protocol === 'local-agent-webcam' ||
+    protocol === 'local-webview' ||
+    protocol === 'rtsp-auto' ||
+    protocol === 'rtsp-manual'
+  ) {
+    return protocol;
   }
 
-  return digits.length >= 11 ? `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}` : phone;
+  if (camera.connection_type === 'https') {
+    return 'https-manual';
+  }
+
+  if (camera.connection_type === 'rtsp') {
+    return 'rtsp-manual';
+  }
+
+  return 'local-webview';
 }
 
-function seedFamilyMembers(): FamilyMember[] {
-  return [
-    {
-      id: 'member-1',
-      name: 'Maria',
-      phone: '(11) 98888-1111',
-      role: 'admin',
-      avatarUrl: 'https://i.pravatar.cc/101',
-    },
-    {
-      id: 'member-2',
-      name: 'David',
-      phone: '(11) 97777-2222',
-      role: 'caregiver',
-      avatarUrl: 'https://i.pravatar.cc/102',
-    },
-  ];
+function getCameraConnectionLabel(camera: CameraResponse) {
+  const protocol = getCameraProtocolValue(camera);
+  const labels: Record<CameraProtocol, string> = {
+    'http-auto': 'HTTP detectado',
+    'https-manual': 'HTTPS manual',
+    'local-agent-webcam': 'Webcam deste computador',
+    'local-webview': 'Câmera local',
+    'rtsp-auto': 'RTSP detectado',
+    'rtsp-manual': 'RTSP manual',
+  };
+
+  return labels[protocol];
 }
 
 function buildRoomCards(cameras: CameraResponse[]) {
   return cameras.map((camera, index) => ({
     id: camera.id,
     camera,
-    name: camera.name || `Cômodo ${index + 1}`,
+    connectionLabel: getCameraConnectionLabel(camera),
     imageUrl: camera.room_image_url || defaultRoomImageForIndex(index),
+    location: getCameraLocation(camera),
+    name: camera.name || `Câmera ${index + 1}`,
     updatedAtLabel: camera.updated_at
       ? `Atualizado em ${new Date(camera.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
       : 'Imagem recebida do backend',
   }));
+}
+
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return '';
+}
+
+function parseCameraConnection(camera: CameraResponse) {
+  try {
+    const parsed = new URL(camera.stream_url);
+    return {
+      host: parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname,
+      username: decodeURIComponent(parsed.username),
+    };
+  } catch {
+    return { host: '', username: '' };
+  }
 }
 
 function defaultRoomImageForIndex(index: number) {

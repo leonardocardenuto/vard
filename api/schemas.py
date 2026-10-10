@@ -131,7 +131,7 @@ class CameraResponse(BaseModel):
     status: str
     is_active: bool
     last_seen_at: datetime | None
-    metadata: dict = Field(alias="metadata_json")
+    metadata: dict = Field(validation_alias="metadata_json")
     created_by_user_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
@@ -142,6 +142,13 @@ class CameraPingResponse(BaseModel):
     pong: bool
     status: str
     checked_at: datetime
+
+
+class CameraAutoConfigure(BaseModel):
+    workspace_id: uuid.UUID
+    host: str = Field(min_length=1, max_length=512)
+    username: str = Field(min_length=1, max_length=255)
+    password: str = Field(min_length=1, max_length=255)
 
 
 class InviteCreate(BaseModel):
@@ -162,6 +169,7 @@ class InviteResponse(BaseModel):
     workspace_id: uuid.UUID
     email: EmailStr
     role: str
+    token: str
     status: str
     expires_at: datetime
     invited_by_user_id: uuid.UUID | None

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Index, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,7 +19,7 @@ class Camera(Base, UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin):
     stream_url: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'offline'"))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
-    last_seen_at: Mapped[datetime | None] = mapped_column()
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     metadata_json: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="SET NULL"))
 
