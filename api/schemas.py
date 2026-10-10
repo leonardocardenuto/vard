@@ -98,6 +98,15 @@ class WorkspaceResponse(BaseModel):
     updated_at: datetime
 
 
+class WorkspaceMemberResponse(BaseModel):
+    user_id: uuid.UUID
+    email: EmailStr
+    full_name: str | None
+    role: str
+    status: str
+    joined_at: datetime | None
+
+
 class CameraCreate(BaseModel):
     workspace_id: uuid.UUID
     name: str

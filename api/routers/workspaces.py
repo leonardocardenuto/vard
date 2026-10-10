@@ -7,9 +7,9 @@ from sqlalchemy.orm import Session
 
 from api.cache import CachePolicy, CacheScope, CachedAPIRoute, cache_response
 from api.db import get_db
-from api.deps import get_current_user
+from api.deps import get_current_user, require_workspace_membership
 from api.models import AppUser, Workspace, WorkspaceMember
-from api.schemas import WorkspaceCreate, WorkspaceResponse, WorkspaceUpdate
+from api.schemas import WorkspaceCreate, WorkspaceMemberResponse, WorkspaceResponse, WorkspaceUpdate
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"], route_class=CachedAPIRoute)
 
@@ -59,6 +59,36 @@ def create_workspace(
     db.commit()
     db.refresh(workspace)
     return workspace
+
+
+@router.get("/{workspace_id}/members", response_model=list[WorkspaceMemberResponse])
+def list_workspace_members(
+    workspace_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+) -> list[dict]:
+    require_workspace_membership(workspace_id, current_user.id, db)
+    rows = db.execute(
+        select(WorkspaceMember, AppUser)
+        .join(AppUser, AppUser.id == WorkspaceMember.user_id)
+        .where(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.status == "active",
+            WorkspaceMember.role != "owner",
+        )
+        .order_by(WorkspaceMember.created_at.asc())
+    ).all()
+    return [
+        {
+            "user_id": membership.user_id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": membership.role,
+            "status": membership.status,
+            "joined_at": membership.joined_at,
+        }
+        for membership, user in rows
+    ]
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)
