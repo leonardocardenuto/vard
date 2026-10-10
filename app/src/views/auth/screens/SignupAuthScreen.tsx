@@ -44,88 +44,122 @@ export function SignupAuthScreen({
   isBirthDatePickerOpen,
 }: SignupAuthScreenProps) {
   return (
-    <ScrollView contentContainerStyle={styles.signupContent} keyboardShouldPersistTaps="handled">
-      <BackButton gradientLabel onPress={onBack} label="Concluir a criação da conta" />
-
-      <Pressable onPress={onPickAvatar} style={styles.avatarPicker}>
-        {form.avatarUrl ? (
-          <Image source={{ uri: form.avatarUrl }} style={styles.avatarImage} />
-        ) : (
-          <Feather color="#A7A7A7" name="camera" size={44} />
-        )}
-        <View style={styles.avatarPlus}>
-          <Text style={styles.avatarPlusText}>+</Text>
-        </View>
-      </Pressable>
-
-      <PaperAuthInput
-        testID="signup-first-name"
-        label="Primeiro Nome"
-        onChangeText={(value) => onChangeField('firstName', value)}
-        onClear={() => onChangeField('firstName', '')}
-        value={form.firstName}
-      />
-      <PaperAuthInput
-        testID="signup-last-name"
-        label="Último Nome"
-        onChangeText={(value) => onChangeField('lastName', value)}
-        onClear={() => onChangeField('lastName', '')}
-        value={form.lastName}
-      />
-      <PaperAuthInput
-        label="Data de Aniversário"
-        editable={false}
-        onChangeText={(value) => onChangeField('birthDate', value)}
-        onClear={() => {
-          onChangeField('birthDate', '');
-          onChangeField('birthDateIso', '');
-        }}
-        onPress={onOpenBirthDatePicker}
-        rightIcon="calendar"
-        value={form.birthDate}
-      />
-      <PaperAuthInput
-        testID="signup-password"
-        label="Senha"
-        onChangeText={(value) => onChangeField('password', value)}
-        onToggleVisibility={onTogglePassword}
-        passwordVisible={isPasswordVisible}
-        secureTextEntry={!isPasswordVisible}
-        value={form.password}
-      />
-      <PaperAuthInput
-        testID="signup-confirm-password"
-        label="Repita sua senha"
-        onChangeText={(value) => onChangeField('confirmPassword', value)}
-        onToggleVisibility={onTogglePassword}
-        passwordVisible={isPasswordVisible}
-        secureTextEntry={!isPasswordVisible}
-        value={form.confirmPassword}
-      />
-
-      <Pressable
-        testID="signup-terms"
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: acceptedTerms }}
-        onPress={onToggleTerms}
-        style={styles.termsRow}
+    <View style={styles.signupScreen}>
+      <ScrollView
+        contentContainerStyle={styles.signupContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.checkbox, acceptedTerms && styles.checkboxActive]}>
-          {acceptedTerms ? <Feather color="#FFFFFF" name="check" size={12} /> : null}
-        </View>
-        <Text style={styles.termsRowText}>
-          Ao criar a conta, eu concordo com os <Text style={styles.linkText}>Termos de{'\n'}Serviço</Text> e a <Text style={styles.linkText}>Política de Privacidade.</Text>
-        </Text>
-      </Pressable>
+        <BackButton
+          gradientLabel
+          onPress={onBack}
+          label="Concluir a criação da conta"
+        />
 
-      {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+        <Pressable onPress={onPickAvatar} style={styles.avatarPicker}>
+          {form.avatarUrl ? (
+            <Image
+              source={{ uri: form.avatarUrl }}
+              style={styles.avatarImage}
+            />
+          ) : (
+            <Feather color="#A7A7A7" name="camera" size={44} />
+          )}
+          <View style={styles.avatarPlus}>
+            <Text style={styles.avatarPlusText}>+</Text>
+          </View>
+        </Pressable>
 
-      <View style={styles.signupButtonWrap}>
-        <GradientButton disabled={isSubmitting} label={isSubmitting ? 'CRIANDO...' : 'CRIAR CONTA'} onPress={onCreateAccount} />
+        <PaperAuthInput
+          testID="signup-first-name"
+          label="Primeiro Nome"
+          onChangeText={(value) => onChangeField("firstName", value)}
+          onClear={() => onChangeField("firstName", "")}
+          value={form.firstName}
+        />
+
+        <PaperAuthInput
+          testID="signup-last-name"
+          label="Último Nome"
+          onChangeText={(value) => onChangeField("lastName", value)}
+          onClear={() => onChangeField("lastName", "")}
+          value={form.lastName}
+        />
+
+        <PaperAuthInput
+          label="Data de Aniversário"
+          editable={false}
+          selected={Boolean(form.birthDate)}
+          onChangeText={(value) => onChangeField("birthDate", value)}
+          onClear={() => {
+            onChangeField("birthDate", "");
+            onChangeField("birthDateIso", "");
+          }}
+          onPress={onOpenBirthDatePicker}
+          rightIcon="calendar"
+          value={form.birthDate}
+        />
+
+        <PaperAuthInput
+          testID="signup-password"
+          label="Senha"
+          onChangeText={(value) => onChangeField("password", value)}
+          onToggleVisibility={onTogglePassword}
+          passwordVisible={isPasswordVisible}
+          secureTextEntry={!isPasswordVisible}
+          value={form.password}
+        />
+
+        <PaperAuthInput
+          testID="signup-confirm-password"
+          label="Repita sua senha"
+          onChangeText={(value) => onChangeField("confirmPassword", value)}
+          onToggleVisibility={onTogglePassword}
+          passwordVisible={isPasswordVisible}
+          secureTextEntry={!isPasswordVisible}
+          value={form.confirmPassword}
+        />
+
+        <Pressable
+          testID="signup-terms"
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: acceptedTerms }}
+          onPress={onToggleTerms}
+          style={styles.termsRow}
+        >
+          <View
+            style={[styles.checkbox, acceptedTerms && styles.checkboxActive]}
+          >
+            {acceptedTerms ? (
+              <Feather color="#FFFFFF" name="check" size={12} />
+            ) : null}
+          </View>
+          <Text style={styles.termsRowText}>
+            Ao criar a conta, eu concordo com os{" "}
+            <Text style={styles.linkText}>Termos de{"\n"}Serviço</Text> e a{" "}
+            <Text style={styles.linkText}>Política de Privacidade.</Text>
+          </Text>
+        </Pressable>
+
+        {errorMessage ? (
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        ) : null}
+      </ScrollView>
+
+      <View style={styles.signupFixedButtonWrap}>
+        <GradientButton
+          disabled={isSubmitting}
+          label={isSubmitting ? "CRIANDO..." : "CRIAR CONTA"}
+          onPress={onCreateAccount}
+        />
       </View>
 
       <DatePickerModal
-        date={form.birthDateIso ? new Date(`${form.birthDateIso}T12:00:00`) : undefined}
+        date={
+          form.birthDateIso
+            ? new Date(`${form.birthDateIso}T12:00:00`)
+            : undefined
+        }
         locale="pt"
         mode="single"
         onConfirm={({ date }) => {
@@ -139,6 +173,6 @@ export function SignupAuthScreen({
         visible={isBirthDatePickerOpen}
         validRange={{ endDate: new Date() }}
       />
-    </ScrollView>
+    </View>
   );
 }
