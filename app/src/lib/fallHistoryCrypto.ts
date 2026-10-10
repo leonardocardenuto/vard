@@ -6,31 +6,48 @@ import { hkdf } from '@noble/hashes/hkdf.js';
 import { pbkdf2Async } from '@noble/hashes/pbkdf2.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 
-import { getEncryptionKey, putEncryptionKey } from './api';
+import { ApiRequestError, getEncryptionKey, putEncryptionKey } from './api';
 
 const AAD = new TextEncoder().encode('vard/fall-event/v2');
 const storageKey = (userId: string) => `vard.fall-history.private-key.${userId}`;
 
 export async function prepareFallHistoryKey(token: string, userId: string, password: string) {
   const savedPrivateKey = await SecureStore.getItemAsync(storageKey(userId));
-  if (savedPrivateKey) return;
+
+  if (savedPrivateKey) {
+    try {
+      await getEncryptionKey(token);
+      return;
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+      await uploadPrivateKey(token, decode(savedPrivateKey), password);
+      return;
+    }
+  }
 
   try {
     const backup = await getEncryptionKey(token);
     const privateKey = await decryptBackup(backup.encrypted_private_key_backup, backup.recovery_salt, password);
     await SecureStore.setItemAsync(storageKey(userId), encode(privateKey), { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY });
   } catch (error) {
-    if (!(error instanceof Error) || !error.message.toLowerCase().includes('not found')) throw error;
+    if (!isNotFound(error)) throw error;
     const privateKey = await Crypto.getRandomBytesAsync(32);
-    const salt = await Crypto.getRandomBytesAsync(16);
-    const publicKey = x25519.getPublicKey(privateKey);
-    await putEncryptionKey(token, {
-      public_key: encode(publicKey),
-      encrypted_private_key_backup: await encryptBackup(privateKey, salt, password),
-      recovery_salt: encode(salt),
-    });
+    await uploadPrivateKey(token, privateKey, password);
     await SecureStore.setItemAsync(storageKey(userId), encode(privateKey), { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY });
   }
+}
+
+function isNotFound(error: unknown) {
+  return error instanceof ApiRequestError && error.status === 404;
+}
+
+async function uploadPrivateKey(token: string, privateKey: Uint8Array, password: string) {
+  const salt = await Crypto.getRandomBytesAsync(16);
+  await putEncryptionKey(token, {
+    public_key: encode(x25519.getPublicKey(privateKey)),
+    encrypted_private_key_backup: await encryptBackup(privateKey, salt, password),
+    recovery_salt: encode(salt),
+  });
 }
 
 export async function decryptFallOccurredAt(encryptedPayload: string, envelope: Record<string, string>, userId: string) {
