@@ -1,11 +1,12 @@
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Clipboard,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -13,28 +14,31 @@ import {
   ScrollView,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
 import {
   ApiRequestError,
   CameraResponse,
+  FallEventResponse,
   NotificationResponse,
   autoConfigureCamera,
   createInvite,
   deleteCamera,
+  getFallEventClip,
   getCameraMjpegUrl,
-  getWorkspaceFallAlert,
+  getMe,
   listCameras,
+  listFallEvents,
   listNotifications,
   listWorkspaceMembers,
   startCameraHlsStream,
 } from '../../../lib/api';
+import { decryptFallClip } from '../../../lib/fallHistoryCrypto';
 import { CameraLiveViewScreen as CameraHistoryLiveViewScreen } from '../../settings/pages/CameraLiveViewScreen';
 import { WorkspaceFeedback, WorkspaceFeedbackModal } from '../components/WorkspaceFeedbackModal';
 import { SettingsStackParamList } from '../../settings/types';
-import { WorkspaceFallAlert, WorkspaceStackParamList } from '../types/workspace';
+import { WorkspaceStackParamList } from '../types/workspace';
 import { styles } from '../styles/workspace_details';
 
 type Props = NativeStackScreenProps<WorkspaceStackParamList, 'WorkspaceDetails'>;
@@ -78,7 +82,7 @@ const memberRoleOptions: Array<{ label: string; value: MemberRole }> = [
 ];
 
 export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
-  const { accessToken, workspace, fallAlert } = route.params;
+  const { accessToken, workspace } = route.params;
   const [cameras, setCameras] = useState<CameraResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -93,7 +97,6 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
   const [isInvitingMember, setIsInvitingMember] = useState(false);
   const [generatedInviteCode, setGeneratedInviteCode] = useState('');
   const [isInviteCodeCopied, setIsInviteCodeCopied] = useState(false);
-  const [isFallAlertActive, setIsFallAlertActive] = useState(fallAlert?.active ?? false);
   const [cameraFormMode, setCameraFormMode] = useState<CameraFormMode>('create');
   const [cameraForm, setCameraForm] = useState<CameraFormState>(initialCameraForm);
   const [cameraFormError, setCameraFormError] = useState('');
@@ -103,39 +106,6 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
   const [cameraToDelete, setCameraToDelete] = useState<CameraResponse | null>(null);
   const [isDeletingCamera, setIsDeletingCamera] = useState(false);
   const [feedback, setFeedback] = useState<WorkspaceFeedback | null>(null);
-
-  useEffect(() => {
-    setIsFallAlertActive(fallAlert?.active ?? false);
-  }, [fallAlert]);
-
-  // poll backend for fall alerts every 5s while on this screen
-  useEffect(() => {
-    let mounted = true;
-    const interval = setInterval(async () => {
-      try {
-        const alert = await getWorkspaceFallAlert(accessToken, workspace.id);
-        if (!mounted) return;
-        setIsFallAlertActive(!!alert.active);
-      } catch {
-        // ignore
-      }
-    }, 5000);
-
-    // initial fetch
-    void (async () => {
-      try {
-        const alert = await getWorkspaceFallAlert(accessToken, workspace.id);
-        if (mounted) setIsFallAlertActive(!!alert.active);
-      } catch {
-        // ignore
-      }
-    })();
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [accessToken, workspace.id]);
 
   const loadWorkspaceDetails = useCallback(async () => {
     try {
@@ -173,44 +143,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
     }
   }, [loadWorkspaceDetails]);
 
-  const mainCameraLocation = cameras[0] ? getCameraLocation(cameras[0]) : '';
-  const roomName = fallAlert?.roomName?.trim() || mainCameraLocation || 'Local monitorado';
-  const alertTime = useMemo(() => formatAlertTime(fallAlert), [fallAlert]);
-  const ambulancePhoneNumber = normalizeAmbulancePhoneNumber(fallAlert?.ambulancePhoneNumber);
   const roomCards = useMemo(() => buildRoomCards(cameras), [cameras]);
-
-  async function handleAcknowledgeAlert() {
-    setFeedback({
-      title: 'Alerta registrado',
-      message: 'O sistema recebeu a confirmação de que a queda está sendo verificada.',
-      tone: 'success',
-    });
-  }
-
-  async function handleCallAmbulance() {//ainda fazer para mandar para o aplicativo de ligação do celular com o numero preenchido
-    
-    const url = `tel:${ambulancePhoneNumber}`;
-
-    try {
-      const canOpen = await Linking.canOpenURL(url);
-      if (!canOpen) {
-        setFeedback({
-          title: 'Ligação indisponível',
-          message: `Não foi possível abrir a ligação para ${ambulancePhoneNumber}.`,
-          tone: 'warning',
-        });
-        return;
-      }
-
-      await Linking.openURL(url);
-    } catch {
-      setFeedback({
-        title: 'Erro ao ligar',
-        message: `Não foi possível iniciar a chamada para ${ambulancePhoneNumber}.`,
-        tone: 'error',
-      });
-    }
-  }
 
   async function handleOpenRoomCamera(camera: CameraResponse) {
     if (isOpeningCameraId) {
@@ -530,36 +463,6 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           </View>
 
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-
-          <View style={[styles.monitoringCard, isFallAlertActive && styles.monitoringCardAlert]}>
-            <View style={styles.monitoringHeader}>
-              <Ionicons
-                color={isFallAlertActive ? '#B42318' : '#00326D'}
-                name={isFallAlertActive ? 'warning' : 'shield-checkmark'}
-                size={22}
-              />
-              <View style={styles.monitoringTextWrap}>
-                <Text style={[styles.monitoringTitle, isFallAlertActive && styles.monitoringTitleAlert]}>
-                  {isFallAlertActive ? 'Queda detectada' : 'Monitoramento ativo'}
-                </Text>
-                <Text numberOfLines={1} style={styles.monitoringSubtitle}>
-                  {isFallAlertActive ? `${roomName} - ${alertTime}` : 'Nenhuma ocorrência em aberto'}
-                </Text>
-              </View>
-            </View>
-
-            {isFallAlertActive ? (
-              <View style={styles.alertActions}>
-                <TouchableOpacity onPress={handleAcknowledgeAlert} style={styles.secondaryButton}>
-                  <Text style={styles.secondaryText}>Verificando</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={handleCallAmbulance} style={styles.primaryButton}>
-                  <Text style={styles.primaryText}>Chamar ambulância</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-          </View>
 
           <View style={styles.sectionHeader}>
             <View>
@@ -941,16 +844,34 @@ export function WorkspaceCameraLiveViewScreen({ navigation, route }: CameraLiveV
 
 export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOccurrencesProps) {
   const { accessToken, cameraId, cameraName, workspaceId } = route.params;
+  const clipPlayer = useVideoPlayer(null);
   const [occurrences, setOccurrences] = useState<NotificationResponse[]>([]);
+  const [fallEventsByNotificationId, setFallEventsByNotificationId] = useState<
+    Record<string, FallEventResponse>
+  >({});
   const [isLoadingOccurrences, setIsLoadingOccurrences] = useState(true);
   const [isRefreshingOccurrences, setIsRefreshingOccurrences] = useState(false);
   const [occurrencesError, setOccurrencesError] = useState('');
+  const [loadingClipId, setLoadingClipId] = useState<string | null>(null);
+  const [clipError, setClipError] = useState('');
+  const [clipUri, setClipUri] = useState<string | null>(null);
+  const [isClipVisible, setIsClipVisible] = useState(false);
 
   const loadOccurrences = useCallback(async () => {
     try {
       setOccurrencesError('');
-      const notifications = await listNotifications(accessToken, workspaceId);
+      const [notifications, fallEvents] = await Promise.all([
+        listNotifications(accessToken, workspaceId),
+        listFallEvents(accessToken, workspaceId),
+      ]);
       setOccurrences(notifications.filter((notification) => notification.camera_id === cameraId));
+      setFallEventsByNotificationId(
+        Object.fromEntries(
+          fallEvents
+            .filter((event) => event.camera_id === cameraId && event.notification_id)
+            .map((event) => [event.notification_id as string, event])
+        )
+      );
     } catch (error) {
       setOccurrencesError(
         error instanceof ApiRequestError ? error.message : 'Não foi possível carregar as ocorrências.'
@@ -963,6 +884,49 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
   useEffect(() => {
     void loadOccurrences();
   }, [loadOccurrences]);
+
+  async function openOccurrenceClip(event: FallEventResponse) {
+    if (!event.has_clip || loadingClipId) return;
+
+    setLoadingClipId(event.id);
+    setClipError('');
+    try {
+      const [me, clip] = await Promise.all([
+        getMe(accessToken),
+        getFallEventClip(accessToken, event.id),
+      ]);
+      const decryptedClip = await decryptFallClip(clip.encrypted_clip, clip.key_envelope, me.id);
+      if (!decryptedClip || !FileSystem.cacheDirectory) {
+        throw new Error('Trecho indisponível');
+      }
+
+      const nextClipUri = `${FileSystem.cacheDirectory}vard-fall-${event.id}.mp4`;
+      await FileSystem.writeAsStringAsync(nextClipUri, bytesToBase64(decryptedClip), {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      await clipPlayer.replaceAsync(nextClipUri);
+      clipPlayer.play();
+      setClipUri(nextClipUri);
+      setIsClipVisible(true);
+    } catch (error) {
+      setClipError(
+        error instanceof ApiRequestError && error.status === 401
+          ? 'Sua sessão expirou. Entre novamente para abrir o trecho.'
+          : 'Não foi possível abrir o trecho desta ocorrência.'
+      );
+    } finally {
+      setLoadingClipId(null);
+    }
+  }
+
+  async function closeOccurrenceClip() {
+    clipPlayer.pause();
+    setIsClipVisible(false);
+    if (clipUri) {
+      await FileSystem.deleteAsync(clipUri, { idempotent: true });
+      setClipUri(null);
+    }
+  }
 
   const handleRefreshOccurrences = useCallback(async () => {
     setIsRefreshingOccurrences(true);
@@ -1020,35 +984,97 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
             </View>
           ) : (
             <View style={styles.occurrencesList}>
-              {occurrences.map((occurrence) => (
-                <View key={occurrence.id} style={styles.occurrenceCard}>
-                  <View style={styles.occurrenceIcon}>
-                    <Feather color="#B42318" name="alert-triangle" size={20} />
-                  </View>
-                  <View style={styles.occurrenceContent}>
-                    <Text style={styles.occurrenceTitle}>{occurrence.title}</Text>
-                    <Text style={styles.occurrenceBody}>{occurrence.body}</Text>
-                    <Text style={styles.occurrenceDate}>{formatOccurrenceDate(occurrence.created_at)}</Text>
-                  </View>
-                </View>
-              ))}
+              {occurrences.map((occurrence) => {
+                const fallEvent = fallEventsByNotificationId[occurrence.id];
+                const canOpenClip = Boolean(fallEvent?.has_clip);
+                const isOpeningClip = loadingClipId === fallEvent?.id;
+
+                return (
+                  <Pressable
+                    accessibilityLabel={
+                      canOpenClip ? `Visualizar trecho de ${occurrence.title}` : undefined
+                    }
+                    accessibilityRole={canOpenClip ? 'button' : undefined}
+                    disabled={!canOpenClip || Boolean(loadingClipId)}
+                    key={occurrence.id}
+                    onPress={() => fallEvent && void openOccurrenceClip(fallEvent)}
+                    style={({ pressed }) => [
+                      styles.occurrenceCard,
+                      pressed && styles.occurrenceCardPressed,
+                    ]}
+                  >
+                    <View style={styles.occurrenceIcon}>
+                      <Feather color="#B42318" name="alert-triangle" size={20} />
+                    </View>
+                    <View style={styles.occurrenceContent}>
+                      <Text style={styles.occurrenceTitle}>{occurrence.title}</Text>
+                      <Text style={styles.occurrenceBody}>{occurrence.body}</Text>
+                      <View style={styles.occurrenceFooter}>
+                        <Text style={styles.occurrenceDate}>
+                          {formatOccurrenceDate(occurrence.created_at)}
+                        </Text>
+                        {isOpeningClip ? (
+                          <ActivityIndicator color="#019BDE" size="small" />
+                        ) : canOpenClip ? (
+                          <View style={styles.occurrenceClipAction}>
+                            <Feather color="#00326D" name="play-circle" size={16} />
+                            <Text style={styles.occurrenceClipActionText}>Ver trecho</Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.occurrenceClipUnavailable}>Sem trecho</Text>
+                        )}
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+              {clipError ? <Text style={styles.occurrenceClipError}>{clipError}</Text> : null}
             </View>
           )}
         </ScrollView>
+
+        <Modal
+          animationType="fade"
+          onRequestClose={() => void closeOccurrenceClip()}
+          transparent
+          visible={isClipVisible}
+        >
+          <View style={styles.occurrenceClipBackdrop}>
+            <View style={styles.occurrenceClipModal}>
+              <View style={styles.occurrenceClipHeader}>
+                <View>
+                  <Text style={styles.occurrenceClipEyebrow}>OCORRÊNCIA</Text>
+                  <Text style={styles.occurrenceClipTitle}>Trecho da queda</Text>
+                </View>
+                <Pressable
+                  accessibilityLabel="Fechar vídeo"
+                  onPress={() => void closeOccurrenceClip()}
+                  style={styles.occurrenceClipClose}
+                >
+                  <Feather color="#344054" name="x" size={21} />
+                </Pressable>
+              </View>
+              <VideoView
+                contentFit="contain"
+                nativeControls
+                player={clipPlayer}
+                style={styles.occurrenceClipVideo}
+              />
+            </View>
+          </View>
+        </Modal>
       </View>
     </LayoutWithNavbar>
   );
 }
 
-function formatAlertTime(fallAlert?: WorkspaceFallAlert) {
-  if (fallAlert?.occurredAt) {
-    const parsedDate = new Date(fallAlert.occurredAt);
-    if (!Number.isNaN(parsedDate.getTime())) {
-      return parsedDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    }
+function bytesToBase64(value: Uint8Array) {
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let index = 0; index < value.length; index += chunkSize) {
+    binary += String.fromCharCode(...value.subarray(index, index + chunkSize));
   }
-
-  return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return btoa(binary);
 }
 
 function formatOccurrenceDate(value: string) {
@@ -1064,11 +1090,6 @@ function formatOccurrenceDate(value: string) {
     month: '2-digit',
     year: 'numeric',
   });
-}
-
-function normalizeAmbulancePhoneNumber(value?: string) {
-  const normalized = value?.trim();
-  return normalized || '192';
 }
 
 function getMemberLabel(member: FamilyMember) {
