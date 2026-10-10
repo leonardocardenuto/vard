@@ -6,9 +6,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 type HeaderProps = {
   avatarUrl?: string | null;
   notificationFunction: () => void;
+  profileFunction: () => void;
 };
 
-export function Header({ avatarUrl, notificationFunction }: HeaderProps) {
+export function Header({ avatarUrl, notificationFunction, profileFunction }: HeaderProps) {
   const avatarSource = avatarUrl?.trim()
     ? { uri: avatarUrl.trim() }
     : require("../../assets/default_avatar.png");
@@ -16,12 +17,18 @@ export function Header({ avatarUrl, notificationFunction }: HeaderProps) {
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={styles.left}>
+        <Pressable
+          accessibilityLabel="Abrir configurações do perfil"
+          accessibilityRole="button"
+          onPress={profileFunction}
+          style={({ pressed }) => [styles.left, { opacity: pressed ? 0.65 : 1 }]}
+          hitSlop={8}
+        >
           <Image
             source={avatarSource}
             style={styles.avatar}
           />
-        </View>
+        </Pressable>
         <View style={styles.center}>
           <VardHorizontalLogo height={22} />
         </View>

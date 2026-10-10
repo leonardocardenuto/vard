@@ -13,9 +13,14 @@ export const STATUS_CARD_GRADIENT_COLORS = ["#03CDF4", "#019BDE", "#01EBD0"] as 
 export const STATUS_CARD_GRADIENT_LOCATIONS = [0.08, 0.38, 1] as const;
 
 export const styles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+  },
   content: {
+    flexGrow: 1,
     paddingTop: 30,
     paddingInline: 30,
+    paddingBottom: 30,
   },
   section: {
     marginTop: 40,
@@ -37,14 +42,14 @@ export const styles = StyleSheet.create({
     borderColor: "#E7EBF0",
     borderRadius: 34,
     borderWidth: 2,
-    minHeight: 228,
     overflow: "hidden",
     width: "100%",
   },
   alertRow: {
     alignItems: "center",
     flexDirection: "row",
-    height: 76,
+    minHeight: 84,
+    paddingVertical: 16,
     paddingHorizontal: 20,
   },
   alertPlaceholderRow: {
@@ -60,7 +65,10 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 14,
-    width: 28,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "#F4F7FA",
   },
   alertTextWrap: {
     flex: 1,
@@ -73,7 +81,7 @@ export const styles = StyleSheet.create({
     borderRadius: 22,
     borderStyle: "dashed",
     borderWidth: 1.5,
-    minHeight: 228,
+    minHeight: 160,
     justifyContent: "center",
     paddingHorizontal: 24,
     paddingVertical: 22,
@@ -82,6 +90,35 @@ export const styles = StyleSheet.create({
   noAlertsIcon: {
     alignSelf: "center",
     marginBottom: 10,
+  },
+  feedbackText: {
+    marginTop: 14,
+  },
+  errorCard: {
+    borderStyle: "solid",
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: "#E0F2FE",
+  },
+  retryText: {
+    color: "#0369A1",
+    fontFamily: HOME_FONTS.semiBold,
+  },
+  monitoringLabel: {
+    color: "#171C1F",
+    fontFamily: HOME_FONTS.semiBold,
+    fontSize: 14,
+    letterSpacing: 1.5,
+  },
+  statusTitle: {
+    flex: 1,
+    marginLeft: 10,
+    fontFamily: HOME_FONTS.bold,
+    fontSize: 23,
   },
   noAlertsText: {
     color: "#3F4852",
