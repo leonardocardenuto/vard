@@ -2,7 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from api.core.security import verify_password
-from api.models import AppUser, UserCredential
+from api.models import AppUser, PasswordResetCode, UserCredential
 from tests.api.helpers import DEFAULT_PASSWORD, auth_headers, register_user
 
 
@@ -53,3 +53,51 @@ def test_register_login_and_me_persist_credentials(client, db_session: Session):
 def test_protected_endpoint_rejects_missing_and_invalid_tokens(client):
     assert client.get("/auth/me").status_code == 401
     assert client.get("/auth/me", headers=auth_headers("not-a-jwt")).status_code == 401
+
+
+def test_password_reset_changes_credentials_without_disclosing_unknown_emails(
+    client,
+    db_session: Session,
+    monkeypatch,
+):
+    email = "reset@example.com"
+    new_password = "NewPassword123!"
+    register_user(client, email)
+
+    delivered: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "api.routers.auth.send_reset_code",
+        lambda recipient, code: delivered.append((recipient, code)),
+    )
+
+    unknown = client.post("/auth/forgot-password", json={"email": "unknown@example.com"})
+    requested = client.post("/auth/forgot-password", json={"email": email})
+
+    assert unknown.status_code == 200
+    assert requested.status_code == 200
+    assert delivered and delivered[0][0] == email
+
+    code = delivered[0][1]
+    invalid = client.post(
+        "/auth/reset-password",
+        json={"email": email, "code": "000000", "new_password": new_password},
+    )
+    assert invalid.status_code == 400
+
+    reset = client.post(
+        "/auth/reset-password",
+        json={"email": email, "code": code, "new_password": new_password},
+    )
+    assert reset.status_code == 200
+
+    login = client.post(
+        "/auth/login",
+        json={"email": email, "password": new_password},
+    )
+    assert login.status_code == 200
+
+    user = db_session.scalar(select(AppUser).where(AppUser.email == email))
+    assert user is not None
+    assert db_session.scalar(
+        select(PasswordResetCode).where(PasswordResetCode.user_id == user.id)
+    ) is None

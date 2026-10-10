@@ -12,6 +12,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { clearSession } from '../../../lib/session';
 
 import {
   ApiRequestError,
@@ -132,6 +133,11 @@ export function CameraSettingsPanel({
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
   const [streamUrl, setStreamUrl] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  async function handleLogout() {
+    await clearSession();
+    onLogout();
+  }
 
   useEffect(() => {
     async function syncPlayerSource() {
@@ -417,7 +423,7 @@ export function CameraSettingsPanel({
           <View style={styles.accountSection}>
             <Pressable
               accessibilityRole="button"
-              onPress={onLogout}
+              onPress={handleLogout}
               style={styles.logoutButton}
             >
               <Feather color="#B42318" name="log-out" size={18} />

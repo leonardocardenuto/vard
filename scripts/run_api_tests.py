@@ -16,6 +16,7 @@ TEST_NAMES = {
     "test_healthcheck_is_public": "Healthcheck público",
     "test_register_login_and_me_persist_credentials": "Cadastro, login e persistência de credenciais",
     "test_protected_endpoint_rejects_missing_and_invalid_tokens": "Proteção contra tokens ausentes ou inválidos",
+    "test_password_reset_changes_credentials_without_disclosing_unknown_emails": "Recuperação e redefinição de senha",
     "test_workspace_creation_creates_owner_membership_and_isolates_access": "Criação e isolamento de workspaces",
     "test_camera_permissions_and_crud_persist_in_database": "Permissões e persistência de câmeras",
     "test_invite_can_only_be_accepted_by_recipient": "Segurança no aceite de convites",
