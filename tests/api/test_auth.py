@@ -55,6 +55,78 @@ def test_protected_endpoint_rejects_missing_and_invalid_tokens(client):
     assert client.get("/auth/me", headers=auth_headers("not-a-jwt")).status_code == 401
 
 
+def test_me_profile_update_persists_profile_fields(client, db_session: Session):
+    token = register_user(client, "profile@example.com", full_name="Profile Test")
+
+    response = client.patch(
+        "/auth/me",
+        headers=auth_headers(token),
+        json={
+            "full_name": "Perfil Atualizado",
+            "phone": "+55 11 99999-9999",
+            "avatar_url": "data:image/png;base64,ZmFrZS1pbWFnZQ==",
+            "birth_date": "1990-01-15",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["full_name"] == "Perfil Atualizado"
+    assert body["phone"] == "+55 11 99999-9999"
+    assert body["avatar_url"].startswith("data:image/png;base64,")
+    assert body["birth_date"] == "1990-01-15"
+
+    user = db_session.scalar(select(AppUser).where(AppUser.email == "profile@example.com"))
+    assert user is not None
+    assert user.full_name == "Perfil Atualizado"
+    assert user.phone == "+55 11 99999-9999"
+    assert user.avatar_url == "data:image/png;base64,ZmFrZS1pbWFnZQ=="
+
+
+def test_me_password_change_requires_current_password_and_updates_login(client, db_session: Session):
+    token = register_user(client, "password-change@example.com", full_name="Password Test")
+    user = db_session.scalar(select(AppUser).where(AppUser.email == "password-change@example.com"))
+    assert user is not None
+
+    invalid = client.post(
+        "/auth/me/password",
+        headers=auth_headers(token),
+        json={"current_password": "WrongPassword123!", "new_password": "NewPassword123!"},
+    )
+    assert invalid.status_code == 400
+
+    response = client.post(
+        "/auth/me/password",
+        headers=auth_headers(token),
+        json={"current_password": DEFAULT_PASSWORD, "new_password": "NewPassword123!"},
+    )
+    assert response.status_code == 200, response.text
+
+    old_login = client.post(
+        "/auth/login",
+        json={"email": "password-change@example.com", "password": DEFAULT_PASSWORD},
+    )
+    assert old_login.status_code == 401
+
+    new_login = client.post(
+        "/auth/login",
+        json={"email": "password-change@example.com", "password": "NewPassword123!"},
+    )
+    assert new_login.status_code == 200
+
+
+def test_delete_me_removes_user_and_invalidates_token(client, db_session: Session):
+    token = register_user(client, "delete-me@example.com", full_name="Delete Me")
+
+    response = client.delete("/auth/me", headers=auth_headers(token))
+    assert response.status_code == 200, response.text
+
+    me = client.get("/auth/me", headers=auth_headers(token))
+    assert me.status_code == 401
+
+    assert db_session.scalar(select(AppUser).where(AppUser.email == "delete-me@example.com")) is None
+
+
 def test_password_reset_changes_credentials_without_disclosing_unknown_emails(
     client,
     db_session: Session,

@@ -27,6 +27,7 @@ from api.schemas import (
     OneSignalSubscriptionUpdate,
     RegisterRequest,
     TokenResponse,
+    UserUpdate,
     UserResponse,
 )
 from api.services.email_service import send_reset_code
@@ -49,6 +50,11 @@ class ResetPasswordRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=8)
 
 
 def hash_reset_code(code: str) -> str:
@@ -200,6 +206,44 @@ def google_login(payload: GoogleLoginRequest, db: Session = Depends(get_db)) -> 
 @cache_response(CachePolicy(key="auth:me", tags=("users",), scope=CacheScope.USER))
 def me(current_user: AppUser = Depends(get_current_user)) -> AppUser:
     return current_user
+
+
+@router.patch("/me", response_model=UserResponse)
+def update_my_profile(
+    payload: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+) -> AppUser:
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(current_user, field, value)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.post("/me/password", response_model=MessageResponse)
+def change_my_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+) -> MessageResponse:
+    credential = db.get(UserCredential, current_user.id)
+    if not credential or not verify_password(payload.current_password, credential.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid current password")
+
+    credential.password_hash = hash_password(payload.new_password)
+    db.commit()
+    return MessageResponse(message="ok")
+
+
+@router.delete("/me", response_model=MessageResponse)
+def delete_my_account(
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+) -> MessageResponse:
+    db.delete(current_user)
+    db.commit()
+    return MessageResponse(message="ok")
 
 
 @router.patch("/me/onesignal-subscription", response_model=UserResponse)

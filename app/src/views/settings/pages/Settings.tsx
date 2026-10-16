@@ -17,7 +17,9 @@ export function Settings({ onLogout }: SettingsProps) {
   const route = useRoute<SettingsRoute>();
   const accessToken = route.params?.accessToken ?? "";
   const userEmail = route.params?.userEmail ?? "";
+  const userPhone = route.params?.userPhone ?? null;
   const userName = route.params?.userName ?? "usuário";
+  const userAvatarUrl = route.params?.userAvatarUrl ?? null;
 
   return (
     <Stack.Navigator
@@ -25,14 +27,16 @@ export function Settings({ onLogout }: SettingsProps) {
     >
       <Stack.Screen
         name="SettingsHome"
-        initialParams={{ accessToken, userEmail, userName }}
+        initialParams={{ accessToken, userEmail, userPhone, userName }}
       >
         {() => (
           <LayoutWithNavbar>
             <CameraSettingsPanel
               accessToken={accessToken}
               onLogout={onLogout}
+              userAvatarUrl={userAvatarUrl}
               userEmail={userEmail}
+              userPhone={userPhone}
               userName={userName}
             />
           </LayoutWithNavbar>
@@ -41,7 +45,7 @@ export function Settings({ onLogout }: SettingsProps) {
       <Stack.Screen
         name="CameraConnectionForm"
         component={CameraConnectionFormScreen}
-        initialParams={{ accessToken, userEmail, userName }}
+        initialParams={{ accessToken, userEmail, userPhone, userName }}
       />
       <Stack.Screen name="CameraLiveView" component={CameraLiveViewScreen} />
     </Stack.Navigator>

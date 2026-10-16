@@ -46,6 +46,8 @@ class UserUpdate(BaseModel):
     full_name: str | None = None
     phone: str | None = None
     onesignal_subscription_id: str | None = None
+    avatar_url: str | None = None
+    birth_date: date | None = None
 
 
 class OneSignalSubscriptionUpdate(BaseModel):

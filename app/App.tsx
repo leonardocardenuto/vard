@@ -32,6 +32,7 @@ function AppTabs({ navigation: stackNavigation, route }: AppTabsProps) {
   const accessToken = route.params?.accessToken ?? '';
   const userAvatarUrl = route.params?.userAvatarUrl;
   const userEmail = route.params?.userEmail ?? '';
+  const userPhone = route.params?.userPhone ?? null;
   const handleLogout = () => {
     stackNavigation.reset({
       index: 0,
@@ -49,7 +50,7 @@ function AppTabs({ navigation: stackNavigation, route }: AppTabsProps) {
             avatarUrl={userAvatarUrl}
             profileFunction={() => {
               tabNavigation.navigate('Settings', {
-                accessToken, userAvatarUrl, userEmail, userName,
+                accessToken, userAvatarUrl, userEmail, userName, userPhone,
               });
             }}
             notificationFunction={() => {
@@ -89,7 +90,7 @@ function AppTabs({ navigation: stackNavigation, route }: AppTabsProps) {
       />
       <Tabs.Screen
         name="Settings"
-        initialParams={{ accessToken, userAvatarUrl, userEmail, userName }}
+        initialParams={{ accessToken, userAvatarUrl, userEmail, userPhone, userName }}
       >
         {() => <Settings onLogout={handleLogout} />}
       </Tabs.Screen>

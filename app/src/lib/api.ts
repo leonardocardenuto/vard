@@ -52,6 +52,23 @@ type UserResponse = {
   updated_at: string;
 };
 
+type MessageResponse = {
+  message: string;
+};
+
+type UserProfileUpdatePayload = {
+  avatar_url?: string | null;
+  birth_date?: string | null;
+  full_name?: string | null;
+  onesignal_subscription_id?: string | null;
+  phone?: string | null;
+};
+
+type ChangePasswordPayload = {
+  current_password: string;
+  new_password: string;
+};
+
 export type CameraResponse = {
   id: string;
   workspace_id: string;
@@ -316,6 +333,7 @@ function translateApiMessage(message: string) {
 
   const exactTranslations: Record<string, string> = {
     "Invalid credentials": "Credenciais inválidas.",
+    "Invalid current password": "Senha atual inválida.",
     "Email already registered": "Este e-mail já está cadastrado.",
     "String should have at least 8 characters":
       "Deve ter pelo menos 8 caracteres.",
@@ -387,6 +405,26 @@ export async function register(payload: RegisterPayload) {
 
 export async function getMe(token: string) {
   return requestWithToken<UserResponse>("/auth/me", token);
+}
+
+export async function updateMyProfile(token: string, payload: UserProfileUpdatePayload) {
+  return requestWithToken<UserResponse>("/auth/me", token, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function changeMyPassword(token: string, payload: ChangePasswordPayload) {
+  return requestWithToken<MessageResponse>("/auth/me/password", token, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteMyAccount(token: string) {
+  return requestWithToken<void>("/auth/me", token, {
+    method: "DELETE",
+  });
 }
 
 export async function updateMyOneSignalSubscription(

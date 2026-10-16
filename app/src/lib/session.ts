@@ -1,15 +1,44 @@
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 const TOKEN_KEY = "vard_access_token";
 
+function getWebStorage() {
+  if (Platform.OS !== "web" || typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage;
+}
+
 export async function saveToken(token: string) {
+  const webStorage = getWebStorage();
+
+  if (webStorage) {
+    webStorage.setItem(TOKEN_KEY, token);
+    return;
+  }
+
   await SecureStore.setItemAsync(TOKEN_KEY, token);
 }
 
 export async function loadToken() {
+  const webStorage = getWebStorage();
+
+  if (webStorage) {
+    return webStorage.getItem(TOKEN_KEY);
+  }
+
   return SecureStore.getItemAsync(TOKEN_KEY);
 }
 
 export async function clearSession() {
+  const webStorage = getWebStorage();
+
+  if (webStorage) {
+    webStorage.removeItem(TOKEN_KEY);
+    return;
+  }
+
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }

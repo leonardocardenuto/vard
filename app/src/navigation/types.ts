@@ -11,6 +11,7 @@ export type RootStackParamList = {
         accessToken: string;
         userAvatarUrl?: string | null;
         userEmail: string;
+        userPhone?: string | null;
         userName?: string;
       }
     | undefined;
@@ -24,6 +25,7 @@ export type AppTabParamList = {
         screen?: string;
         userAvatarUrl?: string | null;
         userEmail: string;
+        userPhone?: string | null;
         userName?: string;
       }
     | undefined;
@@ -32,6 +34,7 @@ export type AppTabParamList = {
         accessToken: string;
         userAvatarUrl?: string | null;
         userEmail: string;
+        userPhone?: string | null;
         userName?: string;
       }
     | undefined;
@@ -56,6 +59,7 @@ export type AppTabParamList = {
         accessToken: string;
         userAvatarUrl?: string | null;
         userEmail: string;
+        userPhone?: string | null;
         userName?: string;
       }
     | undefined;

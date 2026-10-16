@@ -2,11 +2,13 @@ export type SettingsStackParamList = {
   SettingsHome: {
     accessToken: string;
     userEmail: string;
+    userPhone?: string | null;
     userName: string;
   };
   CameraConnectionForm: {
     accessToken: string;
     userEmail: string;
+    userPhone?: string | null;
     userName: string;
   };
   CameraLiveView: {

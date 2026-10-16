@@ -183,6 +183,7 @@ export function AuthScreen({ navigation, route }: Props) {
         accessToken,
         userEmail: me.email,
         userAvatarUrl: resolvedAvatarUrl,
+        userPhone: me.phone,
         userName: resolvedName,
       },
     };

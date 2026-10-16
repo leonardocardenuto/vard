@@ -1,30 +1,19 @@
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useState } from 'react';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Image,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
+  TextInput,
   Text,
   View,
 } from 'react-native';
+import { changeMyPassword, deleteMyAccount, updateMyProfile } from '../../../lib/api';
 import { clearSession } from '../../../lib/session';
-
-import {
-  ApiRequestError,
-  CameraResponse,
-  getCameraMjpegUrl,
-  listCameras,
-  pingCamera,
-  startCameraHlsStream,
-  WorkspaceResponse,
-} from '../../../lib/api';
-import { SettingsStackParamList } from '../types';
-import { resolvePrimaryWorkspace } from '../utils/resolveWorkspace';
 
 const SETTINGS_PANEL_FONTS = {
   regular: 'Poppins-Regular',
@@ -33,405 +22,487 @@ const SETTINGS_PANEL_FONTS = {
   extraBold: 'Poppins-ExtraBold',
 } as const;
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+
+  if (digits.length === 0) {
+    return '';
+  }
+
+  if (digits.length <= 2) {
+    return `(${digits}`;
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  }
+
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 type CameraSettingsPanelProps = {
   accessToken: string;
   onLogout: () => void;
+  userAvatarUrl: string | null;
   userEmail: string;
+  userPhone: string | null;
   userName: string;
 };
-
-type SettingsNavigation = NativeStackNavigationProp<SettingsStackParamList, 'SettingsHome'>;
-
-const CAMERA_WEBVIEW_INJECTED_JS = `
-  (function() {
-    function applyFullscreenStyles() {
-      try {
-        var style = document.getElementById('vard-camera-fullscreen-style');
-        if (!style) {
-          style = document.createElement('style');
-          style.id = 'vard-camera-fullscreen-style';
-          style.innerHTML = [
-            'html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden !important; background: #000 !important; }',
-            'body > * { max-width: 100% !important; }',
-            'iframe, video, img, canvas, object, embed { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important; display: block !important; margin: 0 !important; padding: 0 !important; }',
-            '[style*="width"], [style*="height"] { max-width: 100% !important; }'
-          ].join('');
-          document.head.appendChild(style);
-        }
-
-        document.documentElement.style.width = '100%';
-        document.documentElement.style.height = '100%';
-        document.body.style.width = '100%';
-        document.body.style.height = '100%';
-        document.body.style.margin = '0';
-        document.body.style.padding = '0';
-        document.body.style.overflow = 'hidden';
-
-        var nodes = document.querySelectorAll('iframe, video, img, canvas, object, embed');
-        nodes.forEach(function(node) {
-          node.style.width = '100%';
-          node.style.height = '100%';
-          node.style.maxWidth = '100%';
-          node.style.maxHeight = '100%';
-          node.style.display = 'block';
-          node.style.margin = '0';
-          node.style.padding = '0';
-        });
-      } catch (error) {}
-    }
-
-    applyFullscreenStyles();
-    setTimeout(applyFullscreenStyles, 300);
-    setTimeout(applyFullscreenStyles, 1000);
-    setInterval(applyFullscreenStyles, 2000);
-  })();
-  true;
-`;
-
-function getCameraMetadata(camera: CameraResponse) {
-  return camera.metadata ?? camera.metadata_json ?? {};
-}
-
-function getCameraStatusLabel(camera: CameraResponse) {
-  return camera.status === 'online' ? 'Conectada' : 'Desconectada';
-}
-
-function getCameraProtocol(camera: CameraResponse) {
-  const metadata = getCameraMetadata(camera);
-  const protocol = typeof metadata.protocol === 'string' ? metadata.protocol : camera.connection_type;
-
-  if (protocol === 'local-webview') {
-    return 'Local';
-  }
-
-  if (protocol === 'local-agent-webcam') {
-    return 'Agente local';
-  }
-
-  if (protocol === 'https' || protocol === 'https-manual') {
-    return 'HTTPS';
-  }
-
-  return 'RTSP';
-}
 
 export function CameraSettingsPanel({
   accessToken,
   onLogout,
+  userAvatarUrl,
   userEmail,
+  userPhone,
   userName,
 }: CameraSettingsPanelProps) {
-  const navigation = useNavigation<SettingsNavigation>();
-  const player = useVideoPlayer(null);
+  const fallbackAvatar = require('../../../../assets/default_avatar.png');
 
-  const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
-  const [cameras, setCameras] = useState<CameraResponse[]>([]);
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isStartingStreamId, setIsStartingStreamId] = useState<string | null>(null);
-  const [pingingCameraIds, setPingingCameraIds] = useState<Record<string, boolean>>({});
-  const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
-  const [streamUrl, setStreamUrl] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const initialDisplayName = userName.trim() || 'usuário';
+  const initialAvatarUrl = userAvatarUrl?.trim() ?? '';
+
+  const [profileAvatarUri, setProfileAvatarUri] = useState(initialAvatarUrl);
+  const [profileNameDraft, setProfileNameDraft] = useState(initialDisplayName);
+  const [profilePassword, setProfilePassword] = useState('');
+  const [profilePasswordConfirmation, setProfilePasswordConfirmation] = useState('');
+  const [profileCurrentPassword, setProfileCurrentPassword] = useState('');
+  const [profilePhoneDraft, setProfilePhoneDraft] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<{
+    tone: 'success' | 'info' | 'error';
+    message: string;
+  } | null>(null);
+  const [isPickingAvatar, setIsPickingAvatar] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  useEffect(() => {
+    setProfileAvatarUri(initialAvatarUrl);
+  }, [initialAvatarUrl]);
+
+  useEffect(() => {
+    setProfileNameDraft(initialDisplayName);
+  }, [initialDisplayName]);
+
+  useEffect(() => {
+    setProfilePhoneDraft(formatPhone(userPhone ?? ''));
+  }, [userPhone]);
+
+  const profileAvatarSource = useMemo(
+    () => (profileAvatarUri ? { uri: profileAvatarUri } : fallbackAvatar),
+    [fallbackAvatar, profileAvatarUri]
+  );
+
+  const trimmedProfileName = profileNameDraft.trim();
+
+  function pushProfileStatus(tone: 'success' | 'info' | 'error', message: string) {
+    setProfileStatus({ tone, message });
+  }
+
+  function buildAvatarDataUri(asset: NonNullable<ImagePicker.ImagePickerSuccessResult['assets']>[number]) {
+    if (!asset.base64) {
+      throw new Error('A imagem selecionada precisa ser convertida em base64.');
+    }
+
+    const mimeType = asset.mimeType?.trim() || 'image/jpeg';
+    return `data:${mimeType};base64,${asset.base64}`;
+  }
+
+  async function handlePickAvatar() {
+    if (isSavingProfile || isChangingPassword || isDeletingAccount) {
+      return;
+    }
+
+    setProfileStatus(null);
+    setIsPickingAvatar(true);
+
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        pushProfileStatus('error', 'Conceda acesso à galeria para trocar a foto.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        base64: true,
+        quality: 0.9,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const selectedAsset = result.assets[0];
+        const previousAvatarUri = profileAvatarUri;
+        const nextAvatarUri = buildAvatarDataUri(selectedAsset);
+
+        setIsSavingProfile(true);
+        setProfileAvatarUri(nextAvatarUri);
+
+        try {
+          const updatedUser = await updateMyProfile(accessToken, {
+            avatar_url: nextAvatarUri,
+          });
+          setProfileAvatarUri(updatedUser.avatar_url ?? nextAvatarUri);
+          pushProfileStatus('success', 'Foto de perfil salva na conta.');
+        } catch {
+          setProfileAvatarUri(previousAvatarUri);
+          pushProfileStatus('error', 'Não foi possível salvar a foto de perfil.');
+        } finally {
+          setIsSavingProfile(false);
+        }
+      }
+    } catch {
+      pushProfileStatus('error', 'Não foi possível abrir a galeria agora.');
+    } finally {
+      setIsPickingAvatar(false);
+    }
+  }
+
+  async function handleSaveName() {
+    if (isSavingProfile || isChangingPassword || isDeletingAccount) {
+      return;
+    }
+
+    const nextName = profileNameDraft.trim();
+
+    if (!nextName) {
+      pushProfileStatus('error', 'Informe um nome para o perfil.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+
+    try {
+      const updatedUser = await updateMyProfile(accessToken, {
+        full_name: nextName,
+      });
+      setProfileNameDraft(updatedUser.full_name?.trim() || nextName);
+      pushProfileStatus('success', 'Nome atualizado na conta.');
+    } catch {
+      pushProfileStatus('error', 'Não foi possível salvar o nome.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
+
+  async function handleSavePhone() {
+    if (isSavingProfile || isChangingPassword || isDeletingAccount) {
+      return;
+    }
+
+    const digits = profilePhoneDraft.replace(/\D/g, '');
+
+    if (digits.length !== 10 && digits.length !== 11) {
+      pushProfileStatus(
+        'error',
+        'Digite um telefone válido com DDD (10 ou 11 dígitos).'
+      );
+      return;
+    }
+
+    setIsSavingProfile(true);
+
+    try {
+      const updatedUser = await updateMyProfile(accessToken, {
+        phone: digits,
+      });
+
+      setProfilePhoneDraft(formatPhone(updatedUser.phone ?? digits));
+      pushProfileStatus('success', 'Telefone atualizado na conta.');
+    } catch {
+      pushProfileStatus('error', 'Não foi possível salvar o telefone.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
+
+  async function handleSavePassword() {
+    if (isSavingProfile || isChangingPassword || isDeletingAccount) {
+      return;
+    }
+
+    if (!profileCurrentPassword.trim()) {
+      pushProfileStatus('error', 'Informe sua senha atual.');
+      return;
+    }
+
+    if (profilePassword.length < 8) {
+      pushProfileStatus('error', 'A nova senha precisa ter pelo menos 8 caracteres.');
+      return;
+    }
+
+    if (profilePassword !== profilePasswordConfirmation) {
+      pushProfileStatus('error', 'As senhas novas não conferem.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      await changeMyPassword(accessToken, {
+        current_password: profileCurrentPassword,
+        new_password: profilePassword,
+      });
+      setProfileCurrentPassword('');
+      setProfilePassword('');
+      setProfilePasswordConfirmation('');
+      pushProfileStatus('success', 'Senha atualizada na conta.');
+    } catch {
+      pushProfileStatus('error', 'Não foi possível alterar sua senha.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  }
 
   async function handleLogout() {
     await clearSession();
     onLogout();
   }
 
-  useEffect(() => {
-    async function syncPlayerSource() {
-      if (!streamUrl) {
-        player.pause();
-        return;
-      }
-
-      try {
-        await player.replaceAsync(streamUrl);
-        player.play();
-      } catch {
-        setErrorMessage('Não foi possível carregar o vídeo ao vivo.');
-      }
-    }
-
-    void syncPlayerSource();
-  }, [player, streamUrl]);
-
-  const loadDevices = useCallback(async () => {
-    if (!accessToken) {
-      setErrorMessage('Sessão inválida. Faça login novamente.');
-      setIsBootstrapping(false);
-      return;
-    }
-
-    try {
-      setErrorMessage('');
-      setIsBootstrapping(true);
-
-      const resolvedWorkspace = await resolvePrimaryWorkspace({
-        accessToken,
-        userEmail,
-        userName,
-      });
-      const workspaceCameras = await listCameras(accessToken, resolvedWorkspace.id);
-
-      setWorkspace(resolvedWorkspace);
-      setCameras(workspaceCameras);
-      setPingingCameraIds(
-        workspaceCameras.reduce<Record<string, boolean>>((acc, camera) => {
-          acc[camera.id] = true;
-          return acc;
-        }, {})
-      );
-      setIsBootstrapping(false);
-
-      await Promise.all(
-        workspaceCameras.map(async (camera) => {
-          try {
-            const ping = await pingCamera(accessToken, camera.id);
-            setCameras((current) =>
-              current.map((currentCamera) =>
-                currentCamera.id === camera.id
-                  ? { ...currentCamera, status: ping.status }
-                  : currentCamera
-              )
-            );
-          } catch {
-            setCameras((current) =>
-              current.map((currentCamera) =>
-                currentCamera.id === camera.id
-                  ? { ...currentCamera, status: 'offline' }
-                  : currentCamera
-              )
-            );
-          } finally {
-            setPingingCameraIds((current) => ({
-              ...current,
-              [camera.id]: false,
-            }));
-          }
-        })
-      );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof ApiRequestError ? error.message : 'Não foi possível carregar as configurações.'
-      );
-    } finally {
-      setIsBootstrapping(false);
-    }
-  }, [accessToken, userEmail, userName]);
-
-  useEffect(() => {
-    void loadDevices();
-  }, [loadDevices]);
-
-  useFocusEffect(
-    useCallback(() => {
-      void loadDevices();
-    }, [loadDevices])
-  );
-
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await loadDevices();
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [loadDevices]);
-
-  async function handleStartStream(camera: CameraResponse) {
-    const metadata = getCameraMetadata(camera);
-    const protocol = typeof metadata.protocol === 'string' ? metadata.protocol : camera.connection_type;
-
-    if (protocol === 'local-webview') {
-      setSelectedCameraId(camera.id);
-      setStreamUrl('');
-      navigation.navigate('CameraLiveView', {
-        cameraName: camera.name,
-        protocol: 'local-webview',
-        url: camera.stream_url,
-        cameraId: camera.id,
-        workspaceId: camera.workspace_id,
-      });
-      return;
-    }
-
-    if (protocol === 'local-agent-webcam') {
-      setSelectedCameraId(camera.id);
-      setStreamUrl('');
-      navigation.navigate('CameraLiveView', {
-        cameraName: camera.name,
-        protocol: 'agent-mjpeg',
-        url: getCameraMjpegUrl(camera.id),
-        accessToken,
-        cameraId: camera.id,
-        workspaceId: camera.workspace_id,
-      });
-      return;
-    }
-
-    setIsStartingStreamId(camera.id);
-    setErrorMessage('');
-
-    try {
-      const response = await startCameraHlsStream(accessToken, camera.id);
-      setSelectedCameraId(camera.id);
-      setStreamUrl(response.playlist_url);
-      navigation.navigate('CameraLiveView', {
-        cameraName: camera.name,
-        protocol: 'hls',
-        url: response.playlist_url,
-        cameraId: camera.id,
-        workspaceId: camera.workspace_id,
-      });
-    } catch (error) {
-      setErrorMessage(
-        error instanceof ApiRequestError
-          ? error.message
-          : 'Não foi possível iniciar o stream da câmera.'
-      );
-    } finally {
-      setIsStartingStreamId(null);
-    }
-  }
-
   return (
     <ScrollView
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
-      refreshControl={
-        <RefreshControl
-          colors={['#0BA5EC']}
-          onRefresh={handleRefresh}
-          refreshing={isRefreshing}
-          tintColor="#0BA5EC"
-        />
-      }
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
         <View style={styles.futureHeaderSpace} />
         <Text style={styles.title}>Ajustes do Sistema</Text>
         <Text style={styles.subtitle}>
-          Gerencie seus dispositivos e preferências de segurança
+          Gerencie seu perfil e preferências da conta
         </Text>
-        {workspace ? <Text style={styles.workspaceName}>{workspace.name}</Text> : null}
       </View>
 
-      {isBootstrapping ? (
-        <View style={styles.centerState}>
-          <ActivityIndicator color="#0BA5EC" />
-          <Text style={styles.centerStateText}>Carregando dispositivos...</Text>
-        </View>
-      ) : (
-        <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Dispositivos conectados</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() =>
-                navigation.navigate('CameraConnectionForm', {
-                  accessToken,
-                  userEmail,
-                  userName,
-                })
-              }
-              style={styles.addButton}
-            >
-              <Feather color="#121926" name="plus" size={18} />
-            </Pressable>
+      <View style={styles.profileSection}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Seu perfil</Text>
+          <View style={styles.sectionPill}>
+            <Feather color="#0694EA" name="edit-3" size={14} />
+            <Text style={styles.sectionPillText}>Prévia local</Text>
           </View>
+        </View>
 
-          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+        <View style={styles.profileCard}>
+          <View style={styles.profileHeroRow}>
+            <View style={styles.profileAvatarWrap}>
+              <Image source={profileAvatarSource} style={styles.profileAvatar} />
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSavingProfile || isPickingAvatar || isChangingPassword || isDeletingAccount}
+                onPress={handlePickAvatar}
+                style={({ pressed }) => [
+                  styles.profileAvatarAction,
+                  pressed && !isSavingProfile && !isPickingAvatar && styles.pressed,
+                  (isSavingProfile || isPickingAvatar || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
+                ]}
+              >
+                {isPickingAvatar || isSavingProfile ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Feather color="#FFFFFF" name="camera" size={16} />}
+              </Pressable>
+            </View>
 
-          {cameras.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>Nenhum dispositivo conectado</Text>
-              <Text style={styles.emptySubtitle}>
-                Toque no + para cadastrar sua primeira câmera.
+            <View style={styles.profileHeroCopy}>
+              <Text style={styles.profileLabel}>Conta principal</Text>
+              <Text numberOfLines={1} style={styles.profileHeroName}>
+                {trimmedProfileName || initialDisplayName}
+              </Text>
+              <Text numberOfLines={1} style={styles.profileHeroEmail}>
+                {userEmail}
               </Text>
             </View>
-          ) : (
-            cameras.map((camera) => {
-              const isSelected = selectedCameraId === camera.id;
-              const isStarting = isStartingStreamId === camera.id;
-              const isPinging = Boolean(pingingCameraIds[camera.id]);
+          </View>
 
-              return (
-                <Pressable
-                  key={camera.id}
-                  disabled={isStarting}
-                  onPress={() => handleStartStream(camera)}
-                  style={[styles.deviceCard, isSelected && styles.deviceCardActive]}
-                >
-                  <View style={styles.deviceIconWrap}>
-                    <MaterialCommunityIcons color="#00B6FF" name="cctv" size={24} />
-                  </View>
+          <Text style={styles.profileCardHint}>
+            Essas ações atualizam a interface agora e ficam prontas para conectar na API depois.
+          </Text>
 
-                  <View style={styles.deviceContent}>
-                    <Text numberOfLines={2} style={styles.deviceName}>
-                      {camera.name}
-                    </Text>
-                    <Text style={styles.deviceProtocol}>{getCameraProtocol(camera)}</Text>
-                    <View style={styles.statusRow}>
-                      <View
-                        style={[
-                          styles.statusDot,
-                          camera.status === 'online'
-                            ? styles.statusDotOnline
-                            : styles.statusDotOffline,
-                        ]}
-                      />
-                      <Text
-                        style={[
-                          styles.statusText,
-                          camera.status === 'online'
-                            ? styles.statusTextOnline
-                            : styles.statusTextOffline,
-                        ]}
-                      >
-                        {isPinging && !isStarting
-                          ? 'Testando...'
-                          : isStarting
-                            ? 'Conectando...'
-                            : getCameraStatusLabel(camera)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Feather color="#667085" name="chevron-right" size={18} />
-                </Pressable>
-              );
-            })
-          )}
-
-          {streamUrl ? (
-            <View style={styles.streamSection}>
-              <Text style={styles.streamTitle}>Preview ao vivo</Text>
-              <View style={styles.videoCard}>
-                <VideoView
-                  contentFit="cover"
-                  nativeControls
-                  player={player}
-                  style={styles.video}
-                />
-              </View>
+          {profileStatus ? (
+            <View
+              style={[
+                styles.profileStatus,
+                profileStatus.tone === 'success' && styles.profileStatusSuccess,
+                profileStatus.tone === 'info' && styles.profileStatusInfo,
+                profileStatus.tone === 'error' && styles.profileStatusError,
+              ]}
+            >
+              <Feather
+                color={profileStatus.tone === 'error' ? '#B42318' : profileStatus.tone === 'info' ? '#175CD3' : '#067647'}
+                name={profileStatus.tone === 'error' ? 'alert-triangle' : profileStatus.tone === 'info' ? 'info' : 'check-circle'}
+                size={16}
+              />
+              <Text style={[styles.profileStatusText, profileStatus.tone === 'error' && styles.profileStatusTextError, profileStatus.tone === 'info' && styles.profileStatusTextInfo, profileStatus.tone === 'success' && styles.profileStatusTextSuccess]}>
+                {profileStatus.message}
+              </Text>
             </View>
           ) : null}
+        </View>
 
-          <View style={styles.accountSection}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={handleLogout}
-              style={styles.logoutButton}
-            >
-              <Feather color="#B42318" name="log-out" size={18} />
-              <Text style={styles.logoutButtonText}>Sair da conta</Text>
-            </Pressable>
+        <View style={styles.profileActionCard}>
+          <View style={styles.profileActionHeader}>
+            <View style={styles.profileActionIconWrap}>
+              <Feather color="#0694EA" name="image" size={18} />
+            </View>
+            <View style={styles.profileActionCopy}>
+              <Text style={styles.profileActionTitle}>Foto de perfil</Text>
+              <Text style={styles.profileActionDescription}>Troque a imagem do avatar e veja a prévia imediatamente.</Text>
+            </View>
           </View>
-        </>
-      )}
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={isSavingProfile || isChangingPassword || isDeletingAccount}
+            onPress={handlePickAvatar}
+            style={({ pressed }) => [
+              styles.profileActionButton,
+              pressed && !isSavingProfile && styles.pressed,
+              (isSavingProfile || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
+            ]}
+          >
+            <Text style={styles.profileActionButtonText}>{isSavingProfile ? 'Salvando...' : 'Escolher foto'}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.profileActionCard}>
+          <View style={styles.profileActionHeader}>
+            <View style={styles.profileActionIconWrap}>
+              <Feather color="#0694EA" name="phone" size={18} />
+            </View>
+            <View style={styles.profileActionCopy}>
+              <Text style={styles.profileActionTitle}>Telefone</Text>
+              <Text style={styles.profileActionDescription}>Adicione um número para contato e recuperação da conta.</Text>
+            </View>
+          </View>
+
+          <TextInput
+            autoCapitalize="none"
+            keyboardType="phone-pad"
+            placeholder="(00) 00000-0000"
+            placeholderTextColor="#98A2B3"
+            style={styles.profileInput}
+            value={profilePhoneDraft}
+            onChangeText={(text) => {
+              setProfilePhoneDraft(formatPhone(text));
+            }}
+            maxLength={15}
+          />
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={isSavingProfile || isChangingPassword || isDeletingAccount}
+            onPress={handleSavePhone}
+            style={({ pressed }) => [
+              styles.profileActionButton,
+              pressed && !isSavingProfile && styles.pressed,
+              (isSavingProfile || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
+            ]}
+          >
+            <Text style={styles.profileActionButtonText}>{isSavingProfile ? 'Salvando...' : 'Salvar telefone'}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.profileActionCard}>
+          <View style={styles.profileActionHeader}>
+            <View style={styles.profileActionIconWrap}>
+                <Feather color="#0694EA" name="user" size={18} />
+            </View>
+            <View style={styles.profileActionCopy}>
+                <Text style={styles.profileActionTitle}>Nome de usuário</Text>
+                <Text style={styles.profileActionDescription}>Edite o nome exibido nos módulos do app.</Text>
+            </View>
+          </View>
+
+          <TextInput
+            autoCapitalize="words"
+            placeholder="Digite seu nome"
+            placeholderTextColor="#98A2B3"
+            style={styles.profileInput}
+            value={profileNameDraft}
+            onChangeText={setProfileNameDraft}
+          />
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={isSavingProfile || isChangingPassword || isDeletingAccount}
+            onPress={handleSaveName}
+            style={({ pressed }) => [
+              styles.profileActionButton,
+              pressed && !isSavingProfile && styles.pressed,
+              (isSavingProfile || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
+            ]}
+          >
+            <Text style={styles.profileActionButtonText}>{isSavingProfile ? 'Salvando...' : 'Salvar nome'}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.profileActionCard}>
+          <View style={styles.profileActionHeader}>
+            <View style={styles.profileActionIconWrap}>
+              <Feather color="#0694EA" name="lock" size={18} />
+            </View>
+            <View style={styles.profileActionCopy}>
+              <Text style={styles.profileActionTitle}>Senha</Text>
+              <Text style={styles.profileActionDescription}>Prepare a alteração da senha com confirmação visual.</Text>
+            </View>
+          </View>
+
+          <TextInput
+            autoCapitalize="none"
+            placeholder="Senha atual"
+            placeholderTextColor="#98A2B3"
+            secureTextEntry
+            style={styles.profileInput}
+            value={profileCurrentPassword}
+            onChangeText={setProfileCurrentPassword}
+          />
+          <TextInput
+            autoCapitalize="none"
+            placeholder="Nova senha"
+            placeholderTextColor="#98A2B3"
+            secureTextEntry
+            style={styles.profileInput}
+            value={profilePassword}
+            onChangeText={setProfilePassword}
+          />
+          <TextInput
+            autoCapitalize="none"
+            placeholder="Confirmar nova senha"
+            placeholderTextColor="#98A2B3"
+            secureTextEntry
+            style={styles.profileInput}
+            value={profilePasswordConfirmation}
+            onChangeText={setProfilePasswordConfirmation}
+          />
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={isChangingPassword || isSavingProfile || isDeletingAccount}
+            onPress={handleSavePassword}
+            style={({ pressed }) => [
+              styles.profileActionButton,
+              pressed && !isChangingPassword && styles.pressed,
+              (isSavingProfile || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
+            ]}
+          >
+            <Text style={styles.profileActionButtonText}>{isChangingPassword ? 'Salvando...' : 'Salvar senha'}</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.accountSection}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={handleLogout}
+          style={styles.logoutButton}
+        >
+          <Feather color="#B42318" name="log-out" size={18} />
+          <Text style={styles.logoutButtonText}>Sair da conta</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -467,6 +538,10 @@ const styles = StyleSheet.create({
     fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 13,
   },
+  profileSection: {
+    marginBottom: 30,
+    gap: 14,
+  },
   centerState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -479,7 +554,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   sectionHeader: {
-    marginBottom: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -490,21 +564,125 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 24,
   },
-  addButton: {
-    width: 28,
-    height: 28,
+  sectionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  sectionPillText: {
+    color: '#067647',
+    fontFamily: SETTINGS_PANEL_FONTS.semiBold,
+    fontSize: 12,
+  },
+  profileCard: {
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    padding: 18,
+    shadowColor: '#101828',
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 2,
+    gap: 14,
+  },
+  profileHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  profileAvatarWrap: {
+    width: 84,
+    height: 84,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  errorText: {
-    marginBottom: 14,
-    color: '#B42318',
+  profileAvatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 28,
+    backgroundColor: '#E4E7EC',
+  },
+  profileAvatarAction: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    backgroundColor: '#0694EA',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  profileHeroCopy: {
+    flex: 1,
+  },
+  profileLabel: {
+    color: '#0694EA',
+    fontFamily: SETTINGS_PANEL_FONTS.semiBold,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  profileHeroName: {
+    marginTop: 4,
+    color: '#101828',
+    fontFamily: SETTINGS_PANEL_FONTS.extraBold,
+    fontSize: 20,
+    lineHeight: 26,
+  },
+  profileHeroEmail: {
+    marginTop: 4,
+    color: '#667085',
+    fontFamily: SETTINGS_PANEL_FONTS.regular,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  profileCardHint: {
+    color: '#667085',
+    fontFamily: SETTINGS_PANEL_FONTS.regular,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  profileStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  profileStatusSuccess: {
+    backgroundColor: '#ECFDF3',
+  },
+  profileStatusInfo: {
+    backgroundColor: '#EFF8FF',
+  },
+  profileStatusError: {
+    backgroundColor: '#FEF3F2',
+  },
+  profileStatusText: {
+    flex: 1,
     fontFamily: SETTINGS_PANEL_FONTS.semiBold,
     fontSize: 13,
     lineHeight: 18,
   },
-  emptyCard: {
-    borderRadius: 20,
+  profileStatusTextSuccess: {
+    color: '#067647',
+  },
+  profileStatusTextInfo: {
+    color: '#175CD3',
+  },
+  profileStatusTextError: {
+    color: '#B42318',
+  },
+  profileActionCard: {
+    borderRadius: 22,
     backgroundColor: '#FFFFFF',
     padding: 18,
     shadowColor: '#101828',
@@ -512,88 +690,65 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 2,
+    gap: 12,
   },
-  emptyTitle: {
+  profileActionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  profileActionIconWrap: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#F0F9FF',
+  },
+  profileActionCopy: {
+    flex: 1,
+  },
+  profileActionTitle: {
     color: '#101828',
     fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 15,
   },
-  emptySubtitle: {
-    marginTop: 6,
-    color: '#667085',
-    fontFamily: SETTINGS_PANEL_FONTS.regular,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  deviceCard: {
-    marginBottom: 14,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#101828',
-    shadowOpacity: 0.05,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 2,
-  },
-  deviceCardActive: {
-    borderWidth: 1,
-    borderColor: '#9BDAF8',
-  },
-  deviceIconWrap: {
-    width: 28,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  deviceContent: {
-    flex: 1,
-    paddingHorizontal: 10,
-  },
-  deviceName: {
-    color: '#111827',
-    fontFamily: SETTINGS_PANEL_FONTS.bold,
-    fontSize: 17,
-    lineHeight: 23,
-  },
-  statusRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  deviceProtocol: {
+  profileActionDescription: {
     marginTop: 4,
     color: '#667085',
-    fontFamily: SETTINGS_PANEL_FONTS.semiBold,
-    fontSize: 12,
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-  },
-  statusDotOnline: {
-    backgroundColor: '#12B76A',
-  },
-  statusDotOffline: {
-    backgroundColor: '#98A2B3',
-  },
-  statusText: {
-    fontFamily: SETTINGS_PANEL_FONTS.semiBold,
+    fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 13,
+    lineHeight: 18,
   },
-  statusTextOnline: {
-    color: '#12B76A',
+  profileInput: {
+    minHeight: 50,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 14,
+    color: '#101828',
+    fontFamily: SETTINGS_PANEL_FONTS.regular,
+    fontSize: 14,
   },
-  statusTextOffline: {
-    color: '#667085',
+  profileActionButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: '#0694EA',
+    paddingHorizontal: 16,
   },
-  streamSection: {
-    marginTop: 10,
-    gap: 12,
+  profileActionDisabled: {
+    opacity: 0.65,
+  },
+  profileActionButtonText: {
+    color: '#FFFFFF',
+    fontFamily: SETTINGS_PANEL_FONTS.bold,
+    fontSize: 14,
+  },
+  pressed: {
+    opacity: 0.78,
   },
   accountSection: {
     marginTop: 24,
@@ -617,19 +772,22 @@ const styles = StyleSheet.create({
     fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 14,
   },
-  streamTitle: {
-    color: '#101828',
+  deleteAccountButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#FDA29B',
+    backgroundColor: '#FFF5F5',
+    paddingHorizontal: 16,
+  },
+  deleteAccountButtonDisabled: {
+    opacity: 0.7,
+  },
+  deleteAccountButtonText: {
+    color: '#B42318',
     fontFamily: SETTINGS_PANEL_FONTS.bold,
-    fontSize: 16,
-  },
-  videoCard: {
-    overflow: 'hidden',
-    borderRadius: 20,
-    backgroundColor: '#09131F',
-    height: 260,
-  },
-  video: {
-    width: '100%',
-    height: '100%',
+    fontSize: 14,
   },
 });
