@@ -54,12 +54,13 @@ class ClipExporter:
         destination_dir.mkdir(parents=True, exist_ok=True)
         output_path = destination_dir / f"{prefix}_{uuid.uuid4().hex}.mp4"
 
+        playback_fps = self._playback_fps(frames, fallback_fps=fps)
         first_frame = frames[0].frame
         height, width = first_frame.shape[:2]
         writer = cv2.VideoWriter(
             str(output_path),
             cv2.VideoWriter_fourcc(*"mp4v"),
-            fps,
+            playback_fps,
             (width, height),
         )
         if not writer.isOpened():
@@ -80,10 +81,20 @@ class ClipExporter:
         if written_frames == 0 or not output_path.exists():
             return None
 
-        duration_seconds = written_frames / fps
+        duration_seconds = written_frames / playback_fps
         return ClipExportResult(
             path=output_path,
             frame_count=written_frames,
             duration_seconds=duration_seconds,
-            fps=fps,
+            fps=playback_fps,
         )
+
+    @staticmethod
+    def _playback_fps(frames: list[BufferedFrame], *, fallback_fps: float) -> float:
+        """Keep the exported MP4 duration aligned with the captured timeline."""
+        if len(frames) < 2:
+            return fallback_fps
+        elapsed = frames[-1].timestamp - frames[0].timestamp
+        if elapsed <= 0:
+            return fallback_fps
+        return len(frames) / elapsed
