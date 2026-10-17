@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import { logoutOneSignalUser } from "./onesignal";
 
 const TOKEN_KEY = "vard_access_token";
 
@@ -37,8 +38,10 @@ export async function clearSession() {
 
   if (webStorage) {
     webStorage.removeItem(TOKEN_KEY);
+    await logoutOneSignalUser();
     return;
   }
 
   await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await logoutOneSignalUser();
 }

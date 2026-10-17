@@ -111,7 +111,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    initializeOneSignal();
+    void initializeOneSignal();
 
     const timeout = setTimeout(() => {
       setIsSplashVisible(false);

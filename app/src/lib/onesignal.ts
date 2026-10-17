@@ -1,11 +1,22 @@
-import { NativeModules, Platform, TurboModuleRegistry } from 'react-native';
+import { Alert, NativeModules, Platform, TurboModuleRegistry } from 'react-native';
 
 let isInitialized = false;
+let initializationPromise: Promise<void> | null = null;
+let pushSubscriptionObserverRegistered = false;
+let verificationDialogShown = false;
 
 const SUBSCRIPTION_RETRY_COUNT = 8;
 const SUBSCRIPTION_RETRY_DELAY_MS = 1000;
+const VERIFICATION_DIALOG_TITLE = 'Your OneSignal SDK integration is complete!';
+const VERIFICATION_DIALOG_MESSAGE =
+  'You can now send Push Notifications & In-App Messages through OneSignal. Tap below to enable push notifications.';
 
-async function loadOneSignal() {
+type OneSignalModule = typeof import('react-native-onesignal');
+type PushSubscriptionChange = import('react-native-onesignal').PushSubscriptionChangedState;
+// This strong reference keeps the observer alive for the entire app lifetime.
+let pushSubscriptionObserver: ((change: PushSubscriptionChange) => void) | null = null;
+
+async function loadOneSignal(): Promise<OneSignalModule | null> {
   if (Platform.OS === 'web') {
     return null;
   }
@@ -24,7 +35,62 @@ async function loadOneSignal() {
   }
 }
 
-export async function initializeOneSignal() {
+function hasServerAssignedSubscriptionId(subscriptionId: string | null | undefined) {
+  return Boolean(subscriptionId?.trim() && !subscriptionId.startsWith('local-'));
+}
+
+function showVerificationDialog(oneSignalModule: OneSignalModule) {
+  if (verificationDialogShown) {
+    return;
+  }
+
+  verificationDialogShown = true;
+  Alert.alert(VERIFICATION_DIALOG_TITLE, VERIFICATION_DIALOG_MESSAGE, [
+    {
+      text: 'Got it',
+      onPress: () => {
+        void oneSignalModule.OneSignal.Notifications.requestPermission(true);
+      },
+    },
+  ]);
+}
+
+function handlePushSubscriptionChange(
+  oneSignalModule: OneSignalModule,
+  change: PushSubscriptionChange,
+) {
+  if (hasServerAssignedSubscriptionId(change.current.id)) {
+    showVerificationDialog(oneSignalModule);
+  }
+}
+
+async function evaluateCurrentPushSubscription(oneSignalModule: OneSignalModule) {
+  const subscriptionId = await oneSignalModule.OneSignal.User.pushSubscription.getIdAsync();
+  if (hasServerAssignedSubscriptionId(subscriptionId)) {
+    showVerificationDialog(oneSignalModule);
+  }
+}
+
+function registerPushSubscriptionObserver(oneSignalModule: OneSignalModule) {
+  if (pushSubscriptionObserverRegistered) {
+    return;
+  }
+
+  pushSubscriptionObserver = (change) => handlePushSubscriptionChange(oneSignalModule, change);
+  oneSignalModule.OneSignal.User.pushSubscription.addEventListener('change', pushSubscriptionObserver);
+  pushSubscriptionObserverRegistered = true;
+}
+
+export function initializeOneSignal() {
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+
+  initializationPromise = initializeOneSignalSdk();
+  return initializationPromise;
+}
+
+async function initializeOneSignalSdk() {
   const appId = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID?.trim();
   if (!appId || isInitialized) {
     return;
@@ -36,8 +102,13 @@ export async function initializeOneSignal() {
   }
 
   oneSignalModule.OneSignal.initialize(appId);
-  await oneSignalModule.OneSignal.Notifications.requestPermission(true);
+  registerPushSubscriptionObserver(oneSignalModule);
   isInitialized = true;
+  try {
+    await evaluateCurrentPushSubscription(oneSignalModule);
+  } catch (error) {
+    console.warn('Unable to evaluate the current OneSignal push subscription.', error);
+  }
 }
 
 function wait(milliseconds: number) {
@@ -46,14 +117,14 @@ function wait(milliseconds: number) {
   });
 }
 
-async function waitForOneSignalSubscriptionId(oneSignalModule: Awaited<ReturnType<typeof loadOneSignal>>) {
+async function waitForOneSignalSubscriptionId(oneSignalModule: OneSignalModule | null) {
   if (!oneSignalModule) {
     return null;
   }
 
   for (let attempt = 0; attempt < SUBSCRIPTION_RETRY_COUNT; attempt += 1) {
     const subscriptionId = await oneSignalModule.OneSignal.User.pushSubscription.getIdAsync();
-    if (subscriptionId) {
+    if (hasServerAssignedSubscriptionId(subscriptionId)) {
       return subscriptionId;
     }
 
@@ -86,4 +157,39 @@ export async function identifyOneSignalUser(userId: string) {
 
   oneSignalModule.OneSignal.login(userId);
   return waitForOneSignalSubscriptionId(oneSignalModule);
+}
+
+export async function logoutOneSignalUser() {
+  await initializeOneSignal();
+  if (!isInitialized) {
+    return;
+  }
+
+  const oneSignalModule = await loadOneSignal();
+  oneSignalModule?.OneSignal.logout();
+}
+
+export async function addOneSignalEmail(email: string) {
+  const oneSignalModule = await getInitializedOneSignalModule();
+  oneSignalModule?.OneSignal.User.addEmail(email);
+}
+
+export async function addOneSignalSms(phoneNumber: string) {
+  const oneSignalModule = await getInitializedOneSignalModule();
+  oneSignalModule?.OneSignal.User.addSms(phoneNumber);
+}
+
+export async function addOneSignalTag(key: string, value: string) {
+  const oneSignalModule = await getInitializedOneSignalModule();
+  oneSignalModule?.OneSignal.User.addTag(key, value);
+}
+
+export async function setOneSignalLogLevel(level: import('react-native-onesignal').LogLevel) {
+  const oneSignalModule = await getInitializedOneSignalModule();
+  oneSignalModule?.OneSignal.Debug.setLogLevel(level);
+}
+
+async function getInitializedOneSignalModule() {
+  await initializeOneSignal();
+  return isInitialized ? loadOneSignal() : null;
 }
