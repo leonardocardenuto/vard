@@ -2,8 +2,8 @@
 
 Monorepo com:
 
-- app mobile em Expo/React Native em [`/Users/leonardocardenuto/projects/vard/app`](/Users/leonardocardenuto/projects/vard/app)
-- API em FastAPI em [`/Users/leonardocardenuto/projects/vard/api`](/Users/leonardocardenuto/projects/vard/api)
+- app mobile em Expo/React Native 
+- API em FastAPI
 
 ## Requisitos
 
