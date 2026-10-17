@@ -58,7 +58,7 @@ npx expo run:android
 Crie e ative um ambiente virtual:
 
 ```bash
-cd /Users/leonardocardenuto/projects/vard
+cd vard
 python3 -m venv .venv
 source .venv/bin/activate
 ```
