@@ -18,7 +18,7 @@ Monorepo com:
 Instale as dependências do app:
 
 ```bash
-cd /Users/leonardocardenuto/projects/vard/app
+cd vard/app
 npm install
 ```
 
