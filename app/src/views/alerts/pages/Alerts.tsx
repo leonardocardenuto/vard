@@ -152,10 +152,10 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            colors={["#019BDE"]}
+            colors={["#00B9BB"]}
             onRefresh={handleRefresh}
             refreshing={isRefreshing}
-            tintColor="#019BDE"
+            tintColor="#00B9BB"
           />
         }
         showsVerticalScrollIndicator={false}
@@ -171,7 +171,7 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
           <Text style={styles.todayText}>Hoje</Text>
         </View>
 
-        {isLoading ? <ActivityIndicator color="#019BDE" /> : null}
+        {isLoading ? <ActivityIndicator color="#00B9BB" /> : null}
         {errorMessage ? (
           <Text style={styles.errorText}>{errorMessage}</Text>
         ) : null}
@@ -291,10 +291,10 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
         contentContainerStyle={styles.detailsContent}
         refreshControl={
           <RefreshControl
-            colors={["#019BDE"]}
+            colors={["#00B9BB"]}
             onRefresh={handleRefresh}
             refreshing={isRefreshing}
-            tintColor="#019BDE"
+            tintColor="#00B9BB"
           />
         }
         showsVerticalScrollIndicator={false}
@@ -433,10 +433,10 @@ function renderAlertIcon(kind: AlertItem["kind"], size: number) {
   }
 
   if (kind === "fight") {
-    return <Ionicons color="#007D88" name="alert-circle-outline" size={size} />;
+    return <Ionicons color="#00B9BB" name="alert-circle-outline" size={size} />;
   }
 
-  return <Ionicons color="#019BDE" name="notifications-outline" size={size} />;
+  return <Ionicons color="#00B9BB" name="notifications-outline" size={size} />;
 }
 
 function notificationToAlert(

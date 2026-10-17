@@ -1,3 +1,4 @@
+import { VARD_COLORS } from '../../../theme/vardTheme';
 import { StyleSheet } from "react-native";
 
 export const HOME_FONTS = {
@@ -9,7 +10,7 @@ export const HOME_FONTS = {
 } as const;
 
 export const REAL_TIME_TITLE_GRADIENT_ID = "realTimeMonitoringTitleGradient";
-export const STATUS_CARD_GRADIENT_COLORS = ["#03CDF4", "#019BDE", "#01EBD0"] as const;
+export const STATUS_CARD_GRADIENT_COLORS = ["#00B9BB", "#00B9BB", "#003984"] as const;
 export const STATUS_CARD_GRADIENT_LOCATIONS = [0.08, 0.38, 1] as const;
 
 export const styles = StyleSheet.create({
@@ -102,10 +103,10 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: "#E0F2FE",
+    backgroundColor: VARD_COLORS.primarySoft,
   },
   retryText: {
-    color: "#0369A1",
+    color: VARD_COLORS.secondary,
     fontFamily: HOME_FONTS.semiBold,
   },
   monitoringLabel: {
@@ -256,6 +257,6 @@ export const styles = StyleSheet.create({
     padding: 12,
     fontFamily: HOME_FONTS.semiBold,
     fontSize: 18,
-    color: "#03CDF4",
+    color: "#00B9BB",
   },
 });

@@ -2,13 +2,14 @@
   "expo": {
     "name": "Vard",
     "slug": "vard",
+    "scheme": "vard",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash-icon.png",
-      "backgroundColor": "#03CDF4"
+      "backgroundColor": "#00B9BB"
     },
     "ios": {
       "supportsTablet": true,

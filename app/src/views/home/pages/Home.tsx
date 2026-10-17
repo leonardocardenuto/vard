@@ -1,4 +1,5 @@
-﻿import { RouteProp, useFocusEffect, useRoute } from "@react-navigation/native";
+import { VARD_COLORS } from '../../../theme/vardTheme';
+import { RouteProp, useFocusEffect, useRoute } from "@react-navigation/native";
 import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
@@ -37,7 +38,7 @@ type HomeAlert = NotificationResponse & {
   workspaceName: string;
 };
 
-const STATUS_CARD_GRADIENT_COLORS = ["#03CDF4", "#019BDE", "#01EBD0"] as const;
+const STATUS_CARD_GRADIENT_COLORS = ["#00B9BB", "#00B9BB", "#003984"] as const;
 const STATUS_CARD_GRADIENT_LOCATIONS = [0.08, 0.38, 1] as const;
 
 const openDialer = (phoneNumber: string) => {
@@ -55,7 +56,7 @@ export function Home() {
   const hasAlerts = alerts.length > 0;
   const visibleAlerts = alerts.slice(0, 3);
   const requestVersion = useRef(0);
-  const statusColor = alertsError ? "#64748B" : hasAlerts ? "#C2410C" : "#00ACC8";
+  const statusColor = alertsError ? "#64748B" : hasAlerts ? "#C2410C" : VARD_COLORS.primary;
   const statusTitle = isLoadingAlerts ? "CONSULTANDO" : alertsError ? "SEM ATUALIZAÇÃO" : hasAlerts ? "ATENÇÃO" : "TUDO BEM!";
   const statusText = isLoadingAlerts
     ? "Verificando os alertas do seu ambiente."
@@ -151,10 +152,10 @@ export function Home() {
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            colors={["#019BDE"]}
+            colors={["#00B9BB"]}
             onRefresh={handleRefresh}
             refreshing={isRefreshingAlerts}
-            tintColor="#019BDE"
+            tintColor="#00B9BB"
           />
         }
         showsVerticalScrollIndicator={false}
@@ -164,7 +165,7 @@ export function Home() {
           <View style={styles.alertsContainer}>
             {isLoadingAlerts ? (
               <View style={styles.noAlerts} accessibilityRole="progressbar" accessibilityLabel="Consultando alertas">
-                <ActivityIndicator size="large" color="#019BDE" />
+                <ActivityIndicator size="large" color="#00B9BB" />
                 <Text style={[styles.noAlertsText, styles.feedbackText]}>Consultando alertas…</Text>
               </View>
             ) : alertsError ? (
@@ -355,7 +356,7 @@ function renderAlertIcon(notification: NotificationResponse) {
   if (/fire|incêndio|incendio|fogo/i.test(`${notification.notification_type} ${notification.title}`)) {
     return <FontAwesome6 color="#EA580C" name="fire-flame-curved" size={25} />;
   }
-  return <Feather color="#019BDE" name="bell" size={26} />;
+  return <Feather color="#00B9BB" name="bell" size={26} />;
 }
 
 function notificationToAlert(notification: HomeAlert): AlertItem {

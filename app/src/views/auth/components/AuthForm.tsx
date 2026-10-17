@@ -1,3 +1,4 @@
+import { VARD_COLORS } from '../../../theme/vardTheme';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AuthField } from './AuthField';
@@ -102,7 +103,7 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   inlineActionText: {
-    color: '#2E86BD',
+    color: VARD_COLORS.primary,
     fontFamily: 'Poppins-Bold',
     fontSize: 13,
   },

@@ -1,3 +1,4 @@
+import { VARD_COLORS } from '../../../theme/vardTheme';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OrbitDotLoader } from '../../../components/OrbitDotLoader';
@@ -51,13 +52,13 @@ const styles = StyleSheet.create({
   primaryButton: {
     minHeight: 52,
     borderRadius: 20,
-    backgroundColor: '#1979B6',
+    backgroundColor: VARD_COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
     marginTop: 16,
-    shadowColor: '#1C6EA4',
+    shadowColor: VARD_COLORS.secondary,
     shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.24,
     shadowRadius: 26,

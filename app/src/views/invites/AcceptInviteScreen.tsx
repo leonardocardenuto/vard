@@ -65,7 +65,7 @@ export function AcceptInviteScreen({ navigation, route }: Props) {
   if (phase === 'idle' || phase === 'loading') {
     return (
       <View style={styles.container}>
-        <ActivityIndicator color="#019BDE" size="large" />
+        <ActivityIndicator color="#00B9BB" size="large" />
         <Text style={styles.body}>Aceitando convite...</Text>
       </View>
     );
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   primaryButton: {
-    backgroundColor: '#019BDE',
+    backgroundColor: '#00B9BB',
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 32,

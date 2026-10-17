@@ -20,6 +20,7 @@ import { Header } from './src/components/Header';
 import { initializeOneSignal } from './src/lib/onesignal';
 import { Alerts } from './src/views/alerts/pages/Alerts';
 import { AcceptInviteScreen } from './src/views/invites/AcceptInviteScreen';
+import { VARD_NAVIGATION_THEME, VARD_PAPER_THEME } from './src/theme/vardTheme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<AppTabParamList>();
@@ -131,8 +132,8 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <PaperProvider>
-        <NavigationContainer>
+      <PaperProvider theme={VARD_PAPER_THEME}>
+        <NavigationContainer theme={VARD_NAVIGATION_THEME}>
           <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
             <Stack.Screen name="Auth" component={AuthScreen} />
             <Stack.Screen name="AppTabs" component={AppTabs} />

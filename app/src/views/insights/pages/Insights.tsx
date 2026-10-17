@@ -1509,7 +1509,7 @@ function buildPdfReportHtml({
         <meta charset="utf-8" />
         <style>
           body { color: #171C1F; font-family: Arial, sans-serif; margin: 32px; }
-          h1 { color: #019BDE; font-size: 28px; margin: 0 0 6px; }
+          h1 { color: #00B9BB; font-size: 28px; margin: 0 0 6px; }
           h2 { border-bottom: 1px solid #D8E6F1; color: #171C1F; font-size: 18px; margin: 28px 0 10px; padding-bottom: 6px; }
           .meta { color: #667085; font-size: 12px; margin-bottom: 18px; }
           .grid { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); margin: 18px 0; }

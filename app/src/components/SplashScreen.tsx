@@ -3,12 +3,12 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 
 import VardLogo from '../../assets/vard_logo.svg';
+import { VARD_GRADIENT } from '../theme/vardTheme';
 
 export function SplashScreen() {
   return (
     <LinearGradient
-      colors={['#03CDF4', '#019BDE', '#01EBD0']}
-      locations={[0.01, 0.48, 1]}
+      colors={VARD_GRADIENT}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.splashContainer}

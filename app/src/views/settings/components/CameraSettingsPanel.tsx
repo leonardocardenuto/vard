@@ -1,3 +1,4 @@
+import { VARD_COLORS } from '../../../theme/vardTheme';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useState } from 'react';
@@ -283,7 +284,7 @@ export function CameraSettingsPanel({
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Seu perfil</Text>
           <View style={styles.sectionPill}>
-            <Feather color="#0694EA" name="edit-3" size={14} />
+            <Feather color={VARD_COLORS.primary} name="edit-3" size={14} />
             <Text style={styles.sectionPillText}>Prévia local</Text>
           </View>
         </View>
@@ -302,7 +303,7 @@ export function CameraSettingsPanel({
                   (isSavingProfile || isPickingAvatar || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
                 ]}
               >
-                {isPickingAvatar || isSavingProfile ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Feather color="#FFFFFF" name="camera" size={16} />}
+                {isPickingAvatar || isSavingProfile ? <ActivityIndicator color={VARD_COLORS.surface} size="small" /> : <Feather color={VARD_COLORS.surface} name="camera" size={16} />}
               </Pressable>
             </View>
 
@@ -331,7 +332,7 @@ export function CameraSettingsPanel({
               ]}
             >
               <Feather
-                color={profileStatus.tone === 'error' ? '#B42318' : profileStatus.tone === 'info' ? '#175CD3' : '#067647'}
+                color={profileStatus.tone === 'error' ? '#B42318' : profileStatus.tone === 'info' ? VARD_COLORS.secondary : '#067647'}
                 name={profileStatus.tone === 'error' ? 'alert-triangle' : profileStatus.tone === 'info' ? 'info' : 'check-circle'}
                 size={16}
               />
@@ -345,7 +346,7 @@ export function CameraSettingsPanel({
         <View style={styles.profileActionCard}>
           <View style={styles.profileActionHeader}>
             <View style={styles.profileActionIconWrap}>
-              <Feather color="#0694EA" name="image" size={18} />
+              <Feather color={VARD_COLORS.primary} name="image" size={18} />
             </View>
             <View style={styles.profileActionCopy}>
               <Text style={styles.profileActionTitle}>Foto de perfil</Text>
@@ -370,7 +371,7 @@ export function CameraSettingsPanel({
         <View style={styles.profileActionCard}>
           <View style={styles.profileActionHeader}>
             <View style={styles.profileActionIconWrap}>
-              <Feather color="#0694EA" name="phone" size={18} />
+              <Feather color={VARD_COLORS.primary} name="phone" size={18} />
             </View>
             <View style={styles.profileActionCopy}>
               <Text style={styles.profileActionTitle}>Telefone</Text>
@@ -408,7 +409,7 @@ export function CameraSettingsPanel({
         <View style={styles.profileActionCard}>
           <View style={styles.profileActionHeader}>
             <View style={styles.profileActionIconWrap}>
-                <Feather color="#0694EA" name="user" size={18} />
+                <Feather color={VARD_COLORS.primary} name="user" size={18} />
             </View>
             <View style={styles.profileActionCopy}>
                 <Text style={styles.profileActionTitle}>Nome de usuário</Text>
@@ -442,7 +443,7 @@ export function CameraSettingsPanel({
         <View style={styles.profileActionCard}>
           <View style={styles.profileActionHeader}>
             <View style={styles.profileActionIconWrap}>
-              <Feather color="#0694EA" name="lock" size={18} />
+              <Feather color={VARD_COLORS.primary} name="lock" size={18} />
             </View>
             <View style={styles.profileActionCopy}>
               <Text style={styles.profileActionTitle}>Senha</Text>
@@ -520,21 +521,21 @@ const styles = StyleSheet.create({
     height: 56,
   },
   title: {
-    color: '#0694EA',
+    color: VARD_COLORS.primary,
     fontFamily: SETTINGS_PANEL_FONTS.extraBold,
     fontSize: 22,
     lineHeight: 28,
   },
   subtitle: {
     marginTop: 4,
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 14,
     lineHeight: 20,
   },
   workspaceName: {
     marginTop: 10,
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 13,
   },
@@ -549,7 +550,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   centerStateText: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 14,
   },
@@ -559,7 +560,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 18,
     lineHeight: 24,
@@ -569,7 +570,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderRadius: 999,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: VARD_COLORS.primarySoft,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
@@ -580,9 +581,9 @@ const styles = StyleSheet.create({
   },
   profileCard: {
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
     padding: 18,
-    shadowColor: '#101828',
+    shadowColor: VARD_COLORS.text,
     shadowOpacity: 0.06,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
@@ -615,15 +616,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 999,
-    backgroundColor: '#0694EA',
+    backgroundColor: VARD_COLORS.primary,
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: VARD_COLORS.surface,
   },
   profileHeroCopy: {
     flex: 1,
   },
   profileLabel: {
-    color: '#0694EA',
+    color: VARD_COLORS.primary,
     fontFamily: SETTINGS_PANEL_FONTS.semiBold,
     fontSize: 12,
     textTransform: 'uppercase',
@@ -631,20 +632,20 @@ const styles = StyleSheet.create({
   },
   profileHeroName: {
     marginTop: 4,
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: SETTINGS_PANEL_FONTS.extraBold,
     fontSize: 20,
     lineHeight: 26,
   },
   profileHeroEmail: {
     marginTop: 4,
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 13,
     lineHeight: 18,
   },
   profileCardHint: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 13,
     lineHeight: 19,
@@ -661,7 +662,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFDF3',
   },
   profileStatusInfo: {
-    backgroundColor: '#EFF8FF',
+    backgroundColor: VARD_COLORS.secondarySoft,
   },
   profileStatusError: {
     backgroundColor: '#FEF3F2',
@@ -676,16 +677,16 @@ const styles = StyleSheet.create({
     color: '#067647',
   },
   profileStatusTextInfo: {
-    color: '#175CD3',
+    color: VARD_COLORS.secondary,
   },
   profileStatusTextError: {
     color: '#B42318',
   },
   profileActionCard: {
     borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
     padding: 18,
-    shadowColor: '#101828',
+    shadowColor: VARD_COLORS.text,
     shadowOpacity: 0.05,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
@@ -703,19 +704,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: VARD_COLORS.primarySoft,
   },
   profileActionCopy: {
     flex: 1,
   },
   profileActionTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 15,
   },
   profileActionDescription: {
     marginTop: 4,
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 13,
     lineHeight: 18,
@@ -727,7 +728,7 @@ const styles = StyleSheet.create({
     borderColor: '#D0D5DD',
     backgroundColor: '#F9FAFB',
     paddingHorizontal: 14,
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 14,
   },
@@ -736,14 +737,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
-    backgroundColor: '#0694EA',
+    backgroundColor: VARD_COLORS.primary,
     paddingHorizontal: 16,
   },
   profileActionDisabled: {
     opacity: 0.65,
   },
   profileActionButtonText: {
-    color: '#FFFFFF',
+    color: VARD_COLORS.surface,
     fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 14,
   },
@@ -765,7 +766,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#FDA29B',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
   },
   logoutButtonText: {
     color: '#B42318',

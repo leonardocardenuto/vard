@@ -1,3 +1,4 @@
+import { VARD_COLORS } from '../../../theme/vardTheme';
 import { StyleSheet } from 'react-native';
 
 const LIVE_VIEW_FONTS = {
@@ -32,14 +33,14 @@ export const styles = StyleSheet.create({
     width: 32,
   },
   headerEyebrow: {
-    color: '#019BDE',
+    color: VARD_COLORS.primary,
     fontFamily: LIVE_VIEW_FONTS.regular,
     fontSize: 10,
     letterSpacing: 1.2,
     marginBottom: 3,
   },
   headerTitle: {
-    color: '#111827',
+    color: VARD_COLORS.text,
     fontFamily: LIVE_VIEW_FONTS.extraBold,
     fontSize: 23,
     textAlign: 'center',
@@ -85,8 +86,8 @@ export const styles = StyleSheet.create({
   },
   historySection: {
     marginTop: 28,
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E7EEF5',
+    backgroundColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.border,
     borderRadius: 18,
     borderWidth: 1,
     padding: 16,
@@ -98,19 +99,19 @@ export const styles = StyleSheet.create({
     marginBottom: 14,
   },
   historyTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: LIVE_VIEW_FONTS.extraBold,
     fontSize: 16,
   },
   historySubtitle: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: LIVE_VIEW_FONTS.regular,
     fontSize: 11,
     marginTop: 3,
   },
   historyCount: {
     alignItems: 'center',
-    backgroundColor: '#E4F5FC',
+    backgroundColor: VARD_COLORS.primarySoft,
     borderRadius: 999,
     height: 28,
     justifyContent: 'center',
@@ -118,7 +119,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   historyCountText: {
-    color: '#018AC7',
+    color: VARD_COLORS.primary,
     fontFamily: LIVE_VIEW_FONTS.extraBold,
     fontSize: 12,
   },
@@ -126,7 +127,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   emptyHistory: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: LIVE_VIEW_FONTS.regular,
     fontSize: 12,
     lineHeight: 18,
@@ -163,7 +164,7 @@ export const styles = StyleSheet.create({
     fontSize: 12,
   },
   historyItemDate: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: LIVE_VIEW_FONTS.regular,
     fontSize: 11,
     marginTop: 2,
@@ -188,7 +189,7 @@ export const styles = StyleSheet.create({
     padding: 20,
   },
   clipModalCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
     borderRadius: 20,
     overflow: 'hidden',
     padding: 16,
@@ -201,13 +202,13 @@ export const styles = StyleSheet.create({
     marginBottom: 14,
   },
   clipModalEyebrow: {
-    color: '#019BDE',
+    color: VARD_COLORS.primary,
     fontFamily: LIVE_VIEW_FONTS.regular,
     fontSize: 10,
     letterSpacing: 1,
   },
   clipModalTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: LIVE_VIEW_FONTS.extraBold,
     fontSize: 18,
     marginTop: 2,

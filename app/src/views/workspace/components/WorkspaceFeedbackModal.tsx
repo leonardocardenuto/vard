@@ -1,3 +1,4 @@
+import { VARD_COLORS } from '../../../theme/vardTheme';
 import { Feather } from '@expo/vector-icons';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -14,7 +15,7 @@ type Props = {
 
 const toneConfig = {
   error: { background: '#FEE4E2', color: '#B42318', icon: 'x-circle' as const },
-  info: { background: '#EAF4FF', color: '#00326D', icon: 'info' as const },
+  info: { background: VARD_COLORS.secondarySoft, color: '#003984', icon: 'info' as const },
   success: { background: '#E7F8EF', color: '#067647', icon: 'check-circle' as const },
   warning: { background: '#FFF4E5', color: '#B54708', icon: 'alert-circle' as const },
 };
@@ -90,7 +91,7 @@ const styles = StyleSheet.create({
   },
   button: {
     alignItems: 'center',
-    backgroundColor: '#00326D',
+    backgroundColor: '#003984',
     borderRadius: 14,
     justifyContent: 'center',
     marginTop: 20,

@@ -237,10 +237,10 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            colors={['#019BDE']}
+            colors={['#00B9BB']}
             onRefresh={handleRefresh}
             refreshing={isRefreshing}
-            tintColor="#019BDE"
+            tintColor="#00B9BB"
           />
         }
         showsVerticalScrollIndicator={false}
@@ -262,7 +262,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
               onPress={() => setIsAcceptInviteOpen(true)}
               style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}
             >
-              <Feather color="#019BDE" name="key" size={21} />
+              <Feather color="#00B9BB" name="key" size={21} />
             </Pressable>
             <Pressable
               accessibilityLabel="Adicionar workspace"
@@ -279,7 +279,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
                 pressed && styles.pressed,
               ]}
             >
-              <Feather color="#019BDE" name="plus" size={40} />
+              <Feather color="#00B9BB" name="plus" size={40} />
             </Pressable>
           </View>
         </View>
@@ -290,13 +290,13 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
 
         {isLoading ? (
           <View style={styles.centerState}>
-            <ActivityIndicator color="#019BDE" />
+            <ActivityIndicator color="#00B9BB" />
             <Text style={styles.centerStateText}>Carregando workspaces...</Text>
           </View>
         ) : workspaces.length === 0 ? (
           <View style={styles.emptyCard}>
             <MaterialCommunityIcons
-              color="#019BDE"
+              color="#00B9BB"
               name="home-plus-outline"
               size={34}
             />
@@ -434,7 +434,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
               style={({ pressed }) => [styles.workspaceActionRow, pressed && styles.pressed]}
             >
               <View style={styles.workspaceActionIcon}>
-                <Feather color="#00326D" name="edit-3" size={20} />
+                <Feather color="#003984" name="edit-3" size={20} />
               </View>
               <View style={styles.workspaceActionCopy}>
                 <Text style={styles.workspaceActionTitle}>Editar espaço</Text>
@@ -692,16 +692,16 @@ function WorkspaceAvatarButton({ avatarUrl, onPress, onRemove, disabled, isPicki
         style={({ pressed }) => [styles.photoPreview, (pressed || disabled) && styles.pressed]}>
         {avatarUrl ? <Image source={{ uri: avatarUrl }} resizeMode="cover" style={styles.avatarImage} /> : (
           <View style={styles.photoPlaceholder}>
-            <View style={styles.photoIcon}><Feather color="#019BDE" name="image" size={24} /></View>
+            <View style={styles.photoIcon}><Feather color="#00B9BB" name="image" size={24} /></View>
             <Text style={styles.photoTitle}>Escolher foto</Text>
             <Text style={styles.avatarHintText}>Selecione uma imagem da galeria</Text>
           </View>
         )}
-        {isPicking ? <View style={styles.photoLoading}><ActivityIndicator color="#019BDE" /></View> : null}
+        {isPicking ? <View style={styles.photoLoading}><ActivityIndicator color="#00B9BB" /></View> : null}
       </Pressable>
       {avatarUrl ? <View style={styles.photoActions}>
         <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={styles.photoAction}>
-          <Feather name="image" size={18} color="#019BDE" /><Text style={styles.photoActionText}>Trocar foto</Text>
+          <Feather name="image" size={18} color="#00B9BB" /><Text style={styles.photoActionText}>Trocar foto</Text>
         </Pressable>
         <Pressable testID="workspace-photo-remove" accessibilityRole="button" disabled={disabled} onPress={onRemove} style={styles.photoAction}>
           <Feather name="trash-2" size={18} color="#B42318" /><Text style={styles.photoRemoveText}>Remover</Text>

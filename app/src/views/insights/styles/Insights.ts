@@ -1,9 +1,10 @@
 import { StyleSheet } from "react-native";
+import { VARD_COLORS } from '../../../theme/vardTheme';
 
 const INSIGHTS_COLORS = {
-  gradientStart: "#03CDF4",
-  gradientMiddle: "#019BDE",
-  gradientEnd: "#01EBD0",
+  gradientStart: VARD_COLORS.primary,
+  gradientMiddle: VARD_COLORS.secondary,
+  gradientEnd: VARD_COLORS.primary,
 } as const;
 
 const INSIGHTS_GRADIENT_COLORS = [
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   workspaceMenuItemSelected: {
-    backgroundColor: "#EDF9FD",
+    backgroundColor: VARD_COLORS.primarySoft,
   },
   workspaceMenuItemText: {
     color: "#404850",

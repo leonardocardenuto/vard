@@ -160,19 +160,9 @@ export function AuthScreen({ navigation, route }: Props) {
     persist = false,
   ) {
     const me = await getMe(accessToken);
-    if (passwordForRecovery) {
-      try {
-        // The camera history is decrypted locally. Wait until this device has
-        // restored its private key before opening the live camera screen.
-        await prepareFallHistoryKey(accessToken, me.id, passwordForRecovery);
-      } catch (error) {
-        console.warn('Não foi possível preparar a chave do histórico de quedas.', error);
-      }
-    }
     if (persist) {
       await saveToken(accessToken);
     }
-    await syncOneSignalSubscription(accessToken, me.id);
 
     const resolvedName = me.full_name?.trim() || me.email;
     const resolvedAvatarUrl = me.avatar_url || fallbackAvatarUrl || null;
@@ -196,6 +186,15 @@ export function AuthScreen({ navigation, route }: Props) {
           }
         : { index: 0, routes: [appTabsRoute] }
     );
+
+    // Provisioning and restoring the local history key may involve secure
+    // storage and key derivation. It must never hold the user at login.
+    if (passwordForRecovery) {
+      void prepareFallHistoryKey(accessToken, me.id, passwordForRecovery).catch((error) => {
+        console.warn('Não foi possível preparar a chave do histórico de quedas.', error);
+      });
+    }
+    void syncOneSignalSubscription(accessToken, me.id);
   }
 
   async function syncOneSignalSubscription(

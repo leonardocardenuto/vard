@@ -1,3 +1,4 @@
+import { VARD_COLORS } from '../../../theme/vardTheme';
 import { StyleSheet } from 'react-native';
 
 const WORKSPACE_DETAILS_FONTS = {
@@ -10,7 +11,7 @@ const WORKSPACE_DETAILS_FONTS = {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: VARD_COLORS.background,
   },
   content: {
     paddingHorizontal: 20,
@@ -24,8 +25,8 @@ const styles = StyleSheet.create({
   },
   backButton: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E7EEF5',
+    backgroundColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.border,
     borderRadius: 12,
     borderWidth: 1,
     height: 36,
@@ -38,7 +39,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   title: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 22,
     lineHeight: 28,
@@ -50,8 +51,8 @@ const styles = StyleSheet.create({
   },
   metricPill: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E7EEF5',
+    backgroundColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.border,
     borderRadius: 999,
     borderWidth: 1,
     flexDirection: 'row',
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
   },
   alertToggleRow: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
     borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -85,12 +86,12 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   alertToggleTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 13,
   },
   alertToggleSubtitle: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 11,
     lineHeight: 16,
@@ -104,12 +105,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   sectionTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 17,
   },
   sectionSubtitle: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
     lineHeight: 17,
@@ -117,14 +118,14 @@ const styles = StyleSheet.create({
     maxWidth: 250,
   },
   live: {
-    color: '#00A8CC',
+    color: VARD_COLORS.primary,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
   },
   sectionActionButton: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#D8E7EF',
+    backgroundColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.border,
     borderRadius: 12,
     borderWidth: 1,
     flexDirection: 'row',
@@ -133,13 +134,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   sectionActionText: {
-    color: '#00326D',
+    color: VARD_COLORS.secondary,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 12,
   },
   activityCard: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
     borderRadius: 12,
     flexDirection: 'row',
     marginBottom: 10,
@@ -165,8 +166,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   cameraRow: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E7EEF5',
+    backgroundColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.border,
     borderRadius: 14,
     borderWidth: 1,
     minHeight: 104,
@@ -181,7 +182,7 @@ const styles = StyleSheet.create({
   },
   cameraIconBox: {
     alignItems: 'center',
-    backgroundColor: '#F0F6FC',
+    backgroundColor: VARD_COLORS.primarySoft,
     borderRadius: 12,
     height: 40,
     justifyContent: 'center',
@@ -193,13 +194,13 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   cameraName: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 14,
     lineHeight: 20,
   },
   cameraMeta: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
     lineHeight: 17,
@@ -233,7 +234,7 @@ const styles = StyleSheet.create({
   },
   cameraInlineAction: {
     alignItems: 'center',
-    backgroundColor: '#F5F8FC',
+    backgroundColor: VARD_COLORS.background,
     borderRadius: 9,
     flexDirection: 'row',
     gap: 5,
@@ -241,7 +242,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
   },
   cameraInlineActionText: {
-    color: '#00326D',
+    color: VARD_COLORS.secondary,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 10,
   },
@@ -252,15 +253,15 @@ const styles = StyleSheet.create({
     color: '#B42318',
   },
   occurrencesCameraName: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
     marginTop: 1,
   },
   occurrencesState: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E7EEF5',
+    backgroundColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.border,
     borderRadius: 16,
     borderWidth: 1,
     marginTop: 20,
@@ -268,7 +269,7 @@ const styles = StyleSheet.create({
     paddingVertical: 36,
   },
   occurrencesStateText: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 13,
     lineHeight: 20,
@@ -279,7 +280,7 @@ const styles = StyleSheet.create({
     color: '#B42318',
   },
   occurrencesEmptyTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 17,
     marginTop: 12,
@@ -290,16 +291,16 @@ const styles = StyleSheet.create({
   },
   occurrenceCard: {
     alignItems: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E7EEF5',
+    backgroundColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.border,
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
     padding: 14,
   },
   occurrenceCardPressed: {
-    backgroundColor: '#F8FBFF',
-    borderColor: '#B8D4E8',
+    backgroundColor: VARD_COLORS.background,
+    borderColor: VARD_COLORS.border,
   },
   occurrenceIcon: {
     alignItems: 'center',
@@ -314,7 +315,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   occurrenceTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 14,
   },
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   occurrenceClipActionText: {
-    color: '#00326D',
+    color: VARD_COLORS.secondary,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 11,
   },
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   occurrenceClipModal: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
     borderRadius: 20,
     overflow: 'hidden',
     padding: 16,
@@ -378,13 +379,13 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   occurrenceClipEyebrow: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 10,
     letterSpacing: 1,
   },
   occurrenceClipTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 18,
     marginTop: 2,
@@ -403,8 +404,8 @@ const styles = StyleSheet.create({
     height: 220,
   },
   cameraCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E7EEF5',
+    backgroundColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.border,
     borderRadius: 14,
     borderWidth: 1,
     overflow: 'hidden',
@@ -432,7 +433,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFDF3',
   },
   cameraStatusText: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 11,
   },
@@ -440,7 +441,7 @@ const styles = StyleSheet.create({
     color: '#027A48',
   },
   cameraProtocolText: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
     marginTop: 8,
@@ -453,7 +454,7 @@ const styles = StyleSheet.create({
   },
   cameraActionButton: {
     alignItems: 'center',
-    backgroundColor: '#00326D',
+    backgroundColor: VARD_COLORS.secondary,
     borderRadius: 12,
     flexDirection: 'row',
     gap: 6,
@@ -462,7 +463,7 @@ const styles = StyleSheet.create({
   },
   cameraSecondaryButton: {
     alignItems: 'center',
-    backgroundColor: '#F0F6FC',
+    backgroundColor: VARD_COLORS.primarySoft,
     borderRadius: 12,
     flexDirection: 'row',
     gap: 6,
@@ -470,17 +471,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   cameraActionPrimaryText: {
-    color: '#FFFFFF',
+    color: VARD_COLORS.surface,
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 12,
   },
   cameraActionSecondaryText: {
-    color: '#00326D',
+    color: VARD_COLORS.secondary,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 12,
   },
   roomCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
     borderRadius: 12,
     marginBottom: 12,
     overflow: 'hidden',
@@ -495,20 +496,20 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   roomName: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 14,
   },
   roomMeta: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
     marginTop: 2,
   },
   emptyCameraState: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E7EEF5',
+    backgroundColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.border,
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
@@ -522,7 +523,7 @@ const styles = StyleSheet.create({
   },
   emptyCameraButton: {
     alignItems: 'center',
-    backgroundColor: '#00326D',
+    backgroundColor: VARD_COLORS.secondary,
     borderRadius: 12,
     height: 40,
     justifyContent: 'center',
@@ -540,8 +541,8 @@ const styles = StyleSheet.create({
   },
   memberRow: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E7EEF5',
+    backgroundColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.border,
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
@@ -550,7 +551,7 @@ const styles = StyleSheet.create({
   },
   person: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
     borderRadius: 18,
     marginBottom: 12,
     marginRight: 12,
@@ -559,7 +560,7 @@ const styles = StyleSheet.create({
   },
   memberAvatarPlaceholder: {
     alignItems: 'center',
-    backgroundColor: '#F0F6FC',
+    backgroundColor: VARD_COLORS.primarySoft,
     borderRadius: 20,
     height: 40,
     justifyContent: 'center',
@@ -571,12 +572,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   personName: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 13,
   },
   memberContact: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
     marginTop: 1,
@@ -594,7 +595,7 @@ const styles = StyleSheet.create({
   },
   addPerson: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
     borderColor: '#9AA8BA',
     borderRadius: 25,
     borderStyle: 'dashed',
@@ -609,12 +610,12 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   addPersonText: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
   },
   activityText: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.medium,
   },
   time: {
@@ -623,7 +624,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   mutedText: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 13,
     lineHeight: 18,
@@ -643,7 +644,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   familySubtitle: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 12,
     marginTop: 3,
@@ -656,7 +657,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   modalCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: VARD_COLORS.surface,
     borderRadius: 20,
     padding: 18,
     width: '100%',
@@ -675,12 +676,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   modalTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 18,
   },
   modalSubtitle: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 13,
     lineHeight: 18,
@@ -691,7 +692,7 @@ const styles = StyleSheet.create({
     borderColor: '#D0D5DD',
     borderRadius: 14,
     borderWidth: 1,
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 14,
     marginTop: 14,
@@ -713,27 +714,27 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   roleChipSelected: {
-    backgroundColor: '#F0F6FC',
-    borderColor: '#00326D',
+    backgroundColor: VARD_COLORS.primarySoft,
+    borderColor: VARD_COLORS.secondary,
   },
   roleChipText: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 12,
   },
   roleChipTextSelected: {
-    color: '#00326D',
+    color: VARD_COLORS.secondary,
   },
   inviteCodeBox: {
-    backgroundColor: '#F0F6FC',
-    borderColor: '#C9DDF2',
+    backgroundColor: VARD_COLORS.primarySoft,
+    borderColor: VARD_COLORS.border,
     borderRadius: 14,
     borderWidth: 1,
     marginTop: 14,
     padding: 12,
   },
   inviteCodeBoxPressed: {
-    backgroundColor: '#E3EFFB',
+    backgroundColor: VARD_COLORS.secondarySoft,
   },
   inviteCodeHeader: {
     alignItems: 'center',
@@ -741,12 +742,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   inviteCodeLabel: {
-    color: '#00326D',
+    color: VARD_COLORS.secondary,
     fontFamily: WORKSPACE_DETAILS_FONTS.semiBold,
     fontSize: 12,
   },
   inviteCodeText: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 14,
     lineHeight: 20,
@@ -754,7 +755,7 @@ const styles = StyleSheet.create({
   },
   modalActionButton: {
     alignItems: 'center',
-    backgroundColor: '#00326D',
+    backgroundColor: VARD_COLORS.secondary,
     borderRadius: 14,
     marginTop: 14,
     paddingVertical: 12,
@@ -763,7 +764,7 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   modalActionText: {
-    color: '#FFFFFF',
+    color: VARD_COLORS.surface,
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 14,
   },
@@ -779,7 +780,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   modalCancelText: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.medium,
     fontSize: 14,
   },
@@ -800,12 +801,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cameraLiveTitle: {
-    color: '#101828',
+    color: VARD_COLORS.text,
     fontFamily: WORKSPACE_DETAILS_FONTS.bold,
     fontSize: 22,
   },
   cameraLiveSubtitle: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: WORKSPACE_DETAILS_FONTS.regular,
     fontSize: 13,
     marginTop: 2,

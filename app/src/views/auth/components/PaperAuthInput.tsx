@@ -39,7 +39,7 @@ export function PaperAuthInput({
   selected = false,
 }: PaperAuthInputProps) {
   const isPassword = Boolean(onToggleVisibility);
-  const activeColor = '#03CDF4';
+  const activeColor = '#00B9BB';
 
   return (
     <TextInput

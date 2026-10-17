@@ -1,3 +1,4 @@
+import { VARD_COLORS } from '../../../theme/vardTheme';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 
@@ -50,7 +51,7 @@ export function AuthField({
             style={styles.passwordToggle}
           >
             <Feather
-              color="#2E86BD"
+              color={VARD_COLORS.primary}
               name={passwordVisible ? 'eye-off' : 'eye'}
               size={18}
             />

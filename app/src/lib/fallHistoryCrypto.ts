@@ -38,7 +38,12 @@ export async function prepareFallHistoryKey(token: string, userId: string, passw
 }
 
 function isNotFound(error: unknown) {
-  return error instanceof ApiRequestError && error.status === 404;
+  // Some native runtimes do not preserve Error subclasses across async
+  // boundaries, so prefer the response shape over instanceof here.
+  return (
+    error instanceof ApiRequestError
+    || (typeof error === 'object' && error !== null && 'status' in error)
+  ) && (error as { status?: unknown }).status === 404;
 }
 
 async function uploadPrivateKey(token: string, privateKey: Uint8Array, password: string) {

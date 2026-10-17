@@ -432,10 +432,10 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           contentContainerStyle={styles.content}
           refreshControl={
             <RefreshControl
-              colors={['#019BDE']}
+              colors={['#00B9BB']}
               onRefresh={handleRefresh}
               refreshing={isRefreshing}
-              tintColor="#019BDE"
+              tintColor="#00B9BB"
             />
           }
           showsVerticalScrollIndicator={false}
@@ -451,11 +451,11 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
 
           <View style={styles.workspaceMetrics}>
             <View style={styles.metricPill}>
-              <Feather color="#00326D" name="camera" size={15} />
+              <Feather color="#003984" name="camera" size={15} />
               <Text style={styles.metricText}>{cameras.length} câmeras</Text>
             </View>
             <View style={styles.metricPill}>
-              <Feather color="#00326D" name="users" size={15} />
+              <Feather color="#003984" name="users" size={15} />
               <Text style={styles.metricText}>
                 {familyMembers.length} {familyMembers.length === 1 ? 'membro' : 'membros'}
               </Text>
@@ -474,7 +474,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
               onPress={openCreateCameraForm}
               style={({ pressed }) => [styles.sectionActionButton, pressed && styles.pressed]}
             >
-              <Feather color="#00326D" name="plus" size={16} />
+              <Feather color="#003984" name="plus" size={16} />
               <Text style={styles.sectionActionText}>Adicionar</Text>
             </Pressable>
           </View>
@@ -490,7 +490,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                     style={({ pressed }) => [styles.cameraRowMain, pressed && styles.pressed]}
                   >
                     <View style={styles.cameraIconBox}>
-                      <Feather color="#00326D" name="video" size={19} />
+                      <Feather color="#003984" name="video" size={19} />
                     </View>
                     <View style={styles.cameraInfo}>
                       <Text numberOfLines={1} style={styles.cameraName}>{room.name}</Text>
@@ -510,7 +510,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                       onPress={() => handleOpenRoomCamera(room.camera)}
                       style={({ pressed }) => [styles.cameraInlineAction, pressed && styles.pressed]}
                     >
-                      <Feather color="#00326D" name="play-circle" size={15} />
+                      <Feather color="#003984" name="play-circle" size={15} />
                       <Text style={styles.cameraInlineActionText}>Ao vivo</Text>
                     </Pressable>
                     <Pressable
@@ -518,7 +518,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                       onPress={() => handleOpenCameraOccurrences(room.camera)}
                       style={({ pressed }) => [styles.cameraInlineAction, pressed && styles.pressed]}
                     >
-                      <Feather color="#00326D" name="alert-circle" size={15} />
+                      <Feather color="#003984" name="alert-circle" size={15} />
                       <Text style={styles.cameraInlineActionText}>Ocorrências</Text>
                     </Pressable>
                     <Pressable
@@ -551,7 +551,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
             ) : (
               <View style={styles.emptyCameraState}>
                 <View style={styles.cameraIconBox}>
-                  <Feather color="#00326D" name="video" size={19} />
+                  <Feather color="#003984" name="video" size={19} />
                 </View>
                 <View style={styles.emptyCameraCopy}>
                   <Text style={styles.cameraName}>Nenhuma câmera cadastrada</Text>
@@ -581,7 +581,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
               }}
               style={({ pressed }) => [styles.sectionActionButton, pressed && styles.pressed]}
             >
-              <Feather color="#00326D" name="user-plus" size={16} />
+              <Feather color="#003984" name="user-plus" size={16} />
               <Text style={styles.sectionActionText}>Convidar</Text>
             </Pressable>
           </View>
@@ -595,7 +595,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                 style={({ pressed }) => [styles.memberRow, pressed && styles.pressed]}
               >
                 <View style={styles.memberAvatarPlaceholder}>
-                  <Feather color="#00326D" name="mail" size={19} />
+                  <Feather color="#003984" name="mail" size={19} />
                 </View>
                 <View style={styles.memberInfo}>
                   <Text numberOfLines={1} style={styles.personName}>{member.contact}</Text>
@@ -607,7 +607,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
 
           {isLoading ? (
             <View style={styles.activityCard}>
-              <ActivityIndicator color="#00A8CC" />
+              <ActivityIndicator color="#00B9BB" />
               <Text style={[styles.mutedText, { marginLeft: 10, marginTop: 0 }]}>Sincronizando câmeras...</Text>
             </View>
           ) : null}
@@ -794,7 +794,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                       {isInviteCodeCopied ? 'Código copiado!' : 'Toque para copiar'}
                     </Text>
                     <Feather
-                      color={isInviteCodeCopied ? '#039855' : '#00326D'}
+                      color={isInviteCodeCopied ? '#039855' : '#003984'}
                       name={isInviteCodeCopied ? 'check' : 'copy'}
                       size={18}
                     />
@@ -944,10 +944,10 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
           contentContainerStyle={styles.content}
           refreshControl={
             <RefreshControl
-              colors={['#019BDE']}
+              colors={['#00B9BB']}
               onRefresh={handleRefreshOccurrences}
               refreshing={isRefreshingOccurrences}
-              tintColor="#019BDE"
+              tintColor="#00B9BB"
             />
           }
           showsVerticalScrollIndicator={false}
@@ -964,7 +964,7 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
 
           {isLoadingOccurrences ? (
             <View style={styles.occurrencesState}>
-              <ActivityIndicator color="#019BDE" />
+              <ActivityIndicator color="#00B9BB" />
               <Text style={styles.occurrencesStateText}>Carregando ocorrências...</Text>
             </View>
           ) : occurrencesError ? (
@@ -1014,10 +1014,10 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
                           {formatOccurrenceDate(occurrence.created_at)}
                         </Text>
                         {isOpeningClip ? (
-                          <ActivityIndicator color="#019BDE" size="small" />
+                          <ActivityIndicator color="#00B9BB" size="small" />
                         ) : canOpenClip ? (
                           <View style={styles.occurrenceClipAction}>
-                            <Feather color="#00326D" name="play-circle" size={16} />
+                            <Feather color="#003984" name="play-circle" size={16} />
                             <Text style={styles.occurrenceClipActionText}>Ver trecho</Text>
                           </View>
                         ) : (

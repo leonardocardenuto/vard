@@ -1,3 +1,4 @@
+import { VARD_COLORS } from '../../../theme/vardTheme';
 import { StyleSheet } from 'react-native';
 
 const SETTINGS_FONTS = {
@@ -30,14 +31,14 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    color: '#111827',
+    color: VARD_COLORS.text,
     fontFamily: SETTINGS_FONTS.extraBold,
     fontSize: 22,
   },
   subtitle: {
     marginTop: 8,
     marginBottom: 22,
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: SETTINGS_FONTS.regular,
     fontSize: 14,
     lineHeight: 20,
@@ -46,15 +47,15 @@ export const styles = StyleSheet.create({
     marginBottom: 18,
     padding: 16,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#101828',
+    backgroundColor: VARD_COLORS.surface,
+    shadowColor: VARD_COLORS.text,
     shadowOpacity: 0.05,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 2,
   },
   sectionTitle: {
-    color: '#111827',
+    color: VARD_COLORS.text,
     fontFamily: SETTINGS_FONTS.bold,
     fontSize: 16,
     marginBottom: 12,
@@ -70,20 +71,20 @@ export const styles = StyleSheet.create({
     marginBottom: 10,
   },
   protocolCardActive: {
-    borderColor: '#0BA5EC',
-    backgroundColor: '#F0F9FF',
+    borderColor: VARD_COLORS.primary,
+    backgroundColor: VARD_COLORS.primarySoft,
   },
   protocolTextWrap: {
     flex: 1,
     paddingRight: 12,
   },
   protocolLabel: {
-    color: '#111827',
+    color: VARD_COLORS.text,
     fontFamily: SETTINGS_FONTS.bold,
     fontSize: 15,
   },
   protocolDescription: {
-    color: '#667085',
+    color: VARD_COLORS.muted,
     fontFamily: SETTINGS_FONTS.regular,
     fontSize: 13,
     lineHeight: 18,
@@ -99,13 +100,13 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   radioOuterActive: {
-    borderColor: '#0BA5EC',
+    borderColor: VARD_COLORS.primary,
   },
   radioInner: {
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: '#0BA5EC',
+    backgroundColor: VARD_COLORS.primary,
   },
   input: {
     minHeight: 48,
@@ -114,7 +115,7 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     paddingHorizontal: 14,
-    color: '#111827',
+    color: VARD_COLORS.text,
     fontFamily: SETTINGS_FONTS.regular,
     fontSize: 14,
     marginBottom: 10,
@@ -135,13 +136,13 @@ export const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0BA5EC',
+    backgroundColor: VARD_COLORS.primary,
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: VARD_COLORS.surface,
     fontFamily: SETTINGS_FONTS.extraBold,
     fontSize: 15,
   },

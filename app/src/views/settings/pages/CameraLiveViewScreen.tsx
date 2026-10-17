@@ -214,7 +214,7 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
           </View>
 
           {isHistoryLoading ? (
-            <ActivityIndicator color="#019BDE" style={styles.historyLoading} />
+            <ActivityIndicator color="#00B9BB" style={styles.historyLoading} />
           ) : history.length === 0 ? (
             <Text style={styles.emptyHistory}>Nenhum evento de queda registrado nesta câmera.</Text>
           ) : (
@@ -239,7 +239,7 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
                   <Text style={styles.historyItemDate}>{formatHistoryDate(event.occurredAt)}</Text>
                 </View>
                 {loadingClipId === event.id ? (
-                  <ActivityIndicator color="#019BDE" />
+                  <ActivityIndicator color="#00B9BB" />
                 ) : event.hasClip ? (
                   <Feather color="#667085" name="play-circle" size={22} />
                 ) : (

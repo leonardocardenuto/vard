@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { VARD_COLORS } from '../../theme/vardTheme';
 
 const styles = StyleSheet.create({
   screen: {
@@ -15,7 +16,7 @@ const styles = StyleSheet.create({
   },
   landingLogo: {
     alignSelf: "center",
-    color: "#03BDE7",
+    color: VARD_COLORS.primary,
     fontFamily: "Poppins-SemiBold",
     fontSize: 27,
     marginTop: 48,
@@ -66,7 +67,7 @@ const styles = StyleSheet.create({
     minHeight: 54,
   },
   whiteButtonText: {
-    color: "#03BDE7",
+    color: VARD_COLORS.primary,
     fontFamily: "Poppins-SemiBold",
     fontSize: 13,
   },
@@ -84,7 +85,7 @@ const styles = StyleSheet.create({
   },
   topLabel: {
     alignSelf: "center",
-    color: "#00AEEA",
+    color: VARD_COLORS.primary,
     fontFamily: "Poppins-SemiBold",
     fontSize: 14,
     marginBottom: 24,
@@ -96,7 +97,7 @@ const styles = StyleSheet.create({
     width: 120,
   },
   bigTitle: {
-    color: "#08B9D8",
+    color: VARD_COLORS.secondary,
     fontFamily: "Poppins-ExtraBold",
     fontSize: 34,
     lineHeight: 35,
@@ -169,7 +170,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   googleIcon: {
-    color: "#4285F4",
+    color: VARD_COLORS.secondary,
     fontFamily: "Poppins-SemiBold",
     fontSize: 19,
   },
@@ -188,7 +189,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   linkText: {
-    color: "#00AEEA",
+    color: VARD_COLORS.primary,
     fontFamily: "Poppins-Medium",
   },
   backHeader: {
@@ -204,7 +205,7 @@ const styles = StyleSheet.create({
     width: 32,
   },
   backLabel: {
-    color: "#00AEEA",
+    color: VARD_COLORS.primary,
     flex: 1,
     fontFamily: "Poppins-SemiBold",
     fontSize: 14,
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
     marginRight: 32,
   },
   passwordField: {
-    borderColor: "#03CDF4",
+    borderColor: VARD_COLORS.primary,
     borderRadius: 14,
     borderWidth: 1,
     height: 48,
@@ -320,7 +321,7 @@ const styles = StyleSheet.create({
     width: 16,
   },
   checkboxActive: {
-    backgroundColor: "#03BDE7",
+    backgroundColor: "#00B9BB",
   },
   termsRowText: {
     color: "#777777",

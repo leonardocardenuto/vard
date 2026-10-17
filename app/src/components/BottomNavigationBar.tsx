@@ -6,6 +6,7 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppTabParamList } from '../navigation/types';
+import { VARD_COLORS, VARD_GRADIENT } from '../theme/vardTheme';
 
 type NavItem = {
   label: string;
@@ -66,8 +67,7 @@ export function BottomNavigationBar({ navigation, state }: BottomTabBarProps) {
             ]}
           >
             <LinearGradient
-              colors={['#03CDF4', '#019BDE', '#01EBD0']}
-              locations={[0.01, 0.48, 1]}
+              colors={VARD_GRADIENT}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.activeHighlightGradient}
@@ -88,7 +88,7 @@ export function BottomNavigationBar({ navigation, state }: BottomTabBarProps) {
               style={styles.navItem}
             >
               <Ionicons
-                color={isActive ? '#FFFFFF' : '#9AA8BA'}
+                color={isActive ? VARD_COLORS.onBrand : '#9AA8BA'}
                 name={isActive ? item.activeIcon : item.icon}
                 size={isActive ? 24 : 22}
               />
@@ -118,9 +118,9 @@ const createStyles = (bottomInset: number) =>
     navbar: {
       width: '100%',
       minHeight: 72,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: VARD_COLORS.surface,
       borderWidth: 1,
-      borderColor: '#E7EEF5',
+      borderColor: VARD_COLORS.border,
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: NAV_HORIZONTAL_PADDING,
@@ -139,7 +139,7 @@ const createStyles = (bottomInset: number) =>
       top: 10,
       height: 52,
       borderRadius: 16,
-      shadowColor: '#05BFE6',
+      shadowColor: VARD_COLORS.primary,
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.26,
       shadowRadius: 16,
@@ -164,7 +164,7 @@ const createStyles = (bottomInset: number) =>
       lineHeight: 12,
     },
     navLabelActive: {
-      color: '#FFFFFF',
+      color: VARD_COLORS.onBrand,
       fontSize: 10,
       lineHeight: 12,
       letterSpacing: 0,
