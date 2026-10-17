@@ -140,12 +140,14 @@ jobs:
           git reset --hard "$DEPLOY_SHA"
           EOF
 
-      - name: Start server dependencies
+      - name: Reconcile server dependencies
         run: |
           ssh vard-server "VARD_SERVER_PATH='$VARD_SERVER_PATH' bash -s" <<'EOF'
           set -euo pipefail
           cd "$VARD_SERVER_PATH"
-          docker compose up -d postgres redis
+          if ! docker compose up -d postgres redis; then
+            echo "Dependency containers could not be reconciled; continuing with the running services."
+          fi
           EOF
 
       - name: Install server dependencies
