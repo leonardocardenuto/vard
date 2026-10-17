@@ -102,6 +102,10 @@ jobs:
       - api
       - app
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      DEPLOY_SHA: ${{ github.sha }}
+      VARD_SERVER_PATH: ${{ secrets.VARD_SERVER_PATH || '/home/leo/vard' }}
+      VARD_SYSTEMD_SERVICE: ${{ secrets.VARD_SYSTEMD_SERVICE || 'vard-api' }}
 
     steps:
       - name: Configure SSH
@@ -126,28 +130,52 @@ jobs:
             StrictHostKeyChecking yes
           EOF
 
-      - name: Deploy on server
-        env:
-          DEPLOY_SHA: ${{ github.sha }}
-          VARD_SERVER_PATH: ${{ secrets.VARD_SERVER_PATH || '/home/leo/vard' }}
-          VARD_SYSTEMD_SERVICE: ${{ secrets.VARD_SYSTEMD_SERVICE || 'vard-api' }}
+      - name: Sync server checkout
         run: |
-          ssh vard-server "DEPLOY_SHA='$DEPLOY_SHA' VARD_SERVER_PATH='$VARD_SERVER_PATH' VARD_SYSTEMD_SERVICE='$VARD_SYSTEMD_SERVICE' bash -s" <<'EOF'
+          ssh vard-server "DEPLOY_SHA='$DEPLOY_SHA' VARD_SERVER_PATH='$VARD_SERVER_PATH' bash -s" <<'EOF'
           set -euo pipefail
-
           cd "$VARD_SERVER_PATH"
-
           git fetch origin main
           git checkout main
           git reset --hard "$DEPLOY_SHA"
+          EOF
 
+      - name: Start server dependencies
+        run: |
+          ssh vard-server "VARD_SERVER_PATH='$VARD_SERVER_PATH' bash -s" <<'EOF'
+          set -euo pipefail
+          cd "$VARD_SERVER_PATH"
           docker compose up -d postgres redis
+          EOF
 
+      - name: Install server dependencies
+        run: |
+          ssh vard-server "VARD_SERVER_PATH='$VARD_SERVER_PATH' bash -s" <<'EOF'
+          set -euo pipefail
+          cd "$VARD_SERVER_PATH"
           .venv/bin/python -m pip install -r requirements-api.txt
-          .venv/bin/python -m scripts.migrate
+          EOF
 
+      - name: Migrate server database
+        run: |
+          ssh vard-server "VARD_SERVER_PATH='$VARD_SERVER_PATH' bash -s" <<'EOF'
+          set -euo pipefail
+          cd "$VARD_SERVER_PATH"
+          .venv/bin/python -m scripts.migrate
+          EOF
+
+      - name: Restart API service
+        run: |
+          ssh vard-server "VARD_SYSTEMD_SERVICE='$VARD_SYSTEMD_SERVICE' bash -s" <<'EOF'
+          set -euo pipefail
           sudo systemctl restart "$VARD_SYSTEMD_SERVICE"
           sleep 3
           systemctl is-active --quiet "$VARD_SYSTEMD_SERVICE"
+          EOF
+
+      - name: Verify deployed API
+        run: |
+          ssh vard-server "bash -s" <<'EOF'
+          set -euo pipefail
           curl -fsS http://127.0.0.1:8000/health
           EOF
