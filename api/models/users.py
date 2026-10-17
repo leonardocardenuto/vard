@@ -16,7 +16,12 @@ class AppUser(Base, UUIDPrimaryKeyMixin, OptionalProfileFieldsMixin, CreatedAtMi
     encryption_public_key: Mapped[str | None] = mapped_column(Text)
     encrypted_private_key_backup: Mapped[str | None] = mapped_column(Text)
     encryption_recovery_salt: Mapped[str | None] = mapped_column(Text)
-    credentials: Mapped["UserCredential | None"] = relationship(back_populates="user", uselist=False)
+    credentials: Mapped["UserCredential | None"] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
+    )
 
 
 class UserCredential(Base, CreatedAtMixin, UpdatedAtMixin):
