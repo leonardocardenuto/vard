@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -105,3 +106,34 @@ def test_notification_creation_lists_for_members_and_persists(client, db_session
     )
     assert listed.status_code == 200
     assert [item["id"] for item in listed.json()] == [str(notification_id)]
+
+
+def test_detection_vote_can_be_corrected_without_losing_payload_or_sending_push(client, db_session, monkeypatch):
+    pushed = []
+    monkeypatch.setattr("api.routers.notifications.send_push_to_subscription_ids",
+                        lambda ids, **payload: pushed.append(payload))
+    owner = register_user(client, "vote-owner@example.com")
+    outsider = register_user(client, "vote-outsider@example.com")
+    workspace = create_workspace(client, owner, slug="vote-home")
+    created = client.post('/notifications', headers=auth_headers(owner), json={
+        'workspace_id': workspace['id'], 'notification_type': 'fall_detected',
+        'severity': 'critical', 'title': 'Queda detectada', 'body': 'Possível queda.',
+        'payload': {'source': 'accelerometer', 'confidence': 0.96},
+    }).json()
+    path = f"/notifications/{created['id']}"
+    for valid in (True, False):
+        latest = client.get(path, headers=auth_headers(owner)).json()
+        payload = {**latest['payload'], 'detection_validation': {
+            'is_valid': valid, 'answered_at': datetime.now(UTC).isoformat(),
+        }}
+        updated = client.patch(path, headers=auth_headers(owner), json={'payload': payload})
+        assert updated.status_code == 200, updated.text
+        persisted = client.get(path, headers=auth_headers(owner)).json()
+        assert persisted['payload'] == payload
+        assert persisted['payload']['source'] == 'accelerometer'
+        db_session.expire_all()
+        stored = db_session.get(Notification, uuid.UUID(created['id']))
+        assert stored.payload['detection_validation']['is_valid'] is valid
+    denied = client.patch(path, headers=auth_headers(outsider), json={'payload': {}})
+    assert denied.status_code == 403
+    assert len(pushed) == 1  # Only the original event sends a push, never a vote.

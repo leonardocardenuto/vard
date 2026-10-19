@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     fall_monitor_reload_seconds: float = Field(15.0, alias="FALL_MONITOR_RELOAD_SECONDS")
     fall_monitor_num_frames: int = Field(16, alias="FALL_MONITOR_NUM_FRAMES")
     fall_monitor_sample_fps: float = Field(6.0, alias="FALL_MONITOR_SAMPLE_FPS")
-    fall_monitor_capture_fps: float = Field(0.0, alias="FALL_MONITOR_CAPTURE_FPS")
+    fall_monitor_capture_fps: float = Field(8.0, alias="FALL_MONITOR_CAPTURE_FPS")
     fall_monitor_stride_seconds: float = Field(1.0, alias="FALL_MONITOR_STRIDE_SECONDS")
     fall_monitor_threshold: float = Field(0.75, alias="FALL_MONITOR_THRESHOLD")
     fall_monitor_smoothing_window: int = Field(5, alias="FALL_MONITOR_SMOOTHING_WINDOW")

@@ -1,15 +1,13 @@
 import { Image, Pressable, StyleSheet, View } from "react-native";
 import VardHorizontalLogo from "../../assets/vard-logo.svg";
-import NotificationsIcon from "../../assets/notification_icon.svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type HeaderProps = {
   avatarUrl?: string | null;
-  notificationFunction: () => void;
   profileFunction: () => void;
 };
 
-export function Header({ avatarUrl, notificationFunction, profileFunction }: HeaderProps) {
+export function Header({ avatarUrl, profileFunction }: HeaderProps) {
   const avatarSource = avatarUrl?.trim()
     ? { uri: avatarUrl.trim() }
     : require("../../assets/default_avatar.png");
@@ -32,16 +30,7 @@ export function Header({ avatarUrl, notificationFunction, profileFunction }: Hea
         <View style={styles.center}>
           <VardHorizontalLogo height={22} />
         </View>
-        <View style={styles.right}>
-          <Pressable
-            accessibilityLabel="Abrir alertas"
-            accessibilityRole="button"
-            onPress={notificationFunction}
-            style={styles.notificationButton}
-          >
-            <NotificationsIcon width={24} height={24} />
-          </Pressable>
-        </View>
+        <View style={styles.right} />
       </View>
     </SafeAreaView>
   );
@@ -86,10 +75,4 @@ const styles = StyleSheet.create({
     width: 40,
   },
 
-  notificationButton: {
-    alignItems: "center",
-    height: 40,
-    justifyContent: "center",
-    width: 40,
-  },
 });

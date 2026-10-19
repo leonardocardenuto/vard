@@ -1,3 +1,5 @@
+import { DeviceEventEmitter } from 'react-native';
+
 type AuthPayload = {
   email: string;
   password: string;
@@ -35,7 +37,7 @@ export type WorkspaceMemberResponse = {
   user_id: string;
   email: string;
   full_name: string | null;
-  role: 'admin' | 'member' | 'caregiver' | 'viewer';
+  role: 'admin' | 'member' | 'caregiver' | 'viewer' | 'elderly';
   status: string;
   joined_at: string | null;
 };
@@ -151,7 +153,7 @@ type CameraAutoConfigurePayload = {
 type InviteCreatePayload = {
   workspace_id: string;
   email: string;
-  role?: 'owner' | 'admin' | 'member' | 'caregiver' | 'viewer';
+  role?: 'owner' | 'admin' | 'member' | 'caregiver' | 'viewer' | 'elderly';
   expires_in_hours?: number;
 };
 
@@ -215,6 +217,25 @@ export class ApiRequestError extends Error {
 
 function resolveApiBaseUrl() {
   return API_BASE_URL.replace(/\/+$/, "");
+}
+
+export function mobileMonitorBaseUrl() {
+  return resolveApiBaseUrl();
+}
+
+export type MobileMonitorProfile = {
+  restricted: boolean;
+  workspaces: Array<{ id: string; name: string }>;
+};
+
+export function getMobileMonitorProfile(token: string) {
+  return requestWithToken<MobileMonitorProfile>('/mobile-monitor/profile', token);
+}
+
+export function registerMobileMonitor(token: string, workspaceId: string) {
+  return requestWithToken<{ device_id: string; device_token: string }>('/mobile-monitor/devices', token, {
+    method: 'POST', body: JSON.stringify({ workspace_id: workspaceId }),
+  });
 }
 
 export function buildWebSocketUrl(path: string) {
@@ -587,10 +608,12 @@ export async function createInvite(token: string, payload: InviteCreatePayload) 
 }
 
 export async function acceptInvite(token: string, inviteToken: string) {
-  return requestWithToken<InviteResponse>('/invites/accept', token, {
+  const invite = await requestWithToken<InviteResponse>('/invites/accept', token, {
     method: 'POST',
     body: JSON.stringify({ token: inviteToken }),
   });
+  DeviceEventEmitter.emit('vard.membership.changed');
+  return invite;
 }
 
 export async function pingCamera(token: string, cameraId: string) {

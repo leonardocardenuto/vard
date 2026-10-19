@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from .frame_buffer import BufferedFrame
 
@@ -44,19 +45,30 @@ class ClipExporter:
         fps: float,
         output_dir: str | Path | None = None,
         prefix: str = "fall_clip",
+        max_fps: float = 8.0,
+        max_dimension: int = 640,
     ) -> ClipExportResult | None:
         if not frames:
             return None
         if fps <= 0:
             raise ValueError("fps deve ser maior que zero.")
+        if max_fps <= 0:
+            raise ValueError("max_fps deve ser maior que zero.")
+        if max_dimension <= 0:
+            raise ValueError("max_dimension deve ser maior que zero.")
 
         destination_dir = Path(output_dir) if output_dir else Path(tempfile.gettempdir())
         destination_dir.mkdir(parents=True, exist_ok=True)
         output_path = destination_dir / f"{prefix}_{uuid.uuid4().hex}.mp4"
 
-        playback_fps = self._playback_fps(frames, fallback_fps=fps)
-        first_frame = frames[0].frame
-        height, width = first_frame.shape[:2]
+        export_frames = self._limit_fps(frames, max_fps=max_fps)
+        playback_fps = min(
+            max_fps,
+            self._playback_fps(export_frames, fallback_fps=min(fps, max_fps)),
+        )
+        first_frame = export_frames[0].frame
+        source_height, source_width = first_frame.shape[:2]
+        width, height = self._output_size(source_width, source_height, max_dimension=max_dimension)
         writer = cv2.VideoWriter(
             str(output_path),
             cv2.VideoWriter_fourcc(*"mp4v"),
@@ -69,10 +81,12 @@ class ClipExporter:
 
         written_frames = 0
         try:
-            for item in frames:
+            for item in export_frames:
                 frame = item.frame
-                if frame.shape[:2] != (height, width):
-                    frame = cv2.resize(frame, (width, height))
+                if frame.shape[:2] != (source_height, source_width):
+                    frame = cv2.resize(frame, (source_width, source_height))
+                if (source_width, source_height) != (width, height):
+                    frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
                 writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
                 written_frames += 1
         finally:
@@ -98,3 +112,28 @@ class ClipExporter:
         if elapsed <= 0:
             return fallback_fps
         return len(frames) / elapsed
+
+    @staticmethod
+    def _limit_fps(frames: list[BufferedFrame], *, max_fps: float) -> list[BufferedFrame]:
+        """Uniformly sample a clip so mobile clients receive a compact video."""
+        if len(frames) < 2:
+            return frames
+        elapsed = frames[-1].timestamp - frames[0].timestamp
+        if elapsed <= 0 or len(frames) / elapsed <= max_fps:
+            return frames
+
+        target_count = max(2, min(len(frames), int(elapsed * max_fps)))
+        indices = np.linspace(0, len(frames) - 1, target_count).astype(int)
+        return [frames[index] for index in indices]
+
+    @staticmethod
+    def _output_size(width: int, height: int, *, max_dimension: int) -> tuple[int, int]:
+        largest_dimension = max(width, height)
+        if largest_dimension <= max_dimension:
+            return width, height
+
+        scale = max_dimension / largest_dimension
+        # Video encoders are more reliable with even dimensions.
+        output_width = max(2, int(width * scale) // 2 * 2)
+        output_height = max(2, int(height * scale) // 2 * 2)
+        return output_width, output_height

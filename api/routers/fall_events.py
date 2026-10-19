@@ -13,6 +13,10 @@ from api.services.fall_events import list_fall_events
 
 router = APIRouter(prefix="/fall-events", tags=["fall-events"])
 
+# The current mobile E2EE flow decodes the Base64 response and decrypts it in
+# memory. Keep legacy oversized clips from exhausting the Android JS heap.
+MAX_INLINE_ENCRYPTED_CLIP_BYTES = 24 * 1024 * 1024
+
 
 @router.get("", response_model=list[FallEventResponse])
 def get_fall_events(
@@ -58,6 +62,11 @@ def get_fall_event_clip(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trecho de vídeo indisponível") from exc
     if not clip_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trecho de vídeo indisponível")
+    if clip_path.stat().st_size > MAX_INLINE_ENCRYPTED_CLIP_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="Este trecho é grande demais para abrir no celular. Os próximos serão salvos em formato otimizado.",
+        )
 
     return FallEventClipResponse(
         encrypted_clip=base64.urlsafe_b64encode(clip_path.read_bytes()).decode("ascii"),

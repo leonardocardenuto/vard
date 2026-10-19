@@ -1,7 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import * as FileSystem from 'expo-file-system/legacy';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
+import { OccurrenceCard } from '../../../components/OccurrenceCard';
 import {
   ApiRequestError,
   CameraResponse,
@@ -25,16 +25,18 @@ import {
   autoConfigureCamera,
   createInvite,
   deleteCamera,
-  getFallEventClip,
   getCameraMjpegUrl,
-  getMe,
   listCameras,
   listFallEvents,
   listNotifications,
   listWorkspaceMembers,
   startCameraHlsStream,
 } from '../../../lib/api';
-import { decryptFallClip } from '../../../lib/fallHistoryCrypto';
+import {
+  prefetchFallEventClip,
+  prepareFallEventClip,
+  removePreparedFallEventClip,
+} from '../../../lib/fallClipPlayback';
 import { CameraLiveViewScreen as CameraHistoryLiveViewScreen } from '../../settings/pages/CameraLiveViewScreen';
 import { WorkspaceFeedback, WorkspaceFeedbackModal } from '../components/WorkspaceFeedbackModal';
 import { SettingsStackParamList } from '../../settings/types';
@@ -48,7 +50,7 @@ type CameraOccurrencesProps = NativeStackScreenProps<WorkspaceStackParamList, 'C
 type FamilyMember = {
   id: string;
   contact: string;
-  role: 'admin' | 'member' | 'caregiver' | 'viewer';
+  role: 'admin' | 'member' | 'caregiver' | 'viewer' | 'elderly';
 };
 
 type CameraFormMode = 'create' | 'edit';
@@ -76,6 +78,7 @@ const initialCameraForm: CameraFormState = {
 };
 
 const memberRoleOptions: Array<{ label: string; value: MemberRole }> = [
+  { label: 'Idoso', value: 'elderly' },
   { label: 'Membro', value: 'member' },
   { label: 'Administrador', value: 'admin' },
   { label: 'Visualizador', value: 'viewer' },
@@ -872,6 +875,10 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
             .map((event) => [event.notification_id as string, event])
         )
       );
+      const firstClip = fallEvents.find(
+        (event) => event.camera_id === cameraId && event.has_clip
+      );
+      if (firstClip) prefetchFallEventClip(accessToken, firstClip.id);
     } catch (error) {
       setOccurrencesError(
         error instanceof ApiRequestError ? error.message : 'Não foi possível carregar as ocorrências.'
@@ -891,27 +898,17 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
     setLoadingClipId(event.id);
     setClipError('');
     try {
-      const [me, clip] = await Promise.all([
-        getMe(accessToken),
-        getFallEventClip(accessToken, event.id),
-      ]);
-      const decryptedClip = await decryptFallClip(clip.encrypted_clip, clip.key_envelope, me.id);
-      if (!decryptedClip || !FileSystem.cacheDirectory) {
-        throw new Error('Trecho indisponível');
-      }
-
-      const nextClipUri = `${FileSystem.cacheDirectory}vard-fall-${event.id}.mp4`;
-      await FileSystem.writeAsStringAsync(nextClipUri, bytesToBase64(decryptedClip), {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      const nextClipUri = await prepareFallEventClip(accessToken, event.id);
       await clipPlayer.replaceAsync(nextClipUri);
       clipPlayer.play();
       setClipUri(nextClipUri);
       setIsClipVisible(true);
     } catch (error) {
       setClipError(
-        error instanceof ApiRequestError && error.status === 401
-          ? 'Sua sessão expirou. Entre novamente para abrir o trecho.'
+        error instanceof ApiRequestError
+          ? error.status === 401
+            ? 'Sua sessão expirou. Entre novamente para abrir o trecho.'
+            : error.message
           : 'Não foi possível abrir o trecho desta ocorrência.'
       );
     } finally {
@@ -923,7 +920,7 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
     clipPlayer.pause();
     setIsClipVisible(false);
     if (clipUri) {
-      await FileSystem.deleteAsync(clipUri, { idempotent: true });
+      removePreparedFallEventClip(clipUri);
       setClipUri(null);
     }
   }
@@ -990,42 +987,10 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
                 const isOpeningClip = loadingClipId === fallEvent?.id;
 
                 return (
-                  <Pressable
-                    accessibilityLabel={
-                      canOpenClip ? `Visualizar trecho de ${occurrence.title}` : undefined
-                    }
-                    accessibilityRole={canOpenClip ? 'button' : undefined}
-                    disabled={!canOpenClip || Boolean(loadingClipId)}
-                    key={occurrence.id}
-                    onPress={() => fallEvent && void openOccurrenceClip(fallEvent)}
-                    style={({ pressed }) => [
-                      styles.occurrenceCard,
-                      pressed && styles.occurrenceCardPressed,
-                    ]}
-                  >
-                    <View style={styles.occurrenceIcon}>
-                      <Feather color="#B42318" name="alert-triangle" size={20} />
-                    </View>
-                    <View style={styles.occurrenceContent}>
-                      <Text style={styles.occurrenceTitle}>{occurrence.title}</Text>
-                      <Text style={styles.occurrenceBody}>{occurrence.body}</Text>
-                      <View style={styles.occurrenceFooter}>
-                        <Text style={styles.occurrenceDate}>
-                          {formatOccurrenceDate(occurrence.created_at)}
-                        </Text>
-                        {isOpeningClip ? (
-                          <ActivityIndicator color="#00B9BB" size="small" />
-                        ) : canOpenClip ? (
-                          <View style={styles.occurrenceClipAction}>
-                            <Feather color="#003984" name="play-circle" size={16} />
-                            <Text style={styles.occurrenceClipActionText}>Ver trecho</Text>
-                          </View>
-                        ) : (
-                          <Text style={styles.occurrenceClipUnavailable}>Sem trecho</Text>
-                        )}
-                      </View>
-                    </View>
-                  </Pressable>
+                  <OccurrenceCard key={occurrence.id} notification={occurrence} accessToken={accessToken}
+                    validation canOpenClip={canOpenClip} opening={isOpeningClip}
+                    onOpen={canOpenClip ? () => fallEvent && void openOccurrenceClip(fallEvent) : undefined}
+                    onUpdate={(updated) => setOccurrences((items) => items.map((item) => item.id === updated.id ? updated : item))} />
                 );
               })}
               {clipError ? <Text style={styles.occurrenceClipError}>{clipError}</Text> : null}
@@ -1068,15 +1033,6 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
   );
 }
 
-function bytesToBase64(value: Uint8Array) {
-  const chunkSize = 0x8000;
-  let binary = '';
-  for (let index = 0; index < value.length; index += chunkSize) {
-    binary += String.fromCharCode(...value.subarray(index, index + chunkSize));
-  }
-  return btoa(binary);
-}
-
 function formatOccurrenceDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -1098,6 +1054,7 @@ function getMemberLabel(member: FamilyMember) {
 
 function formatMemberRole(role: MemberRole) {
   const labels: Record<MemberRole, string> = {
+    elderly: 'Idoso',
     admin: 'Administrador',
     caregiver: 'Cuidador',
     member: 'Membro',

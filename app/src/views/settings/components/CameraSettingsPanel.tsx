@@ -283,10 +283,6 @@ export function CameraSettingsPanel({
       <View style={styles.profileSection}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Seu perfil</Text>
-          <View style={styles.sectionPill}>
-            <Feather color={VARD_COLORS.primary} name="edit-3" size={14} />
-            <Text style={styles.sectionPillText}>Prévia local</Text>
-          </View>
         </View>
 
         <View style={styles.profileCard}>
@@ -564,20 +560,6 @@ const styles = StyleSheet.create({
     fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 18,
     lineHeight: 24,
-  },
-  sectionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    backgroundColor: VARD_COLORS.primarySoft,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  sectionPillText: {
-    color: '#067647',
-    fontFamily: SETTINGS_PANEL_FONTS.semiBold,
-    fontSize: 12,
   },
   profileCard: {
     borderRadius: 24,

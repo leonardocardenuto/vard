@@ -4,10 +4,12 @@ import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
-import { useCallback, useRef, useState } from "react";
+import { useVideoPlayer, VideoView } from "expo-video";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -15,12 +17,20 @@ import {
   View,
 } from "react-native";
 import { LayoutWithNavbar } from "../../../components/LayoutWithNavbar";
+import { OccurrenceCard } from "../../../components/OccurrenceCard";
 import {
   ApiRequestError,
+  FallEventResponse,
   NotificationResponse,
+  listFallEvents,
   listNotifications,
   listWorkspaces,
 } from "../../../lib/api";
+import {
+  prefetchFallEventClip,
+  prepareFallEventClip,
+  removePreparedFallEventClip,
+} from "../../../lib/fallClipPlayback";
 import { AppTabParamList } from "../../../navigation/types";
 import { AlertItem } from "../../alerts/types";
 import {
@@ -35,6 +45,7 @@ type HomeRoute = RouteProp<AppTabParamList, "Home">;
 type HomeNavigation = BottomTabNavigationProp<AppTabParamList, "Home">;
 
 type HomeAlert = NotificationResponse & {
+  fallEvent?: FallEventResponse;
   workspaceName: string;
 };
 
@@ -49,12 +60,17 @@ export function Home() {
   const route = useRoute<HomeRoute>();
   const navigation = useNavigation<HomeNavigation>();
   const accessToken = route.params?.accessToken ?? "";
+  const clipPlayer = useVideoPlayer(null);
   const [alerts, setAlerts] = useState<HomeAlert[]>([]);
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(true);
   const [isRefreshingAlerts, setIsRefreshingAlerts] = useState(false);
   const [alertsError, setAlertsError] = useState("");
+  const [clipError, setClipError] = useState("");
+  const [clipUri, setClipUri] = useState<string | null>(null);
+  const [isClipVisible, setIsClipVisible] = useState(false);
+  const [loadingClipId, setLoadingClipId] = useState<string | null>(null);
   const hasAlerts = alerts.length > 0;
-  const visibleAlerts = alerts.slice(0, 3);
+  const visibleAlerts = alerts.slice(0, 2);
   const requestVersion = useRef(0);
   const statusColor = alertsError ? "#64748B" : hasAlerts ? "#C2410C" : VARD_COLORS.primary;
   const statusTitle = isLoadingAlerts ? "CONSULTANDO" : alertsError ? "SEM ATUALIZAÇÃO" : hasAlerts ? "ATENÇÃO" : "TUDO BEM!";
@@ -63,8 +79,8 @@ export function Home() {
     : alertsError
       ? "Não foi possível verificar as ocorrências."
       : hasAlerts
-        ? `${alerts.length} ${alerts.length === 1 ? "alerta registrado hoje. Confira os detalhes." : "alertas registrados hoje. Confira os detalhes."}`
-        : "Nenhum alerta hoje. Acompanhando novas ocorrências.";
+        ? `${alerts.length} ${alerts.length === 1 ? "alerta registrado nas últimas 24 horas. Confira os detalhes." : "alertas registrados nas últimas 24 horas. Confira os detalhes."}`
+        : "Nenhum alerta nas últimas 24 horas. Acompanhando novas ocorrências.";
 
   const loadAlerts = useCallback(async (silent = false) => {
     const version = ++requestVersion.current;
@@ -81,25 +97,31 @@ export function Home() {
       if (version !== requestVersion.current) return;
 
       const workspaceNotifications = await Promise.all(
-        workspaces.map(async (workspace) =>
-          (await listNotifications(accessToken, workspace.id)).map((notification) => ({
+        workspaces.map(async (workspace) => {
+          const [notifications, fallEvents] = await Promise.all([
+            listNotifications(accessToken, workspace.id),
+            listFallEvents(accessToken, workspace.id),
+          ]);
+          const fallEventByNotificationId = new Map(
+            fallEvents
+              .filter((event) => event.notification_id)
+              .map((event) => [event.notification_id as string, event]),
+          );
+          return notifications.map((notification) => ({
             ...notification,
+            fallEvent: fallEventByNotificationId.get(notification.id),
             workspaceName: workspace.name,
-          })),
-        ),
+          }));
+        }),
       );
-      const today = new Date();
+      const now = Date.now();
+      const cutoff = now - 24 * 60 * 60 * 1000;
 
       const notifications = workspaceNotifications
         .flat()
         .filter((notification) => {
-          const createdAt = new Date(notification.created_at);
-
-          return (
-            createdAt.getDate() === today.getDate() &&
-            createdAt.getMonth() === today.getMonth() &&
-            createdAt.getFullYear() === today.getFullYear()
-          );
+          const createdAt = new Date(notification.created_at).getTime();
+          return createdAt >= cutoff && createdAt <= now;
         })
         .sort((first, second) => {
           return (
@@ -111,6 +133,8 @@ export function Home() {
       if (version !== requestVersion.current) return;
       setAlertsError("");
       setAlerts(notifications);
+      const firstClip = notifications.find((alert) => alert.fallEvent?.has_clip)?.fallEvent;
+      if (firstClip) prefetchFallEventClip(accessToken, firstClip.id);
     } catch (error) {
       if (version !== requestVersion.current) return;
       setAlertsError(
@@ -143,6 +167,62 @@ export function Home() {
     }
   }, [loadAlerts]);
 
+  useEffect(() => () => removePreparedFallEventClip(clipUri), [clipUri]);
+
+  function openAlertDetails(alert: HomeAlert) {
+    navigation.navigate(
+      "Alerts",
+      {
+        accessToken,
+        params: {
+          accessToken,
+          alert: notificationToAlert(alert),
+          openedFrom: "home",
+        },
+        screen: "AlertDetails",
+        userAvatarUrl: route.params?.userAvatarUrl,
+        userEmail: route.params?.userEmail ?? "",
+        userName: route.params?.userName,
+      },
+    );
+  }
+
+  async function openAlert(alert: HomeAlert) {
+    const event = alert.fallEvent;
+    if (!event?.has_clip) {
+      openAlertDetails(alert);
+      return;
+    }
+
+    if (loadingClipId) return;
+    setLoadingClipId(event.id);
+    setClipError("");
+    try {
+      const nextClipUri = await prepareFallEventClip(accessToken, event.id);
+      await clipPlayer.replaceAsync(nextClipUri);
+      clipPlayer.play();
+      setClipUri(nextClipUri);
+      setIsClipVisible(true);
+    } catch (error) {
+      setClipError(
+        error instanceof ApiRequestError
+          ? error.status === 401
+            ? "Sua sessão expirou. Entre novamente para abrir o trecho."
+            : error.message
+          : "Não foi possível abrir o trecho desta ocorrência.",
+      );
+    } finally {
+      setLoadingClipId(null);
+    }
+  }
+
+  async function closeClip() {
+    clipPlayer.pause();
+    setIsClipVisible(false);
+    removePreparedFallEventClip(clipUri);
+    setClipUri(null);
+  }
+
   return (
     <LayoutWithNavbar>
       <ScrollView
@@ -161,7 +241,12 @@ export function Home() {
         showsVerticalScrollIndicator={false}
       >
         <View>
-          <Text style={styles.sectionTitle}>Últimos Alertas</Text>
+          <View style={styles.alertsHeading}>
+            <Text style={styles.sectionTitle}>Últimos Alertas</Text>
+            <View style={styles.periodChip}>
+              <Text style={styles.periodChipText}>Últimas 24h</Text>
+            </View>
+          </View>
           <View style={styles.alertsContainer}>
             {isLoadingAlerts ? (
               <View style={styles.noAlerts} accessibilityRole="progressbar" accessibilityLabel="Consultando alertas">
@@ -178,61 +263,41 @@ export function Home() {
               </View>
             ) : hasAlerts ? (
               <View style={styles.alertsCard}>
-                {visibleAlerts.map((alert, index) => (
-                  <Pressable
-                    accessibilityLabel={`Abrir ${getAlertTitle(alert)}`}
-                    accessibilityRole="button"
-                    key={alert.id}
-                    onPress={() =>
-                      navigation.navigate(
-                        "Alerts",
-                        {
-                          accessToken,
-                          params: {
-                            accessToken,
-                            alert: notificationToAlert(alert),
-                            openedFrom: "home",
-                          },
-                          screen: "AlertDetails",
-                          userAvatarUrl: route.params?.userAvatarUrl,
-                          userEmail: route.params?.userEmail ?? "",
-                          userName: route.params?.userName,
-                        },
-                      )
-                    }
-                    style={({ pressed }) => [
-                      styles.alertRow,
-                      index < visibleAlerts.length - 1 && styles.alertRowBorder,
-                      pressed && styles.alertButtonPressed,
-                    ]}
-                  >
-                    <View style={styles.alertIconWrap}>
-                      {renderAlertIcon(alert)}
-                    </View>
-                    <View style={styles.alertTextWrap}>
-                      <Text style={styles.alertTitle} numberOfLines={2}>
-                        {getAlertTitle(alert)}
-                      </Text>
-                      <Text style={styles.alertWorkspace} numberOfLines={1}>
-                        {formatWorkspaceName(alert.workspaceName)}
-                      </Text>
-                    </View>
-                    <Feather color="#737B84" name="chevron-right" size={26} />
-                  </Pressable>
-                ))}
+                {visibleAlerts.map((alert) => <OccurrenceCard key={alert.id}
+                  notification={alert} workspaceName={formatWorkspaceName(alert.workspaceName)} accessToken={accessToken}
+                  canOpenClip={Boolean(alert.fallEvent?.has_clip)} opening={Boolean(loadingClipId && loadingClipId === alert.fallEvent?.id)}
+                  onOpen={() => void openAlert(alert)} />)}
+                {clipError ? <Text style={styles.clipError}>{clipError}</Text> : null}
               </View>
             ) : (
               <View
-                accessibilityLabel="Nenhum incidente detectado hoje"
+                accessibilityLabel="Nenhum incidente detectado nas últimas 24 horas"
                 accessibilityRole="summary"
                 style={styles.noAlerts}
               >
                 <Feather name="check-circle" size={36} color="#A2ADB6" style={styles.noAlertsIcon} />
                 <Text style={styles.noAlertsText}>
-                  Nenhum incidente{"\n"}detectado hoje.
+                  Nenhum incidente detectado{"\n"}nas últimas 24 horas.
                 </Text>
               </View>
             )}
+            {!isLoadingAlerts && !alertsError ? (
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => navigation.navigate("Alerts", {
+                  accessToken,
+                  screen: "RecentAlerts",
+                  params: { accessToken },
+                  userAvatarUrl: route.params?.userAvatarUrl,
+                  userEmail: route.params?.userEmail ?? "",
+                  userName: route.params?.userName,
+                })}
+                style={styles.moreOccurrencesLink}
+              >
+                <Text style={styles.moreOccurrencesText}>Ver mais</Text>
+                <Feather name="chevron-right" size={16} color={VARD_COLORS.secondary} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -298,6 +363,22 @@ export function Home() {
           </ExpoLinearGradient>
         </View>
       </ScrollView>
+      <Modal animationType="fade" onRequestClose={() => void closeClip()} transparent visible={isClipVisible}>
+        <View style={styles.clipBackdrop}>
+          <View style={styles.clipModal}>
+            <View style={styles.clipHeader}>
+              <View>
+                <Text style={styles.clipEyebrow}>ALERTA</Text>
+                <Text style={styles.clipTitle}>Trecho da queda</Text>
+              </View>
+              <Pressable accessibilityLabel="Fechar vídeo" onPress={() => void closeClip()} style={styles.clipClose}>
+                <Feather color="#344054" name="x" size={21} />
+              </Pressable>
+            </View>
+            <VideoView contentFit="contain" nativeControls player={clipPlayer} style={styles.clipVideo} />
+          </View>
+        </View>
+      </Modal>
     </LayoutWithNavbar>
   );
 }
@@ -372,14 +453,14 @@ function notificationToAlert(notification: HomeAlert): AlertItem {
       ? payload.precision
       : typeof payload.confidence === "number"
         ? payload.confidence
-        : 98;
+        : payload.source === "accelerometer" ? 0 : 98;
 
   return {
     id: notification.id,
     imageUrl:
       typeof payload.image_url === "string"
         ? payload.image_url
-        : "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80",
+        : payload.source === "accelerometer" ? "" : "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80",
     isValidationAnswered: hasDetectionValidation(payload),
     kind: getAlertKind(notification),
     payload,
@@ -401,6 +482,18 @@ function formatAlertTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+  });
+}
+
+function formatOccurrenceDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
 }
 

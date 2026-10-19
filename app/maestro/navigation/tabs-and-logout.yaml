@@ -3,16 +3,18 @@ name: Navegacao - inicio, espacos, analises, ajustes e logout
 ---
 - runFlow: ../shared/login.yaml
 - assertVisible: "Nenhum incidente detectado hoje"
+- assertNotVisible: "Abrir alertas"
 - tapOn:
     id: tab-Workspace
 - assertVisible: "Escolha o espaço de família"
 - assertVisible: "Casa Maestro"
 - tapOn:
     id: tab-Insights
-- assertVisible: "Incidentes x dias"
+- assertVisible: "Quedas x dias"
 - tapOn:
     id: tab-Settings
-- assertVisible: "Nenhum dispositivo conectado"
+- assertVisible: "Ajustes do Sistema"
+- assertNotVisible: "Prévia local"
 - scrollUntilVisible:
     element:
       text: "Sair da conta"

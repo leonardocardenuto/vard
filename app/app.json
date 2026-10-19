@@ -48,6 +48,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withFallMonitor",
       [
         "onesignal-expo-plugin",
         {

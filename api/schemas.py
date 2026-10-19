@@ -165,7 +165,7 @@ class CameraAutoConfigure(BaseModel):
 class InviteCreate(BaseModel):
     workspace_id: uuid.UUID
     email: EmailStr
-    role: str = Field(pattern=r"^(owner|admin|member|caregiver|viewer)$")
+    role: str = Field(pattern=r"^(owner|admin|member|caregiver|viewer|elderly)$")
     expires_in_hours: int = Field(default=72, ge=1, le=720)
 
 

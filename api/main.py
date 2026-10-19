@@ -6,6 +6,7 @@ from api.cache.model_hooks import register_cache_invalidation_hooks
 from api.core.config import get_settings
 from api.routers import auth, camera_streams, cameras, encryption_keys, fall_events, insights, invites, notifications, users, workspaces
 from api.services.camera_streams import STREAMS_ROOT
+from api.routers import mobile_monitor
 
 settings = get_settings()
 register_cache_invalidation_hooks()
@@ -57,3 +58,4 @@ app.include_router(notifications.router)
 app.include_router(fall_events.router)
 app.include_router(insights.router)
 app.include_router(encryption_keys.router)
+app.include_router(mobile_monitor.router)

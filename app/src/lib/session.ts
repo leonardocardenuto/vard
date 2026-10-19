@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { logoutOneSignalUser } from "./onesignal";
+import { stopMobileFallMonitor } from './mobileFallMonitor';
 
 const TOKEN_KEY = "vard_access_token";
 
@@ -34,6 +35,7 @@ export async function loadToken() {
 }
 
 export async function clearSession() {
+  await stopMobileFallMonitor();
   const webStorage = getWebStorage();
 
   if (webStorage) {

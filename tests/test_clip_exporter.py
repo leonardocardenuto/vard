@@ -33,6 +33,26 @@ class ClipExporterTests(unittest.TestCase):
             finally:
                 video.release()
 
+    def test_limits_resolution_and_fps_for_mobile_playback(self):
+        frames = [
+            BufferedFrame(frame=np.zeros((1080, 1920, 3), dtype=np.uint8), timestamp=100.0 + index / 30)
+            for index in range(61)
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            result = ClipExporter().export_mp4(frames, fps=30.0, output_dir=directory)
+
+            self.assertIsNotNone(result)
+            self.assertLessEqual(result.fps, 8.0)
+            self.assertLess(result.frame_count, len(frames))
+
+            video = cv2.VideoCapture(str(result.path))
+            try:
+                self.assertEqual(video.get(cv2.CAP_PROP_FRAME_WIDTH), 640)
+                self.assertEqual(video.get(cv2.CAP_PROP_FRAME_HEIGHT), 360)
+                self.assertLessEqual(video.get(cv2.CAP_PROP_FPS), 8.0)
+            finally:
+                video.release()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -38,7 +38,7 @@ class WorkspaceMember(Base, CreatedAtMixin):
     joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
-        CheckConstraint("role IN ('owner', 'admin', 'member', 'caregiver', 'viewer')", name="workspace_members_role_check"),
+        CheckConstraint("role IN ('owner', 'admin', 'member', 'caregiver', 'viewer', 'elderly')", name="workspace_members_role_check"),
         CheckConstraint("status IN ('active', 'pending', 'removed')", name="workspace_members_status_check"),
     )
 
@@ -56,6 +56,10 @@ class WorkspaceInvite(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     accepted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="SET NULL"))
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint("role IN ('owner', 'admin', 'member', 'caregiver', 'viewer', 'elderly')", name="workspace_invites_role_check"),
+    )
 
 
 Index("idx_workspace_members_user_id", WorkspaceMember.user_id)

@@ -12,6 +12,7 @@ export function AcceptInviteScreen({ navigation, route }: Props) {
   const { token } = route.params;
   const [phase, setPhase] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [isElderly, setIsElderly] = useState(false);
 
   const accessToken = useNavigationState((state) => {
     const appTabsRoute = state?.routes.find((r) => r.name === 'AppTabs');
@@ -22,7 +23,8 @@ export function AcceptInviteScreen({ navigation, route }: Props) {
     if (!accessToken) return;
     setPhase('loading');
     try {
-      await acceptInvite(accessToken, token);
+      const invite = await acceptInvite(accessToken, token);
+      setIsElderly(invite.role === 'elderly');
       setPhase('success');
     } catch (err) {
       setPhase('error');
@@ -77,7 +79,7 @@ export function AcceptInviteScreen({ navigation, route }: Props) {
         <Text style={styles.title}>Convite aceito!</Text>
         <Text style={styles.body}>Você agora faz parte do workspace.</Text>
         <Pressable onPress={handleGoToWorkspace} style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>Ver workspaces</Text>
+          <Text style={styles.primaryButtonText}>{isElderly ? 'Abrir proteção' : 'Ver workspaces'}</Text>
         </Pressable>
       </View>
     );

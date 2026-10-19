@@ -52,6 +52,18 @@ export const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 8,
   },
+  periodChip: {
+    backgroundColor: "#E5F7F7",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  periodChipText: {
+    color: "#003984",
+    fontFamily: ALERT_FONTS.medium,
+    fontSize: 10,
+    lineHeight: 15,
+  },
   alertList: {
     gap: 12,
   },

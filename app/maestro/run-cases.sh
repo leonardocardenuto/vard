@@ -41,7 +41,8 @@ case "$CASE" in
   invite) FLOWS=(workspace/invite.yaml) ;;
   accept) FLOWS=(workspace/accept-invite.yaml) ;;
   camera) FLOWS=(workspace/camera-actions.yaml) ;;
-  *) echo 'Uso: npm run test:e2e -- [all|email|login|signup|navigation|workspace|invite|accept|camera]' >&2; exit 2 ;;
+  elderly) FLOWS=(elderly/monitor-start.yaml) ;;
+  *) echo 'Uso: npm run test:e2e -- [all|email|login|signup|navigation|workspace|invite|accept|camera|elderly]' >&2; exit 2 ;;
 esac
 for command in docker maestro adb node curl; do
   command -v "$command" >/dev/null || { echo "Comando ausente: $command" >&2; exit 1; }
@@ -134,6 +135,7 @@ for flow in "${FLOWS[@]}"; do
     -e MAESTRO_SIGNUP_EMAIL=maestro.signup@example.com \
     -e MAESTRO_INVITE_EMAIL=maestro.invite@example.com \
     -e MAESTRO_ACCEPT_EMAIL=maestro.invited@example.com \
+    -e MAESTRO_ELDERLY_EMAIL=maestro.elderly@example.com \
     -e 'MAESTRO_CAMERA_NAME=Camera Maestro' \
     -e 'MAESTRO_WORKSPACE_NAME=Casa Maestro' \
     -e 'MAESTRO_PASSWORD=MaestroLocal123!' \

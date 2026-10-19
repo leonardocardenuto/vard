@@ -39,9 +39,20 @@ if sys.argv[1] == 'seed':
         'status': 'online',
         'metadata': {'location': 'Sala'},
     }, token)
+    elder = request('/auth/register', {
+        'email': 'maestro.elderly@example.com', 'password': PASSWORD, 'full_name': 'Maestro Idoso',
+    })['access_token']
+    elder_invite = request('/invites', {
+        'workspace_id': workspace['id'], 'email': 'maestro.elderly@example.com', 'role': 'elderly',
+    }, token)
+    request('/invites/accept', {'token': elder_invite['token']}, elder)
     print('Fixture local criada.')
 elif sys.argv[1] == 'verify':
     case = sys.argv[2]
+    if case == 'elderly':
+        profile = request('/mobile-monitor/profile', token=login('maestro.elderly@example.com'))
+        assert profile['restricted'] and profile['workspaces'], profile
+        print('Perfil Idoso restrito e associado pelo convite.')
     if case in ('all', 'signup'):
         me = request('/auth/me', token=login(SIGNUP_EMAIL))
         assert me['full_name'] == 'Maestro Cadastro', me

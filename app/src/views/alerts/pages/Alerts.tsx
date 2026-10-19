@@ -27,9 +27,12 @@ import {
 } from "react-native";
 
 import { LayoutWithNavbar } from "../../../components/LayoutWithNavbar";
+import { OccurrenceCard } from "../../../components/OccurrenceCard";
+import { useOccurrenceClip } from "../../../components/useOccurrenceClip";
 import { decryptFallOccurredAt } from "../../../lib/fallHistoryCrypto";
 import {
   ApiRequestError,
+  FallEventResponse,
   NotificationResponse,
   getMe,
   getNotification,
@@ -40,12 +43,13 @@ import {
 } from "../../../lib/api";
 import { AppTabParamList } from "../../../navigation/types";
 import { styles } from "../styles/alerts";
+import { styles as occurrenceStyles } from "../../workspace/styles/workspace_details";
 import { AlertItem, AlertsStackParamList } from "../types";
 
 type AlertsRoute = RouteProp<AppTabParamList, "Alerts">;
 type AlertsListProps = NativeStackScreenProps<
   AlertsStackParamList,
-  "AlertsList"
+  "AlertsList" | "RecentAlerts"
 >;
 type AlertDetailsProps = NativeStackScreenProps<
   AlertsStackParamList,
@@ -76,6 +80,7 @@ export function Alerts() {
         initialParams={{ accessToken }}
       />
       <Stack.Screen name="AlertDetails" component={AlertDetailsScreen} />
+      <Stack.Screen name="RecentAlerts" component={AlertsListScreen} />
     </Stack.Navigator>
   );
 }
@@ -83,10 +88,13 @@ export function Alerts() {
 function AlertsListScreen({ navigation, route }: AlertsListProps) {
   const tabNavigation = useNavigation();
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [occurrences, setOccurrences] = useState<(NotificationResponse & { workspaceName: string; fallEvent?: FallEventResponse })[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const accessToken = route.params.accessToken;
+  const last24Hours = route.name === "RecentAlerts";
+  const { openClip, loadingId, error: clipError, clipModal } = useOccurrenceClip(accessToken);
 
   const loadAlerts = useCallback(async () => {
     if (!accessToken) {
@@ -108,17 +116,33 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
         ),
       );
       const occurredAtByNotification = new Map<string, string>();
+      const fallEventsByNotification = new Map<string, FallEventResponse>();
       const notifications: NotificationResponse[] = [];
       for (const [workspaceNotifications, fallEvents] of historyByWorkspace) {
         await Promise.all(fallEvents.map(async (event) => {
           if (event.notification_id) {
+            fallEventsByNotification.set(event.notification_id, event);
             const occurredAt = await decryptFallOccurredAt(event.encrypted_payload, event.key_envelope, me.id);
             if (occurredAt) occurredAtByNotification.set(event.notification_id, occurredAt);
           }
         }));
         notifications.push(...workspaceNotifications);
       }
-      setAlerts(notifications.map((notification) => notificationToAlert(notification, occurredAtByNotification)));
+      const now = Date.now();
+      const cutoff = now - 24 * 60 * 60 * 1000;
+      const visible = notifications
+        .filter((notification) => {
+          if (!last24Hours) return true;
+          const createdAt = new Date(notification.created_at).getTime();
+          return createdAt >= cutoff && createdAt <= now;
+        })
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+      setAlerts(visible.map((notification) => notificationToAlert(notification, occurredAtByNotification)));
+      const workspaceNames = new Map(workspaces.map((workspace) => [workspace.id, workspace.name]));
+      setOccurrences(visible.map((notification) => ({ ...notification,
+        workspaceName: workspaceNames.get(notification.workspace_id) ?? '',
+        fallEvent: fallEventsByNotification.get(notification.id),
+      })));
     } catch (error) {
       setErrorMessage(
         error instanceof ApiRequestError
@@ -126,10 +150,11 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
           : "Não foi possível carregar os alertas.",
       );
       setAlerts([]);
+      setOccurrences([]);
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken]);
+  }, [accessToken, last24Hours]);
 
   useFocusEffect(
     useCallback(() => {
@@ -149,7 +174,7 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
   return (
     <LayoutWithNavbar>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={last24Hours ? occurrenceStyles.content : styles.content}
         refreshControl={
           <RefreshControl
             colors={["#00B9BB"]}
@@ -160,15 +185,21 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerRow}>
+        <View style={last24Hours ? occurrenceStyles.headerRow : styles.headerRow}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Voltar para a Home"
             onPress={() => tabNavigation.navigate("Home" as never)}
-            style={styles.backButton}
+            style={last24Hours ? occurrenceStyles.backButton : styles.backButton}
           >
-            <Feather color="#050505" name="chevron-left" size={27} />
+            <Feather color={last24Hours ? "#111827" : "#050505"} name="chevron-left" size={last24Hours ? 20 : 27} />
           </Pressable>
-          <Text style={styles.title}>Alertas</Text>
-          <Text style={styles.todayText}>Hoje</Text>
+          {last24Hours ? <View style={occurrenceStyles.headerTitleWrap}>
+            <Text style={occurrenceStyles.title}>Ocorrências</Text>
+          </View> : <Text style={styles.title}>Alertas</Text>}
+          {last24Hours ? <View style={styles.periodChip}>
+            <Text style={styles.periodChipText}>Últimas 24h</Text>
+          </View> : <Text style={styles.todayText}>Hoje</Text>}
         </View>
 
         {isLoading ? <ActivityIndicator color="#00B9BB" /> : null}
@@ -176,19 +207,29 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
           <Text style={styles.errorText}>{errorMessage}</Text>
         ) : null}
 
-        {!isLoading && alerts.length === 0 ? (
+        {!isLoading && !errorMessage && alerts.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather color="#A8AFB6" name="check-circle" size={31} />
             <Text style={styles.emptyText}>
-              Nenhum incidente{"\n"}detectado hoje.
+              {last24Hours ? "Nenhum incidente detectado\nnas últimas 24 horas." : "Nenhum incidente\ndetectado hoje."}
             </Text>
           </View>
         ) : null}
 
-        <View style={styles.alertList}>
-          {alerts.map((alert) => (
+        <View style={last24Hours ? occurrenceStyles.occurrencesList : styles.alertList}>
+          {last24Hours ? occurrences.map((notification) => <OccurrenceCard key={notification.id}
+            notification={notification} workspaceName={notification.workspaceName} accessToken={accessToken}
+            validation canOpenClip={Boolean(notification.fallEvent?.has_clip)}
+            opening={Boolean(loadingId && loadingId === notification.fallEvent?.id)}
+            onUpdate={(updated) => setOccurrences((items) => items.map((item) => item.id === updated.id ? { ...item, ...updated } : item))}
+            onOpen={() => {
+              if (notification.fallEvent?.has_clip) { void openClip(notification.fallEvent.id); return; }
+              navigation.navigate('AlertDetails', { accessToken,
+                alert: notificationToAlert(notification, new Map()), openedFrom: 'alerts' });
+            }} />) : alerts.map((alert) => (
             <Pressable
-              accessibilityRole="button"
+              accessibilityRole={alert.payload.source === 'accelerometer' ? undefined : 'button'}
+              disabled={alert.payload.source === 'accelerometer'}
               key={alert.id}
               onPress={() =>
                 navigation.navigate("AlertDetails", {
@@ -211,11 +252,13 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
                   {"\u2022"} {alert.room} - Horário: {alert.time}
                 </Text>
               </View>
-              <Feather color="#757B80" name="chevron-right" size={25} />
+              {alert.payload.source !== 'accelerometer' ? <Feather color="#757B80" name="chevron-right" size={25} /> : null}
             </Pressable>
           ))}
+          {clipError ? <Text accessibilityLiveRegion="polite" style={styles.errorText}>{clipError}</Text> : null}
         </View>
       </ScrollView>
+      {clipModal}
     </LayoutWithNavbar>
   );
 }
@@ -226,7 +269,7 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
     alert.isValidationAnswered,
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const title = alert.kind === "fall" ? "Fall Detected" : alert.title;
+  const title = alert.payload.source === "accelerometer" ? "Possível queda pelo celular" : alert.kind === "fall" ? "Queda detectada" : alert.title;
 
   const syncAlertValidation = useCallback(async () => {
     try {
@@ -328,7 +371,7 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
 
             <Bullet label="Local" value={alert.room} />
             <Bullet label="Horário" value={alert.time} />
-            <Bullet label="Nível de precisão" value={`${alert.precision}%`} />
+            {alert.precision > 0 ? <Bullet label="Nível de precisão" value={`${alert.precision}%`} /> : null}
 
             <EmergencyButton label="SAMU (192)" primary />
             <EmergencyButton label="Polícia (190)" />
@@ -445,7 +488,7 @@ function notificationToAlert(
 ): AlertItem {
   const payload = notification.payload ?? {};
   const rawTitle =
-    notification.title || notification.notification_type || "Alert";
+    notification.title || notification.notification_type || "Alerta";
   const normalizedTitle = `${notification.notification_type} ${rawTitle}`.toLowerCase();
   const kind = normalizedTitle.includes("armed_person") || normalizedTitle.includes("pessoa armada")
     ? "armed"
@@ -457,7 +500,7 @@ function notificationToAlert(
 
   return {
     id: notification.id,
-    title: kind === "armed" ? "Pessoa armada" : kind === "fall" ? "Fall" : kind === "fight" ? "Confronto" : rawTitle,
+    title: kind === "armed" ? "Pessoa armada" : kind === "fall" ? (payload.source === "accelerometer" ? "Possível queda pelo celular" : "Queda detectada") : kind === "fight" ? "Confronto" : rawTitle,
     kind,
     room:
       stringFromPayload(payload, ["room", "location", "camera_name"]) ??
@@ -467,7 +510,7 @@ function notificationToAlert(
       numberFromPayload(payload, ["precision", "confidence", "accuracy"]) ?? 0,
     imageUrl:
       stringFromPayload(payload, ["image_url", "snapshot_url", "photo_url"]) ??
-      DEFAULT_ALERT_IMAGE_URL,
+      (payload.source === "accelerometer" ? "" : DEFAULT_ALERT_IMAGE_URL),
     isValidationAnswered: hasDetectionValidation(payload),
     payload,
   };

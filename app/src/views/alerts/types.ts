@@ -14,6 +14,9 @@ export type AlertsStackParamList = {
   AlertsList: {
     accessToken: string;
   };
+  RecentAlerts: {
+    accessToken: string;
+  };
   AlertDetails: {
     alert: AlertItem;
     accessToken: string;

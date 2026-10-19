@@ -1,0 +1,34 @@
+appId: com.vard.app
+name: Idoso - convite aceito, acesso restrito e protecao nativa
+---
+- runFlow: ../shared/open-app.yaml
+- tapOn:
+    id: auth-email
+- inputText: ${MAESTRO_ELDERLY_EMAIL}
+- hideKeyboard
+- tapOn: "CONTINUE"
+- tapOn:
+    id: auth-password
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- tapOn: "CONTINUE"
+- extendedWaitUntil:
+    visible: "Sua proteção"
+    timeout: 30000
+- assertNotVisible:
+    id: tab-Workspace
+- assertNotVisible:
+    id: tab-Insights
+- tapOn: "Ativar proteção"
+- tapOn:
+    text: "Allow|Permitir"
+    optional: true
+- extendedWaitUntil:
+    visible: "Monitoramento ativo"
+    timeout: 15000
+- assertVisible: "Pausar monitoramento"
+- tapOn: "Pausar monitoramento"
+- extendedWaitUntil:
+    visible: "Monitoramento pausado"
+    timeout: 10000
+- assertVisible: "Ativar proteção"

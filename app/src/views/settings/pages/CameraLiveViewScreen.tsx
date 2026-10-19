@@ -3,12 +3,16 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import * as FileSystem from 'expo-file-system/legacy';
 import { WebView } from 'react-native-webview';
 
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
-import { decryptFallClip, decryptFallOccurredAt } from '../../../lib/fallHistoryCrypto';
-import { ApiRequestError, getFallEventClip, getMe, listFallEvents } from '../../../lib/api';
+import { decryptFallOccurredAt } from '../../../lib/fallHistoryCrypto';
+import {
+  prefetchFallEventClip,
+  prepareFallEventClip,
+  removePreparedFallEventClip,
+} from '../../../lib/fallClipPlayback';
+import { ApiRequestError, getMe, listFallEvents } from '../../../lib/api';
 import { SettingsStackParamList } from '../types';
 import { styles } from '../styles/CameraLiveViewScreen';
 
@@ -83,6 +87,8 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
               .filter((item): item is CameraHistoryItem => Boolean(item.occurredAt))
               .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
           );
+          const firstClip = events.find((event) => event.camera_id === cameraId && event.has_clip);
+          if (firstClip) prefetchFallEventClip(accessToken, firstClip.id);
         }
       } finally {
         if (isMounted) setIsHistoryLoading(false);
@@ -117,22 +123,17 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
     setLoadingClipId(event.id);
     setClipError('');
     try {
-      const [me, clip] = await Promise.all([getMe(accessToken), getFallEventClip(accessToken, event.id)]);
-      const decryptedClip = await decryptFallClip(clip.encrypted_clip, clip.key_envelope, me.id);
-      if (!decryptedClip || !FileSystem.cacheDirectory) throw new Error('Não foi possível abrir o trecho.');
-
-      const clipUri = `${FileSystem.cacheDirectory}vard-fall-${event.id}.mp4`;
-      await FileSystem.writeAsStringAsync(clipUri, bytesToBase64(decryptedClip), {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      const clipUri = await prepareFallEventClip(accessToken, event.id);
       await clipPlayer.replaceAsync(clipUri);
       clipPlayer.play();
       setClipUri(clipUri);
       setIsClipVisible(true);
     } catch (error) {
       setClipError(
-        error instanceof ApiRequestError && error.status === 401
-          ? 'Sua sessão expirou. Entre novamente para abrir o trecho.'
+        error instanceof ApiRequestError
+          ? error.status === 401
+            ? 'Sua sessão expirou. Entre novamente para abrir o trecho.'
+            : error.message
           : 'Não foi possível abrir o trecho da queda. Tente novamente.'
       );
     } finally {
@@ -144,7 +145,7 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
     clipPlayer.pause();
     setIsClipVisible(false);
     if (clipUri) {
-      await FileSystem.deleteAsync(clipUri, { idempotent: true });
+      removePreparedFallEventClip(clipUri);
       setClipUri(null);
     }
   }
@@ -277,13 +278,4 @@ function formatHistoryDate(value: string) {
   return Number.isNaN(date.getTime())
     ? 'Horário protegido'
     : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function bytesToBase64(value: Uint8Array) {
-  const chunkSize = 0x8000;
-  let binary = '';
-  for (let index = 0; index < value.length; index += chunkSize) {
-    binary += String.fromCharCode(...value.subarray(index, index + chunkSize));
-  }
-  return btoa(binary);
 }

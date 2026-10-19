@@ -1,20 +1,11 @@
-import { Alert, NativeModules, Platform, TurboModuleRegistry } from 'react-native';
+import { NativeModules, Platform, TurboModuleRegistry } from 'react-native';
 
 let isInitialized = false;
 let initializationPromise: Promise<void> | null = null;
-let pushSubscriptionObserverRegistered = false;
-let verificationDialogShown = false;
-
 const SUBSCRIPTION_RETRY_COUNT = 8;
 const SUBSCRIPTION_RETRY_DELAY_MS = 1000;
-const VERIFICATION_DIALOG_TITLE = 'Your OneSignal SDK integration is complete!';
-const VERIFICATION_DIALOG_MESSAGE =
-  'You can now send Push Notifications & In-App Messages through OneSignal. Tap below to enable push notifications.';
 
 type OneSignalModule = typeof import('react-native-onesignal');
-type PushSubscriptionChange = import('react-native-onesignal').PushSubscriptionChangedState;
-// This strong reference keeps the observer alive for the entire app lifetime.
-let pushSubscriptionObserver: ((change: PushSubscriptionChange) => void) | null = null;
 
 async function loadOneSignal(): Promise<OneSignalModule | null> {
   if (Platform.OS === 'web') {
@@ -39,48 +30,6 @@ function hasServerAssignedSubscriptionId(subscriptionId: string | null | undefin
   return Boolean(subscriptionId?.trim() && !subscriptionId.startsWith('local-'));
 }
 
-function showVerificationDialog(oneSignalModule: OneSignalModule) {
-  if (verificationDialogShown) {
-    return;
-  }
-
-  verificationDialogShown = true;
-  Alert.alert(VERIFICATION_DIALOG_TITLE, VERIFICATION_DIALOG_MESSAGE, [
-    {
-      text: 'Got it',
-      onPress: () => {
-        void oneSignalModule.OneSignal.Notifications.requestPermission(true);
-      },
-    },
-  ]);
-}
-
-function handlePushSubscriptionChange(
-  oneSignalModule: OneSignalModule,
-  change: PushSubscriptionChange,
-) {
-  if (hasServerAssignedSubscriptionId(change.current.id)) {
-    showVerificationDialog(oneSignalModule);
-  }
-}
-
-async function evaluateCurrentPushSubscription(oneSignalModule: OneSignalModule) {
-  const subscriptionId = await oneSignalModule.OneSignal.User.pushSubscription.getIdAsync();
-  if (hasServerAssignedSubscriptionId(subscriptionId)) {
-    showVerificationDialog(oneSignalModule);
-  }
-}
-
-function registerPushSubscriptionObserver(oneSignalModule: OneSignalModule) {
-  if (pushSubscriptionObserverRegistered) {
-    return;
-  }
-
-  pushSubscriptionObserver = (change) => handlePushSubscriptionChange(oneSignalModule, change);
-  oneSignalModule.OneSignal.User.pushSubscription.addEventListener('change', pushSubscriptionObserver);
-  pushSubscriptionObserverRegistered = true;
-}
-
 export function initializeOneSignal() {
   if (initializationPromise) {
     return initializationPromise;
@@ -102,13 +51,8 @@ async function initializeOneSignalSdk() {
   }
 
   oneSignalModule.OneSignal.initialize(appId);
-  registerPushSubscriptionObserver(oneSignalModule);
+  void oneSignalModule.OneSignal.Notifications.requestPermission(true);
   isInitialized = true;
-  try {
-    await evaluateCurrentPushSubscription(oneSignalModule);
-  } catch (error) {
-    console.warn('Unable to evaluate the current OneSignal push subscription.', error);
-  }
 }
 
 function wait(milliseconds: number) {
