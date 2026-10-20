@@ -5,6 +5,9 @@ import kotlin.math.*
 /** Phone must be carried on the body. Values are Android SI units (m/s²).
  * Initial heuristics, not a validated medical classifier. */
 class FallDetector {
+    companion object {
+        const val REARM_DELAY_MILLIS = 10000L
+    }
     private var gravity = doubleArrayOf(0.0, 9.81, 0.0)
     private var before = gravity.copyOf()
     private var initialized = false
@@ -15,18 +18,24 @@ class FallDetector {
     private var peak = 0.0
     private var hadFreeFall = false
 
-    fun reset(now: Long) {
+    fun reset(now: Long): Long {
         impactAt = -10000L
         lowAt = -10000L
         stillAt = 0
-        cooldownUntil = now + 60000
+        cooldownUntil = now + REARM_DELAY_MILLIS
+        return cooldownUntil
     }
 
     fun sample(x: Double, y: Double, z: Double, now: Long): Double? {
         val vector = doubleArrayOf(x, y, z)
         val magnitude = sqrt(x*x + y*y + z*z) / 9.80665
         if (!initialized) { gravity = vector.copyOf(); initialized = true }
-        if (now < cooldownUntil) return null
+        if (now < cooldownUntil) {
+            if (magnitude in 0.7..1.3) {
+                for (i in gravity.indices) gravity[i] = gravity[i]*0.9 + vector[i]*0.1
+            }
+            return null
+        }
         if (magnitude < 0.6) lowAt = now
         if (impactAt < 0 && magnitude >= 2.5) {
             before = gravity.copyOf()

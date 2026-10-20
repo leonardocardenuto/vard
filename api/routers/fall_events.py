@@ -13,9 +13,8 @@ from api.services.fall_events import list_fall_events
 
 router = APIRouter(prefix="/fall-events", tags=["fall-events"])
 
-# The current mobile E2EE flow decodes the Base64 response and decrypts it in
-# memory. Keep legacy oversized clips from exhausting the Android JS heap.
-MAX_INLINE_ENCRYPTED_CLIP_BYTES = 24 * 1024 * 1024
+# Bound the encrypted file size before Base64 encoding and mobile decryption.
+MAX_INLINE_ENCRYPTED_CLIP_BYTES = 100 * 1024 * 1024
 
 
 @router.get("", response_model=list[FallEventResponse])

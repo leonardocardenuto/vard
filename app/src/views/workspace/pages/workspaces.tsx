@@ -5,10 +5,11 @@ import { useFonts } from 'expo-font';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -755,14 +756,50 @@ function WorkspaceFormLayout({
   title: string;
 }) {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!keyboardVisible) return;
+    // Measure after Android finishes resizing and scrolling the focused input.
+    const timer = setTimeout(() => {
+      const scroll = scrollRef.current;
+      const input = TextInput.State.currentlyFocusedInput();
+      const content = contentRef.current;
+      if (!scroll || !input || !content) return;
+      input.measureLayout(content, (_x, y, _width, height) => {
+        scroll.getNativeScrollRef()?.measureInWindow((_left, top, _w, viewportHeight) => {
+          const keyboard = Keyboard.metrics();
+          if (!keyboard) return;
+          const visibleHeight = Math.min(viewportHeight, keyboard.screenY - top);
+          scroll.scrollTo({ y: Math.max(0, y + height + 32 - visibleHeight), animated: true });
+        });
+      });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [keyboardVisible]);
+
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={72 + insets.top}
-      style={[styles.formScreen, { paddingBottom: 64 + Math.max(insets.bottom, 10) }]}
+      style={[styles.formScreen, { paddingBottom: keyboardVisible ? 0 : 64 + Math.max(insets.bottom, 10) }]}
     >
-      <ScrollView contentContainerStyle={styles.formScreenContent}
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.formScreenContent}
         keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View ref={contentRef} collapsable={false}>
         <View style={styles.formHeader}>
           <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={onBackPress}
             style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
@@ -774,28 +811,29 @@ function WorkspaceFormLayout({
         <Text style={styles.formDescription}>{subtitle}</Text>
         <View style={styles.formBody}>{children}</View>
         {errorMessage ? <Text accessibilityLiveRegion="polite" style={styles.errorText}>{errorMessage}</Text> : null}
-      </ScrollView>
-      <View style={styles.formFooter}>
-        <View style={styles.footerContent}>
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: submitDisabled }}
-            testID="workspace-save" disabled={submitDisabled} onPress={onSubmit}
-            style={({ pressed }) => [styles.primaryButton, (pressed || submitDisabled) && styles.pressed]}>
-            <ExpoLinearGradient
-              colors={WORKSPACE_GRADIENT_COLORS}
-              locations={WORKSPACE_GRADIENT_LOCATIONS}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.primaryButtonGradient}
-            >
-              <Text style={styles.primaryButtonText}>{buttonLabel}</Text>
-            </ExpoLinearGradient>
-          </Pressable>
-          <Pressable accessibilityRole="button" disabled={submitDisabled} onPress={onBackPress}
-            style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
-            <Text style={styles.cancelButtonText}>Cancelar</Text>
-          </Pressable>
+        <View style={styles.formFooter}>
+          <View style={styles.footerContent}>
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: submitDisabled }}
+              testID="workspace-save" disabled={submitDisabled} onPress={onSubmit}
+              style={({ pressed }) => [styles.primaryButton, (pressed || submitDisabled) && styles.pressed]}>
+              <ExpoLinearGradient
+                colors={WORKSPACE_GRADIENT_COLORS}
+                locations={WORKSPACE_GRADIENT_LOCATIONS}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.primaryButtonGradient}
+              >
+                <Text style={styles.primaryButtonText}>{buttonLabel}</Text>
+              </ExpoLinearGradient>
+            </Pressable>
+            <Pressable accessibilityRole="button" disabled={submitDisabled} onPress={onBackPress}
+              style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }

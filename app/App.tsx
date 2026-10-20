@@ -4,12 +4,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useFonts } from 'expo-font';
+import * as NativeSplashScreen from 'expo-splash-screen';
 import { ActivityIndicator, AppState, DeviceEventEmitter, Pressable, Text, TextInput, View } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
-import { SplashScreen } from './src/components/SplashScreen';
 import { AppTabParamList, RootStackParamList } from './src/navigation/types';
 import { AuthScreen } from './src/views/auth/pages/AuthScreen';
 import { Home } from './src/views/home/pages/Home.tsx';
@@ -154,9 +154,10 @@ function AppTabs({ navigation: stackNavigation, route }: AppTabsProps) {
   );
 }
 
+void NativeSplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function App() {
-  const [isSplashVisible, setIsSplashVisible] = useState(true);
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     'Poppins-Regular': require('./assets/fonts/Poppins-Regular.ttf'),
     'Poppins-Medium': require('./assets/fonts/Poppins-Medium.ttf'),
     'Poppins-SemiBold': require('./assets/fonts/Poppins-SemiBold.ttf'),
@@ -168,18 +169,13 @@ export default function App() {
   useEffect(() => {
     void initializeOneSignal();
 
-    const timeout = setTimeout(() => {
-      setIsSplashVisible(false);
-    }, 1600);
-
-    return () => clearTimeout(timeout);
   }, []);
 
-  if (isSplashVisible) {
-    return <SplashScreen />;
-  }
+  useEffect(() => {
+    if (fontsLoaded || fontError) void NativeSplashScreen.hideAsync();
+  }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded && !fontError) {
     return null;
   }
 

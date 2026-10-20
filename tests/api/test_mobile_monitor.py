@@ -76,6 +76,25 @@ def test_role_removal_invalidates_device_and_foreign_workspace_cannot_register(c
     }).status_code == 403
 
 
+def test_same_device_can_send_multiple_distinct_falls(client, db_session, monkeypatch):
+    pushed = []
+    monkeypatch.setattr("api.routers.mobile_monitor.send_push_to_subscription_ids",
+                        lambda ids, **data: pushed.append(data))
+    _, elderly, workspace = setup_elderly(client)
+    device = client.post("/mobile-monitor/devices", headers=auth_headers(elderly),
+                         json={"workspace_id": workspace["id"]}).json()
+    headers = auth_headers(device["device_token"])
+    for _ in range(3):
+        payload = {"event_id": str(uuid.uuid4()), "occurred_at": datetime.now(UTC).isoformat(), "peak_g": 3.2}
+        for _ in range(2):
+            response = client.post("/mobile-monitor/falls", headers=headers, json=payload)
+            assert response.status_code == 200, response.text
+            assert response.json()["notification_id"] == payload["event_id"]
+        assert db_session.get(Notification, uuid.UUID(payload["event_id"])) is not None
+        assert client.get("/mobile-monitor/devices/current", headers=headers).status_code == 200
+    assert len(pushed) == 3
+
+
 def test_fall_push_excludes_elderly_and_shared_phone_subscriptions(client, db_session, monkeypatch):
     pushed = []
     monkeypatch.setattr("api.routers.mobile_monitor.send_push_to_subscription_ids",

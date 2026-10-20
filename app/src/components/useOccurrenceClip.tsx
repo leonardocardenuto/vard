@@ -24,9 +24,9 @@ export function useOccurrenceClip(accessToken: string) {
       await player.replaceAsync(prepared);
       if (!mounted.current) { removePreparedFallEventClip(prepared); return; }
       player.play(); setUri(prepared);
-    } catch {
+    } catch (error) {
       removePreparedFallEventClip(prepared);
-      if (mounted.current) setError('Não foi possível abrir o trecho. Tente novamente.');
+      if (mounted.current) setError(error instanceof Error ? error.message : 'Não foi possível reproduzir o trecho neste celular.');
     } finally { busy.current = false; if (mounted.current) setLoadingId(null); }
   }
   function close() { if (!mounted.current) return; player.pause(); setUri(null); }

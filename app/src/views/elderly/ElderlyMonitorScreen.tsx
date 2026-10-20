@@ -49,6 +49,7 @@ export function ElderlyMonitorScreen({ accessToken, profile, onLogout }: {
   const pending = Boolean(status?.pendingDeadline && status.pendingDeadline > now);
   const seconds = Math.max(0, Math.ceil(((status?.pendingDeadline ?? 0) - now) / 1000));
   const active = status?.running && status.sensorActive;
+  const rearmSeconds = active && !pending ? Math.max(0, Math.ceil(((status?.rearmDeadline ?? 0) - now) / 1000)) : 0;
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="dark-content" />
@@ -67,7 +68,7 @@ export function ElderlyMonitorScreen({ accessToken, profile, onLogout }: {
 
         <View style={styles.card}>
           <Feather name={active ? 'shield' : 'pause-circle'} size={56} color={active ? '#00A6AD' : '#667085'} />
-          <Text style={styles.cardTitle}>{active ? 'Monitoramento ativo' : status?.running ? 'Iniciando sensor…' : 'Monitoramento pausado'}</Text>
+          <Text accessibilityLiveRegion="polite" style={styles.cardTitle}>{rearmSeconds > 0 ? `Retomando detecção em ${rearmSeconds}s` : active ? 'Monitoramento ativo' : status?.running ? 'Iniciando sensor…' : 'Monitoramento pausado'}</Text>
           <Text style={styles.body}>{active ? 'O celular está acompanhando seus movimentos, inclusive com a tela bloqueada.' : 'Ative a proteção para acompanhar possíveis quedas.'}</Text>
           {!monitorAvailable() ? <Text style={styles.error}>O monitoramento contínuo está disponível na versão Android do VARD.</Text> : null}
           <Pressable accessibilityRole="button" disabled={busy || !monitorAvailable() || !workspaceId}

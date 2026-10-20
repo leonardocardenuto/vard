@@ -24,6 +24,8 @@ class FallMonitorModule(private val context: ReactApplicationContext) : ReactCon
             putString("workspaceId", prefs.getString("workspaceId", null))
             putString("error", FallMonitorService.lastError)
             putDouble("pendingDeadline", prefs.getLong("pendingDeadline", 0).toDouble())
+            val rearmRemaining = (FallMonitorService.rearmUntil - SystemClock.elapsedRealtime()).coerceAtLeast(0)
+            putDouble("rearmDeadline", if (rearmRemaining > 0) (System.currentTimeMillis() + rearmRemaining).toDouble() else 0.0)
             putDouble("lastSent", prefs.getLong("lastSent", 0).toDouble())
             putInt("queued", JSONArray(prefs.getString("queue", "[]")).length())
         })
