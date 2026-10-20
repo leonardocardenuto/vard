@@ -8,8 +8,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "backgroundColor": "#00B9BB"
+      "image": "./assets/splash-vard.png",
+      "backgroundColor": "#00326D"
     },
     "ios": {
       "supportsTablet": true,
@@ -36,7 +36,7 @@
         "POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#00326D",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -49,6 +49,14 @@
     },
     "plugins": [
       "./plugins/withFallMonitor",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-vard.png",
+          "imageWidth": 120,
+          "backgroundColor": "#00326D"
+        }
+      ],
       [
         "onesignal-expo-plugin",
         {

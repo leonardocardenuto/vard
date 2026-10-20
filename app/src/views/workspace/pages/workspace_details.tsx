@@ -909,7 +909,7 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
           ? error.status === 401
             ? 'Sua sessão expirou. Entre novamente para abrir o trecho.'
             : error.message
-          : 'Não foi possível abrir o trecho desta ocorrência.'
+          : error instanceof Error ? error.message : 'Não foi possível abrir o trecho desta ocorrência.'
       );
     } finally {
       setLoadingClipId(null);
