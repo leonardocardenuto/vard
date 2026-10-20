@@ -29,7 +29,7 @@ export function useOccurrenceClip(accessToken: string) {
       if (mounted.current) setError('Não foi possível abrir o trecho. Tente novamente.');
     } finally { busy.current = false; if (mounted.current) setLoadingId(null); }
   }
-  function close() { player.pause(); setUri(null); }
+  function close() { if (!mounted.current) return; player.pause(); setUri(null); }
 
   const clipModal = <Modal transparent animationType="fade" visible={Boolean(uri)} onRequestClose={close}>
     <View style={styles.backdrop}>

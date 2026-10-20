@@ -3,10 +3,12 @@ from __future__ import annotations
 import argparse
 import base64
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import signal
 import sys
 import threading
+import uuid
 from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
@@ -35,6 +37,13 @@ DEFAULT_DEMO_WORKSPACE_SLUG = "demo-webcam"
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Inicia os jobs de monitoramento de queda do VARD.")
+    parser.add_argument("--camera-id", action="append", type=uuid.UUID, help="Monitora apenas esta câmera; pode ser repetido para selecionar mais de uma.")
+    parser.add_argument("--detector", action="append", choices=("fall", "confrontation", "armed"),
+                        help="Executa somente este detector habilitado; pode ser repetido. Por padrao executa todos os habilitados.")
+    parser.add_argument("--show-preview", action="store_true", default=None,
+                        help="Abre o vídeo das câmeras selecionadas sem deixar de registrar ocorrências no app.")
+    parser.add_argument("--log-file", default="var/logs/camera_monitor.log",
+                        help="Arquivo de diagnóstico com resultados, limiares, atrasos e erros dos detectores.")
     parser.add_argument(
         "--demo",
         action="store_true",
@@ -58,26 +67,28 @@ def parse_args():
     return parser.parse_args()
 
 
-def configure_logging():
+def configure_logging(log_file):
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
         format="[%(asctime)s] %(levelname)s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
+        handlers=[logging.StreamHandler(), RotatingFileHandler(log_path, maxBytes=5_000_000, backupCount=2, encoding="utf-8")],
     )
 
 
 def main():
     args = parse_args()
-    configure_logging()
+    configure_logging(args.log_file)
     register_cache_invalidation_hooks()
     logger = logging.getLogger("fall_monitor.jobs")
 
     if args.demo:
         demo = seed_webcam_demo(args)
         logger.info(
-            "Demo pronta: email=%s senha=%s workspace=%s camera=%s webcam=%s",
+            "Demo pronta: email=%s workspace=%s camera=%s webcam=%s",
             args.demo_email,
-            args.demo_password,
             demo["workspace_name"],
             demo["camera_name"],
             args.webcam_source,
@@ -87,7 +98,11 @@ def main():
             return
 
     stop_event = threading.Event()
-    supervisor = CameraMonitorSupervisor(get_settings())
+    supervisor = CameraMonitorSupervisor(
+        get_settings(), camera_ids=set(args.camera_id) if args.camera_id else None,
+        show_preview=args.show_preview,
+        detectors=set(args.detector) if args.detector else None,
+    )
 
     def _stop(*_):
         logger.info("Encerrando jobs de monitoramento de cameras.")

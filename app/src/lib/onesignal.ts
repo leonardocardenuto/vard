@@ -1,4 +1,5 @@
 import { NativeModules, Platform, TurboModuleRegistry } from 'react-native';
+import { pushFallId } from './fallAlertQueue';
 
 let isInitialized = false;
 let initializationPromise: Promise<void> | null = null;
@@ -136,4 +137,24 @@ export async function setOneSignalLogLevel(level: import('react-native-onesignal
 async function getInitializedOneSignalModule() {
   await initializeOneSignal();
   return isInitialized ? loadOneSignal() : null;
+}
+
+export async function subscribeToFallPush(onFall: (id: string, clicked: boolean) => void) {
+  const module = await getInitializedOneSignalModule();
+  if (!module) return () => {};
+  const sdk = module.OneSignal.Notifications;
+  const foreground = (event: { getNotification(): { additionalData?: unknown }; preventDefault(): void }) => {
+    const id = pushFallId(event.getNotification().additionalData);
+    if (id) onFall(id, false);
+  };
+  const click = (event: { notification: { additionalData?: unknown } }) => {
+    const id = pushFallId(event.notification.additionalData);
+    if (id) onFall(id, true);
+  };
+  sdk.addEventListener('foregroundWillDisplay', foreground);
+  sdk.addEventListener('click', click);
+  return () => {
+    sdk.removeEventListener('foregroundWillDisplay', foreground);
+    sdk.removeEventListener('click', click);
+  };
 }

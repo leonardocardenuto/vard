@@ -28,11 +28,29 @@ Suba o Metro:
 npm start
 ```
 
+No emulador Android, configure `app/.env.local` com
+`EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8000`. Esse endereço aponta para a
+API no computador e não depende de `adb reverse`. `127.0.0.1` aponta para o
+próprio Android, a menos que a porta 8000 tenha sido encaminhada por ADB.
+O arquivo `.env.local` tem prioridade sobre `.env`; reinicie o Metro com
+`npm start -- --clear --android` após mudar o endereço. Para iOS Simulator/web,
+use `http://127.0.0.1:8000`; para celular físico pela rede, use o IP do computador.
+
+Para usar o emulador sem depender do IP do Wi-Fi, execute
+`npm run start:emulator -- --clear`. Esse comando seleciona `10.0.2.2:8000`
+somente para o Metro dessa execução e mantém os `.env` com o endereço de rede
+usado no APK/celular físico. Requisições à API têm limite de espera de 15 segundos.
+
 Rodar no Android:
 
 ```bash
-npx expo run:android
+npm run android
 ```
+
+Para selecionar automaticamente um JDK 17/21 compatível (incluindo o Java do
+Android Studio), use `npm run android`. O Java 26 não é compatível com o build
+atual. O development client usa `exp+com.vard.app` para não abrir instalações
+antigas que compartilham o esquema `exp+vard`.
 
 Rodar no iOS:
 
@@ -127,6 +145,19 @@ Os endpoints `GET` autenticados usam Redis para cache por usuário, sem expiraç
 ## Inferência de queda
 
 O fluxo de inferência contínua com vídeo local, webcam ou câmera RTSP/IP está documentado em `docs/fall_detection.md`.
+
+Para monitorar somente uma câmera cadastrada e habilitada em `metadata.fall_monitor.enabled`,
+use `python -m scripts.run_fall_monitor_jobs --camera-id UUID_DA_CAMERA`. A opção
+`--camera-id` pode ser repetida para selecionar mais de uma câmera. Sem ela, o
+supervisor considera todas as câmeras ativas com monitoramento habilitado.
+
+Para visualizar o vídeo e também registrar as quedas e notificações no app, use
+`python -m scripts.run_fall_monitor_jobs --camera-id UUID_DA_CAMERA --show-preview`.
+Essa opção abre o preview mesmo quando ele está desabilitado nos metadados da câmera,
+sem alterar o banco. Ctrl+C encerra o monitoramento; Q/Esc fecha apenas a janela.
+O script `scripts.run_fall_detection` é uma ferramenta de inferência local: seus
+alertas aparecem no terminal/preview e não são gravados no app. Ao usar jobs separados,
+inicie a API com `FALL_MONITOR_ENABLED=false` para evitar inferência duplicada.
 
 ### Demo com webcam local
 

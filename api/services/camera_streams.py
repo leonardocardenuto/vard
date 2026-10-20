@@ -84,7 +84,6 @@ def _start_ffmpeg(camera: Camera) -> CameraStreamProcess:
 
     _cleanup_stream_directory(camera.id)
 
-    log_file = open(log_path, "w", encoding="utf-8")
     command = [
         "ffmpeg",
         "-hide_banner",
@@ -108,12 +107,13 @@ def _start_ffmpeg(camera: Camera) -> CameraStreamProcess:
         str(segment_pattern),
         str(playlist_path),
     ]
-    process = subprocess.Popen(
-        command,
-        stdout=log_file,
-        stderr=log_file,
-        text=True,
-    )
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        process = subprocess.Popen(
+            command,
+            stdout=log_file,
+            stderr=log_file,
+            text=True,
+        )
     return CameraStreamProcess(camera_id=camera.id, source_url=camera.stream_url, process=process)
 
 
@@ -131,7 +131,10 @@ def ensure_camera_stream(camera: Camera, timeout_seconds: float = 8.0) -> str:
         if should_restart:
             if current and current.process.poll() is None:
                 current.process.kill()
-            _stream_processes[camera.id] = _start_ffmpeg(camera)
+            try:
+                _stream_processes[camera.id] = _start_ffmpeg(camera)
+            except FileNotFoundError as exc:
+                raise RuntimeError('FFmpeg não está instalado no servidor. Ele é necessário para converter esta câmera em HLS.') from exc
 
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:

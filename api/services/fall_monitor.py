@@ -61,6 +61,9 @@ class DetectionLayer:
     smoothing: Any = None
     future: Future | None = None
     pending_alert: dict | None = None
+    result_delay_seconds: float = 0.0
+    last_error: str | None = None
+    inference_clip_frames: list | None = None
 
     def __post_init__(self):
         self.smoother = TemporalSmoother(
@@ -132,6 +135,7 @@ class CameraMonitorJob:
         self._running = False
         self._latest_frame_lock = threading.Lock()
         self._latest_frame = None
+        self._latest_frame_at = None
         self.failed_at: float | None = None
 
     def start(self):
@@ -208,6 +212,7 @@ class CameraMonitorJob:
             for frame, timestamp in worker.frames(stop_event=self._stop_event, pause_event=None):
                 with self._latest_frame_lock:
                     self._latest_frame = frame.copy()
+                    self._latest_frame_at = time.monotonic()
                 if not has_frame:
                     has_frame = True
                     self._update_camera_status("online")
@@ -219,7 +224,8 @@ class CameraMonitorJob:
                         break
                     try:
                         self._process_layer(layer, buffer, timestamp, executor=executor)
-                    except Exception:
+                    except Exception as exc:
+                        layer.last_error = str(exc)
                         layer.smoother.reset()
                         layer.resume_at = time.monotonic() + 30.0
                         LOGGER.exception("Detector falhou; nova tentativa em 30s: camera_id=%s detector=%s",
@@ -259,6 +265,10 @@ class CameraMonitorJob:
                     layer.pending_alert = None
             return
         if layer.future is not None:
+            if layer.inference_clip_frames is not None:
+                latest = buffer.frames()[-1]
+                if not layer.inference_clip_frames or latest.timestamp > layer.inference_clip_frames[-1].timestamp:
+                    layer.inference_clip_frames.append(latest)
             if not layer.future.done():
                 return
             future, layer.future = layer.future, None
@@ -274,6 +284,11 @@ class CameraMonitorJob:
             return
         layer.last_inference_at = timestamp
         layer.inference_count += 1
+        if layer.kind == "fall" and (self.spec.clip_pre_seconds or self.spec.clip_post_seconds):
+            # Preserve the pre-event frames while the GPU is busy. The rolling
+            # capture buffer can evict them before the prediction completes.
+            layer.inference_clip_frames = [item for item in buffer.frames()
+                if timestamp - self.spec.clip_pre_seconds <= item.timestamp <= timestamp]
         kwargs = dict(checkpoint=config.checkpoint, device=config.device,
                       detector=layer.kind, sample_fps=config.sample_fps)
         frames = [item.frame for item in buffered_window]
@@ -284,20 +299,26 @@ class CameraMonitorJob:
         self._accept_prediction(layer, prediction, buffer, timestamp, timestamp)
 
     def _accept_prediction(self, layer, prediction, buffer, timestamp, current_timestamp):
+        layer.result_delay_seconds = max(0.0, current_timestamp - timestamp)
+        layer.last_error = None
         probability = float(prediction[layer.probability_key])
         smoothing = layer.smoother.update(probability)
         layer.prediction, layer.smoothing = prediction, smoothing
-        LOGGER.info("Resultado camera_id=%s detector=%s inferencia=%s classe=%s prob=%.4f media=%.4f hits=%s alerta=%s",
+        LOGGER.info("Resultado camera_id=%s detector=%s inferencia=%s classe=%s prob=%.4f media=%.4f hits=%s alerta=%s limiar=%.3f atraso=%.2fs",
                     self.spec.camera_id, layer.kind, layer.inference_count, prediction["predicted_class"],
-                    probability, smoothing.moving_average, smoothing.consecutive_hits, smoothing.alert)
+                    probability, smoothing.moving_average, smoothing.consecutive_hits, smoothing.alert,
+                    layer.config.threshold, layer.result_delay_seconds)
         if not smoothing.alert or timestamp - layer.last_alert_at < layer.cooldown_seconds:
             return
         if layer.kind == "fall" and (self.spec.clip_pre_seconds or self.spec.clip_post_seconds):
+            clip_frames = {item.timestamp: item for item in (layer.inference_clip_frames or [])}
+            clip_frames.update({item.timestamp: item for item in buffer.frames()
+                if timestamp - self.spec.clip_pre_seconds <= item.timestamp <= current_timestamp})
             layer.pending_alert = {
                 "timestamp": timestamp, "end": current_timestamp + self.spec.clip_post_seconds,
-                "frames": [item for item in buffer.frames()
-                           if timestamp - self.spec.clip_pre_seconds <= item.timestamp <= current_timestamp],
+                "frames": [clip_frames[key] for key in sorted(clip_frames)],
             }
+            layer.inference_clip_frames = None
             if self.spec.clip_post_seconds > 0:
                 return
             if self._finish_alert(layer, timestamp, clip_frames=layer.pending_alert["frames"]):
@@ -389,7 +410,11 @@ class CameraMonitorJob:
 
 
 class CameraMonitorSupervisor:
-    def __init__(self, settings: Settings | None = None):
+    def __init__(self, settings: Settings | None = None, *, camera_ids: set[uuid.UUID] | None = None,
+                 show_preview: bool | None = None, detectors: set[str] | None = None):
+        self.camera_ids = camera_ids
+        self.show_preview = show_preview
+        self.detectors = detectors
         self.settings = settings or get_settings()
         self.classifier_provider = FallClassifierProvider(
             checkpoint=self.settings.fall_monitor_checkpoint,
@@ -464,9 +489,21 @@ class CameraMonitorSupervisor:
             job = self._jobs.get(camera_id)
         return job.snapshot_jpeg() if job and job.is_alive() else None
 
+    def has_recent_frame(self, camera_id: uuid.UUID) -> bool | None:
+        with self._lock:
+            job = self._jobs.get(camera_id)
+        if job is None:
+            return None
+        with job._latest_frame_lock:
+            return (job.is_alive() and job._latest_frame_at is not None
+                    and time.monotonic() - job._latest_frame_at < 10)
+
     def _load_active_specs(self) -> list[CameraMonitorSpec]:
         with SessionLocal() as db:
-            cameras = list(db.scalars(select(Camera).where(Camera.is_active.is_(True))).all())
+            query = select(Camera).where(Camera.is_active.is_(True))
+            if self.camera_ids is not None:
+                query = query.where(Camera.id.in_(self.camera_ids))
+            cameras = list(db.scalars(query).all())
             specs = []
             for camera in cameras:
                 try:
@@ -488,6 +525,10 @@ class CameraMonitorSupervisor:
         confrontation_enabled = confrontation_metadata.get(
             "enabled", self.settings.confrontation_monitor_enabled and (fall_enabled or armed_enabled)
         ) is True
+        if self.detectors is not None:
+            fall_enabled = fall_enabled and "fall" in self.detectors
+            armed_enabled = armed_enabled and "armed" in self.detectors
+            confrontation_enabled = confrontation_enabled and "confrontation" in self.detectors
         if not (fall_enabled or armed_enabled or confrontation_enabled):
             return None
 
@@ -512,6 +553,8 @@ class CameraMonitorSupervisor:
         clip_post = max(0.0, float(monitor_metadata.get("clip_post_seconds", self.settings.fall_monitor_clip_post_seconds)))
         freeze_seconds = float(monitor_metadata.get("freeze_seconds", self.settings.fall_monitor_freeze_seconds))
         show_preview = bool(capture_metadata.get("show_preview", self.settings.fall_monitor_show_preview))
+        if self.show_preview is not None:
+            show_preview = self.show_preview
         cooldown = float(monitor_metadata.get("alert_cooldown_seconds", self.settings.fall_monitor_alert_cooldown_seconds))
         armed_cooldown = float(armed_metadata.get("alert_cooldown_seconds", self.settings.armed_monitor_alert_cooldown_seconds))
         confrontation_cooldown = float(confrontation_metadata.get("alert_cooldown_seconds", self.settings.confrontation_monitor_alert_cooldown_seconds))
@@ -544,7 +587,7 @@ def _mask_source(source: str) -> str:
 def _render_preview_frame(frame_rgb, layers: list[DetectionLayer]):
     frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
     overlay = frame_bgr.copy()
-    cv2.rectangle(overlay, (12, 12), (780, 60 + 64 * len(layers)), (20, 20, 20), -1)
+    cv2.rectangle(overlay, (12, 12), (min(frame_bgr.shape[1] - 12, 1100), 60 + 88 * len(layers)), (20, 20, 20), -1)
     frame_bgr = cv2.addWeighted(overlay, 0.45, frame_bgr, 0.55, 0)
     cv2.putText(frame_bgr, "VARD - Monitoramento", (24, 42),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
@@ -558,9 +601,23 @@ def _render_preview_frame(frame_rgb, layers: list[DetectionLayer]):
             if layer.smoothing.alert:
                 text += " ALERTA"
                 color = (0, 0, 255)
-        remaining = layer.resume_at - time.monotonic()
+        now = time.monotonic()
+        remaining = layer.resume_at - now
+        status = f"limiar={layer.config.threshold:.2f} atraso={layer.result_delay_seconds:.1f}s"
         if remaining > 0:
-            text += f" pausa={remaining:.0f}s"
-        cv2.putText(frame_bgr, text, (24, 82 + index * 64),
+            status += f" pausa={remaining:.0f}s"
+        elif layer.pending_alert is not None:
+            status += f" salvando clipe ({max(0, layer.pending_alert['end'] - now):.0f}s)"
+        elif layer.future is not None:
+            status += " analisando"
+        cooldown_remaining = layer.cooldown_seconds - (now - layer.last_alert_at)
+        if cooldown_remaining > 0:
+            status += f" intervalo de alertas={cooldown_remaining:.0f}s"
+        if layer.last_error:
+            status = f"ERRO: {layer.last_error[:90]} (nova tentativa em {max(0, remaining):.0f}s)"
+            color = (0, 165, 255)
+        cv2.putText(frame_bgr, text, (24, 82 + index * 88),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
+        cv2.putText(frame_bgr, status, (24, 110 + index * 88),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
     return frame_bgr

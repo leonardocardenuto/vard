@@ -36,8 +36,10 @@ def detect_camera_connection(host: str, username: str, password: str) -> Detecte
     normalized_host = host.strip()
     normalized_username = username.strip()
 
-    if not normalized_host or not normalized_username or not password:
-        raise ValueError("Host, username and password are required")
+    if not normalized_host:
+        raise ValueError("Informe o IP ou URL da câmera.")
+    if bool(normalized_username) != bool(password):
+        raise ValueError("Informe usuário e senha juntos, ou deixe ambos vazios para câmeras sem autenticação.")
 
     parsed_input = urlsplit(
         normalized_host if "://" in normalized_host else f"//{normalized_host}"
@@ -78,12 +80,15 @@ def _build_candidates(parsed_input, username: str, password: str) -> list[str]:
     if parsed_input.scheme in {"rtsp", "http", "https"}:
         candidates.append(_url_with_credentials(parsed_input, username, password))
 
+    rtsp_candidates: list[str] = []
+    http_candidates: list[str] = []
     rtsp_ports = _unique([explicit_port, 554, 8554])
     http_targets = _unique(
         [
             (parsed_input.scheme, explicit_port)
             if parsed_input.scheme in {"http", "https"} and explicit_port
             else None,
+            ("https" if explicit_port == 443 else "http", explicit_port) if explicit_port else None,
             ("http", 80),
             ("https", 443),
             ("http", 8080),
@@ -92,18 +97,24 @@ def _build_candidates(parsed_input, username: str, password: str) -> list[str]:
 
     for port in rtsp_ports:
         for path in RTSP_PATHS:
-            candidates.append(_build_url("rtsp", hostname, port, path, username, password))
+            rtsp_candidates.append(_build_url("rtsp", hostname, port, path, username, password))
 
     for scheme, port in http_targets:
         for path in HTTP_PATHS:
-            candidates.append(_build_url(scheme, hostname, port, path, username, password))
+            http_candidates.append(_build_url(scheme, hostname, port, path, username, password))
+
+    # A supplied HTTP port should not spend tens of seconds probing RTSP first.
+    if parsed_input.scheme in {"http", "https"} or explicit_port in {80, 443, 8080, 8081}:
+        candidates.extend(http_candidates + rtsp_candidates)
+    else:
+        candidates.extend(rtsp_candidates + http_candidates)
 
     return list(dict.fromkeys(candidates))
 
 
 def _build_url(scheme: str, host: str, port: int, path: str, username: str, password: str) -> str:
     escaped_host = f"[{host}]" if ":" in host and not host.startswith("[") else host
-    credentials = f"{quote(username, safe='')}:{quote(password, safe='')}@"
+    credentials = f"{quote(username, safe='')}:{quote(password, safe='')}@" if username or password else ""
     default_port = 554 if scheme == "rtsp" else 443 if scheme == "https" else 80
     port_suffix = "" if port == default_port else f":{port}"
     return f"{scheme}://{credentials}{escaped_host}{port_suffix}{path}"
@@ -112,7 +123,7 @@ def _build_url(scheme: str, host: str, port: int, path: str, username: str, pass
 def _url_with_credentials(parsed, username: str, password: str) -> str:
     host = parsed.hostname or ""
     escaped_host = f"[{host}]" if ":" in host and not host.startswith("[") else host
-    credentials = f"{quote(username, safe='')}:{quote(password, safe='')}@"
+    credentials = f"{quote(username, safe='')}:{quote(password, safe='')}@" if username or password else ""
     port_suffix = f":{parsed.port}" if parsed.port else ""
     path = parsed.path or "/"
     return urlunsplit((parsed.scheme, f"{credentials}{escaped_host}{port_suffix}", path, parsed.query, ""))

@@ -1,5 +1,6 @@
 export type AlertItem = {
   id: string;
+  workspaceId?: string;
   title: string;
   kind: "fall" | "fight" | "armed" | "general";
   room: string;

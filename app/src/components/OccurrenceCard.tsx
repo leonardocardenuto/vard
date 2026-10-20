@@ -21,7 +21,10 @@ export function OccurrenceCard({ notification, workspaceName, accessToken, canOp
   const savingRef = useRef(false);
   useEffect(() => { setPayload(notification.payload); }, [notification.payload]);
   const answer = payload.detection_validation as { is_valid?: boolean } | undefined;
-  const selected = typeof answer?.is_valid === 'boolean' ? answer.is_valid : null;
+  const resolution = payload.incident_resolution as { status?: string } | undefined;
+  const selected = typeof answer?.is_valid === 'boolean' ? answer.is_valid
+    : resolution?.status === 'false_positive' ? false
+    : resolution?.status === 'confirmed' || resolution?.status === 'resolved' ? true : null;
   const isFall = /fall|queda/i.test(`${notification.notification_type} ${notification.title}`);
   const title = isFall ? (payload.source === 'accelerometer' ? 'Possível queda pelo celular' : 'Queda detectada') : notification.title;
   const isMobileFall = payload.source === 'accelerometer';
@@ -36,6 +39,12 @@ export function OccurrenceCard({ notification, workspaceName, accessToken, canOp
       const updated = await updateNotification(accessToken, notification.id, { payload: {
         ...latest.payload,
         detection_validation: { answered_at: new Date().toISOString(), is_valid: isValid },
+        incident_resolution: {
+          ...(typeof latest.payload.incident_resolution === 'object' && latest.payload.incident_resolution !== null
+            ? latest.payload.incident_resolution : {}),
+          status: isValid ? 'confirmed' : 'false_positive',
+          updated_at: new Date().toISOString(),
+        },
       } });
       setPayload(updated.payload);
       onUpdate?.(updated);

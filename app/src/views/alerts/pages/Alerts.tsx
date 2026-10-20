@@ -265,6 +265,20 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
 
 function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
   const { accessToken, alert, openedFrom } = route.params;
+  const { openClip, loadingId, error: playbackError, clipModal } = useOccurrenceClip(accessToken);
+  const [findingClip, setFindingClip] = useState(false);
+  const [clipError, setClipError] = useState('');
+  async function viewClip() {
+    if (!alert.workspaceId || findingClip || loadingId) return;
+    setFindingClip(true); setClipError('');
+    try {
+      const events = await listFallEvents(accessToken, alert.workspaceId);
+      const event = events.find((item) => item.notification_id === alert.id);
+      if (!event?.has_clip) { setClipError('O trecho ainda não está disponível. Tente novamente em instantes.'); return; }
+      await openClip(event.id);
+    } catch { setClipError('Não foi possível carregar o trecho. Tente novamente.'); }
+    finally { setFindingClip(false); }
+  }
   const [isValidationAnswered, setIsValidationAnswered] = useState(
     alert.isValidationAnswered,
   );
@@ -373,6 +387,16 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
             <Bullet label="Horário" value={alert.time} />
             {alert.precision > 0 ? <Bullet label="Nível de precisão" value={`${alert.precision}%`} /> : null}
 
+            {alert.kind === 'fall' && alert.workspaceId && alert.payload.source !== 'accelerometer' ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Ver trecho da queda"
+                disabled={findingClip || Boolean(loadingId)} onPress={() => void viewClip()}
+                style={[styles.validationButton, { marginVertical: 14 }]}>
+                {findingClip || loadingId ? <ActivityIndicator color="#B42318" />
+                  : <Text style={styles.validationText}>Ver trecho da queda</Text>}
+              </Pressable>
+            ) : null}
+            {clipError || playbackError ? <Text style={styles.errorText}>{clipError || playbackError}</Text> : null}
+
             <EmergencyButton label="SAMU (192)" primary />
             <EmergencyButton label="Polícia (190)" />
             <EmergencyButton label="Bombeiro (193)" />
@@ -411,6 +435,7 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
           </>
         ) : null}
       </ScrollView>
+      {clipModal}
     </LayoutWithNavbar>
   );
 }
@@ -482,7 +507,7 @@ function renderAlertIcon(kind: AlertItem["kind"], size: number) {
   return <Ionicons color="#00B9BB" name="notifications-outline" size={size} />;
 }
 
-function notificationToAlert(
+export function notificationToAlert(
   notification: NotificationResponse,
   occurredAtByNotification: Map<string, string>,
 ): AlertItem {
@@ -500,6 +525,7 @@ function notificationToAlert(
 
   return {
     id: notification.id,
+    workspaceId: notification.workspace_id,
     title: kind === "armed" ? "Pessoa armada" : kind === "fall" ? (payload.source === "accelerometer" ? "Possível queda pelo celular" : "Queda detectada") : kind === "fight" ? "Confronto" : rawTitle,
     kind,
     room:

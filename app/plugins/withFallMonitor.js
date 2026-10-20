@@ -32,6 +32,9 @@ module.exports = function withFallMonitor(config) {
     });
     // Monitoring credentials are bound to this installation's Android Keystore.
     app.$['android:allowBackup'] = 'false';
+    // Local camera streams and the development API use HTTP, including in
+    // standalone APKs where the debug manifest is not merged.
+    app.$['android:usesCleartextTraffic'] = 'true';
     return config;
   });
   config = withMainApplication(config, (config) => {

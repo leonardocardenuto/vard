@@ -2,13 +2,14 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
 from api.db import get_db
 from api.deps import get_current_user, require_workspace_membership
-from api.models import AppUser, Camera, Notification
+from api.models import AppUser, Camera, CameraAvailabilityCheck, Notification
+from api.services.camera_availability import CHECK_VALID_SECONDS, availability_timeline
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/insights", tags=["insights"])
 @router.get("/summary")
 def get_insights_summary(
     workspace_id: uuid.UUID = Query(...),
-    days: int = Query(default=90, ge=1, le=365),
+    days: int = Query(default=7, ge=1, le=365),
     camera_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
@@ -73,6 +74,28 @@ def get_insights_summary(
         "by_room": _counts_by_room(countable_falls, cameras),
         "by_day": _counts_by_day(countable_falls),
     }
+
+
+@router.get("/camera-availability")
+def get_camera_availability(
+    camera_id: uuid.UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    camera = db.get(Camera, camera_id)
+    if camera is None:
+        raise HTTPException(404, "Camera not found")
+    require_workspace_membership(camera.workspace_id, current_user.id, db)
+    if not inspect(db.connection()).has_table("camera_availability_checks"):
+        raise HTTPException(503, "O histórico de disponibilidade aguarda a atualização do banco de dados.")
+    end = datetime.now(UTC)
+    start = end - timedelta(hours=24)
+    checks = list(db.scalars(select(CameraAvailabilityCheck).where(
+        CameraAvailabilityCheck.camera_id == camera_id,
+        CameraAvailabilityCheck.checked_at >= start - timedelta(seconds=CHECK_VALID_SECONDS),
+        CameraAvailabilityCheck.checked_at <= end,
+    ).order_by(CameraAvailabilityCheck.checked_at)).all())
+    return {"camera_id": str(camera_id), **availability_timeline(checks, start, end)}
 
 
 def _is_fall_notification(notification: Notification) -> bool:

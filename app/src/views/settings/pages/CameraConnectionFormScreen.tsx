@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { LayoutWithNavbar } from '../../../components/LayoutWithNavbar';
+import { normalizeLocalCameraUrl } from '../../../lib/cameraConnection';
 import {
   ApiRequestError,
   createCamera,
@@ -121,9 +122,12 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
         return;
       }
 
-      streamUrl = host.startsWith('http://') || host.startsWith('https://')
-        ? host
-        : `http://${host}:8080/browserfs.html`;
+      try {
+        streamUrl = normalizeLocalCameraUrl(host);
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'IP ou URL inválido.');
+        return;
+      }
       metadata = {
         host,
         protocol: 'local-webview',
@@ -265,7 +269,7 @@ export function CameraConnectionFormScreen({ navigation, route }: Props) {
               <TextInput
                 autoCapitalize="none"
                 onChangeText={(value) => updateField('host', value)}
-                placeholder="IP da câmera"
+                placeholder="IP e porta (ex.: 192.168.15.131:8080)"
                 placeholderTextColor="#9AA4B2"
                 style={styles.input}
                 value={form.host}

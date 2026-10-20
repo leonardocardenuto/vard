@@ -70,6 +70,7 @@ export default function Workspaces() {
       <Stack.Screen name="WorkspaceDetails" component={WorkspaceDetailsScreen} />
       <Stack.Screen name="CameraLiveView" component={WorkspaceCameraLiveViewScreen} />
       <Stack.Screen name="CameraOccurrences" component={WorkspaceCameraOccurrencesScreen} />
+      <Stack.Screen name="WorkspaceOccurrences" component={WorkspaceCameraOccurrencesScreen} />
       <Stack.Screen
         name="AddWorkspace"
         component={AddWorkspaceScreen}

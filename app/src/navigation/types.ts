@@ -1,3 +1,5 @@
+import type { WorkspaceStackParamList } from '../views/workspace/types/workspace';
+
 export type RootStackParamList = {
   Auth:
     | {
@@ -9,6 +11,8 @@ export type RootStackParamList = {
   AppTabs:
     | {
         accessToken: string;
+        screen?: keyof AppTabParamList;
+        params?: AppTabParamList['Alerts'] | AppTabParamList['Workspace'];
         userAvatarUrl?: string | null;
         userEmail: string;
         userPhone?: string | null;
@@ -41,6 +45,8 @@ export type AppTabParamList = {
   Workspace:
     | {
         accessToken: string;
+        screen?: keyof WorkspaceStackParamList;
+        params?: WorkspaceStackParamList['CameraOccurrences'] | WorkspaceStackParamList['WorkspaceOccurrences'];
         userAvatarUrl?: string | null;
         userEmail: string;
         userName?: string;

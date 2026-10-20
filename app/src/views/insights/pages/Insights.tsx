@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useFocusEffect, useIsFocused, useRoute } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,6 +17,7 @@ import {
   RefreshControl,
   ScrollView,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import Svg, {
@@ -31,10 +32,14 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 
+import { OccurrenceCard } from "../../../components/OccurrenceCard";
+import { useOccurrenceClip } from "../../../components/useOccurrenceClip";
 import { LayoutWithNavbar } from "../../../components/LayoutWithNavbar";
 import {
   ApiRequestError,
   CameraResponse,
+  CameraAvailabilityResponse,
+  getCameraAvailability,
   FallEventResponse,
   NotificationResponse,
   WorkspaceResponse,
@@ -42,8 +47,8 @@ import {
   listCameras,
   listNotifications,
   listWorkspaces,
-  updateNotification,
 } from "../../../lib/api";
+import { buildIncidentSeries } from "../../../lib/insightSeries";
 import { AppTabParamList } from "../../../navigation/types";
 import {
   INSIGHTS_COLORS,
@@ -53,7 +58,7 @@ import {
   styles,
 } from "../styles/Insights";
 
-type Period = "Últimos 15 dias" | "Últimos 30 dias" | "Últimos 60 dias" | "Últimos 90 dias";
+type Period = "Últimos 7 dias" | "Últimos 15 dias" | "Últimos 30 dias" | "Últimos 60 dias" | "Últimos 90 dias";
 type CameraFilter = string;
 type InsightsRoute = RouteProp<AppTabParamList, "Insights">;
 type IncidentStatus = "new" | "confirmed" | "false_positive" | "resolved";
@@ -63,6 +68,7 @@ type CameraData = {
   availabilityMessage: string;
   availabilitySegments: AvailabilitySegment[];
   availabilityStatusLabel: string;
+  availabilityTimeLabels: string[];
   dailyIncidentMessage: string;
   dailyIncidentTotal: number;
   falsePositiveTotal: number;
@@ -88,7 +94,7 @@ type ActivitySegment = {
 };
 
 type AvailabilitySegment = ActivitySegment & {
-  status: "offline" | "online";
+  status: "offline" | "online" | "unknown";
 };
 
 type IncidentDetail = {
@@ -108,17 +114,19 @@ type IncidentDetail = {
 };
 
 const PERIOD_OPTIONS: Period[] = [
+  "Últimos 7 dias",
   "Últimos 15 dias",
   "Últimos 30 dias",
   "Últimos 60 dias",
   "Últimos 90 dias",
 ];
 
-const DEFAULT_PERIOD: Period = "Últimos 90 dias";
+const DEFAULT_PERIOD: Period = "Últimos 7 dias";
 const ALL_CAMERAS_FILTER = "Todas";
 const ALL_WORKSPACES_ID = "__all_workspaces__";
 
 const PERIOD_DAYS: Record<Period, number> = {
+  "Últimos 7 dias": 7,
   "Últimos 15 dias": 15,
   "Últimos 30 dias": 30,
   "Últimos 60 dias": 60,
@@ -136,7 +144,7 @@ export function Insights() {
     [INSIGHTS_FONTS.extraBold]: require("../../../../assets/fonts/Poppins-ExtraBold.ttf"),
     [INSIGHTS_FONTS.black]: require("../../../../assets/fonts/Poppins-Black.ttf"),
   });
-  const [period, setPeriod] = useState<Period | null>(DEFAULT_PERIOD);
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
   const [selectedCamera, setSelectedCamera] = useState<CameraFilter | null>(null);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
@@ -150,11 +158,18 @@ export function Insights() {
   const [isRefreshingInsights, setIsRefreshingInsights] = useState(false);
   const [insightsError, setInsightsError] = useState("");
   const [exportLabel, setExportLabel] = useState("Exportar relatório PDF");
-  const [updatingIncidentId, setUpdatingIncidentId] = useState<string | null>(null);
+  const isFocused = useIsFocused();
+  const [availability, setAvailability] = useState<CameraAvailabilityResponse | null>(null);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityRefresh, setAvailabilityRefresh] = useState(0);
+  const [isCameraPickerOpen, setIsCameraPickerOpen] = useState(false);
+  const [cameraSearch, setCameraSearch] = useState("");
+  const { openClip, loadingId: loadingClipId, error: clipError, clipModal } = useOccurrenceClip(accessToken);
   const sheetAnimation = useRef(new Animated.Value(0)).current;
   const sheetDragY = useRef(new Animated.Value(0)).current;
 
-  const effectivePeriod = period ?? DEFAULT_PERIOD;
+  const effectivePeriod = period;
   const effectiveCamera = selectedCamera ?? ALL_CAMERAS_FILTER;
   const isAllWorkspacesSelected = selectedWorkspaceId === ALL_WORKSPACES_ID;
   const selectedWorkspace = useMemo(
@@ -181,12 +196,16 @@ export function Insights() {
     [isAllWorkspacesSelected, selectedWorkspace, workspaces],
   );
   const cameraOptions = useMemo(
-    () => [ALL_CAMERAS_FILTER, ...cameras.map((camera) => camera.name)],
-    [cameras],
+    () => [{ id: ALL_CAMERAS_FILTER, label: "Todas" }, ...cameras.map((camera) => ({
+      id: camera.id,
+      label: isAllWorkspacesSelected ? `${workspaceNamesById.get(camera.workspace_id) ?? "Workspace"} • ${camera.name}` : camera.name,
+    }))],
+    [cameras, isAllWorkspacesSelected, workspaceNamesById],
   );
   const selectedData = useMemo(
     () => buildInsightsData({
       cameras,
+      availability,
       cameraName: effectiveCamera,
       fallEvents,
       notifications,
@@ -196,6 +215,7 @@ export function Insights() {
     }),
     [
       cameras,
+      availability,
       effectiveCamera,
       effectivePeriod,
       fallEvents,
@@ -265,7 +285,7 @@ export function Insights() {
         if (!current || current === ALL_CAMERAS_FILTER) {
           return current;
         }
-        return workspaceCameras.some((camera) => camera.name === current) ? current : null;
+        return workspaceCameras.some((camera) => camera.id === current) ? current : null;
       });
     } catch (error) {
       setInsightsError(
@@ -280,12 +300,39 @@ export function Insights() {
     void loadWorkspaces();
   }, [loadWorkspaces]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     void loadWorkspaceInsights();
-  }, [loadWorkspaceInsights]);
+  }, [loadWorkspaceInsights]));
+
+  useEffect(() => {
+    let active = true;
+    setAvailability(null);
+    setAvailabilityError("");
+    setAvailabilityLoading(false);
+    if (!accessToken || !selectedAvailabilityCameraId || !isFocused) return;
+    const cameraId = selectedAvailabilityCameraId;
+    async function loadAvailability() {
+      setAvailabilityLoading(true);
+      try {
+        const result = await getCameraAvailability(accessToken, cameraId);
+        if (active) { setAvailability(result); setAvailabilityError(""); }
+      } catch (error) {
+        if (active) {
+          setAvailability(null);
+          setAvailabilityError(error instanceof ApiRequestError ? error.message : "Não foi possível consultar a disponibilidade.");
+        }
+      } finally {
+        if (active) setAvailabilityLoading(false);
+      }
+    }
+    void loadAvailability();
+    const timer = setInterval(() => void loadAvailability(), 60_000);
+    return () => { active = false; clearInterval(timer); };
+  }, [accessToken, selectedAvailabilityCameraId, isFocused, availabilityRefresh]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshingInsights(true);
+    setAvailabilityRefresh((value) => value + 1);
     try {
       await loadWorkspaces();
       await loadWorkspaceInsights();
@@ -321,7 +368,7 @@ export function Insights() {
   }
 
   function togglePeriodFilter(nextPeriod: Period) {
-    setPeriod((currentPeriod) => (currentPeriod === nextPeriod ? null : nextPeriod));
+    setPeriod(nextPeriod);
   }
 
   function toggleCameraFilter(nextCamera: CameraFilter) {
@@ -377,7 +424,7 @@ export function Insights() {
       period: effectivePeriod,
     });
     const html = buildPdfReportHtml({
-      cameraName: effectiveCamera,
+      cameraName: cameraOptions.find((camera) => camera.id === effectiveCamera)?.label ?? "Todas",
       cameras,
       data: selectedData,
       notifications: reportNotifications,
@@ -444,46 +491,6 @@ export function Insights() {
     } catch {
       setExportLabel("Exportar relatório PDF");
       Alert.alert("Falha ao exportar", "Não foi possível gerar o PDF.");
-    }
-  }
-
-  async function handleIncidentStatusUpdate(
-    incident: IncidentDetail,
-    status: IncidentStatus,
-  ) {
-    if (!accessToken || updatingIncidentId) {
-      return;
-    }
-
-    setUpdatingIncidentId(incident.id);
-    try {
-      const now = new Date().toISOString();
-      const updatedNotification = await updateNotification(accessToken, incident.id, {
-        payload: {
-          ...incident.notification.payload,
-          detection_validation: {
-            answered_at: now,
-            is_valid: status !== "false_positive",
-          },
-          incident_resolution: {
-            status,
-            updated_at: now,
-            updated_by: "insights",
-          },
-        },
-      });
-      setNotifications((currentNotifications) =>
-        currentNotifications.map((notification) =>
-          notification.id === updatedNotification.id ? updatedNotification : notification,
-        ),
-      );
-    } catch (error) {
-      Alert.alert(
-        "Não foi possível atualizar",
-        error instanceof ApiRequestError ? error.message : "Tente novamente em instantes.",
-      );
-    } finally {
-      setUpdatingIncidentId(null);
     }
   }
 
@@ -655,8 +662,8 @@ export function Insights() {
             <View style={styles.cardLarge}>
               <View style={styles.incidentsHeader}>
                 <View>
-                  <Text style={styles.cardTitle}>Quedas</Text>
-                  <Text style={styles.cardSubtitle}>Quedas x dias</Text>
+                  <Text style={styles.cardTitle}>Incidentes</Text>
+                  <Text style={styles.cardSubtitle}>{effectivePeriod}</Text>
                 </View>
 
                 <View style={styles.incidentsControls}>
@@ -694,7 +701,7 @@ export function Insights() {
             </View>
 
             <View style={styles.cardRooms}>
-              <Text style={styles.roomsTitle}>Quedas por cômodo</Text>
+              <Text style={styles.roomsTitle}>Incidentes por cômodo</Text>
               <View style={styles.roomList}>
                 {selectedData.roomIncidents.map((item) => (
                   <View key={item.room} style={styles.roomItem}>
@@ -716,9 +723,9 @@ export function Insights() {
 
             <View style={styles.dailyCard}>
               <View style={styles.dailyBadge}>
-                <Ionicons
+                <FontAwesome5
                   color={INSIGHTS_COLORS.gradientMiddle}
-                  name="ribbon-outline"
+                  name="handshake"
                   size={40}
                 />
               </View>
@@ -755,124 +762,59 @@ export function Insights() {
               ) : null}
 
               <View style={styles.incidentList}>
-                {selectedData.incidentDetails.map((incident) => (
-                  <View key={incident.id} style={styles.incidentItem}>
-                    <View style={styles.incidentItemHeader}>
-                      <View style={styles.incidentIconWrap}>
-                        <Ionicons
-                          color="#CA171B"
-                          name="alert-circle-outline"
-                          size={21}
-                        />
-                      </View>
-                      <View style={styles.incidentTitleWrap}>
-                        <Text numberOfLines={1} style={styles.incidentTitle}>
-                          {incident.room}
-                        </Text>
-                        <Text numberOfLines={1} style={styles.incidentMeta}>
-                          {incident.dateLabel} às {incident.timeLabel} • {incident.cameraName}
-                        </Text>
-                      </View>
-                      <Text
-                        style={[
-                          styles.incidentStatusBadge,
-                          incident.status === "confirmed" && styles.incidentStatusDanger,
-                          incident.status === "resolved" && styles.incidentStatusSuccess,
-                          incident.status === "false_positive" && styles.incidentStatusMuted,
-                        ]}
-                      >
-                        {incident.statusLabel}
-                      </Text>
-                    </View>
-
-                    <View style={styles.incidentFacts}>
-                      <Text style={styles.incidentFact}>
-                        Prob.: {incident.probabilityLabel}
-                      </Text>
-                      <Text style={styles.incidentFact}>
-                        Clipe: {incident.hasClip ? "sim" : "não"}
-                      </Text>
-                      <Text style={styles.incidentFact}>
-                        Severidade: {incident.severity}
-                      </Text>
-                    </View>
-
-                    <View style={styles.incidentActions}>
-                      <IncidentActionButton
-                        disabled={updatingIncidentId === incident.id}
-                        label="Confirmar"
-                        onPress={() => void handleIncidentStatusUpdate(incident, "confirmed")}
-                        selected={incident.status === "confirmed"}
-                      />
-                      <IncidentActionButton
-                        disabled={updatingIncidentId === incident.id}
-                        label="Falsa detecção"
-                        onPress={() => void handleIncidentStatusUpdate(incident, "false_positive")}
-                        selected={incident.status === "false_positive"}
-                      />
-                    </View>
-                  </View>
-                ))}
+                {selectedData.incidentDetails.map((incident) => {
+                  const event = fallEvents.find((item) => item.notification_id === incident.id);
+                  return (
+                    <OccurrenceCard
+                      key={incident.id}
+                      notification={incident.notification}
+                      workspaceName={workspaceNamesById.get(incident.notification.workspace_id)}
+                      accessToken={accessToken}
+                      validation
+                      canOpenClip={Boolean(event?.has_clip)}
+                      opening={Boolean(event && loadingClipId === event.id)}
+                      onOpen={event?.has_clip ? () => void openClip(event.id) : undefined}
+                      onUpdate={(updated) => setNotifications((items) => items.map((item) => item.id === updated.id ? updated : item))}
+                    />
+                  );
+                })}
+                {clipError ? <Text style={styles.availabilityError}>{clipError}</Text> : null}
               </View>
             </View>
 
-            <GradientTitle
-              fontFamily={INSIGHTS_FONTS.semiBold}
-              fontSize={40}
-              height={52}
-              style={styles.activityTitle}
-              text="Horários"
-              width={200}
-              y={39}
-            />
+            <Text style={styles.availabilitySectionTitle}>Disponibilidade de câmeras</Text>
 
             <View style={styles.activityCard}>
-              <Text style={styles.cameraTitle}>
-                {selectedData.availabilityCameraName}
-              </Text>
-              <Text style={styles.cameraSubtitle}>
-                {selectedData.availabilityStatusLabel}
-              </Text>
-              <ScrollView
-                contentContainerStyle={styles.availabilityFilterContent}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.availabilityFilter}
+              <Text style={styles.cardSubtitle}>Conectividade nas últimas 24 horas</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Selecionar câmera para disponibilidade"
+                onPress={() => { setCameraSearch(""); setIsCameraPickerOpen(true); }}
+                disabled={cameras.length === 0}
+                style={styles.cameraSelector}
               >
-                {cameras.length === 0 ? (
-                  <Text style={styles.availabilityEmptyText}>
-                    Nenhuma câmera cadastrada
-                  </Text>
-                ) : null}
-                {cameras.map((camera) => {
-                  const selected = camera.id === selectedAvailabilityCameraId;
-                  const label = isAllWorkspacesSelected
-                    ? `${workspaceNamesById.get(camera.workspace_id) ?? "Workspace"} • ${camera.name}`
-                    : camera.name;
-                  return (
-                    <Pressable
-                      accessibilityRole="button"
-                      key={camera.id}
-                      onPress={() => setSelectedAvailabilityCameraId(camera.id)}
-                      style={({ pressed }) => [
-                        styles.availabilityCameraChip,
-                        selected && styles.availabilityCameraChipSelected,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text
-                        numberOfLines={1}
-                        style={[
-                          styles.availabilityCameraChipText,
-                          selected && styles.availabilityCameraChipTextSelected,
-                        ]}
-                      >
-                        {label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+                <Ionicons name="videocam-outline" size={22} color={INSIGHTS_COLORS.gradientMiddle} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cameraSelectorLabel}>Câmera selecionada</Text>
+                  <Text style={styles.cameraSelectorName}>{selectedData.availabilityCameraName}</Text>
+                </View>
+                <Ionicons name="chevron-down" size={20} color={INSIGHTS_COLORS.gradientMiddle} />
+              </Pressable>
+              <Text style={styles.cameraSubtitle}>{selectedData.availabilityStatusLabel}</Text>
+              {availabilityLoading ? <ActivityIndicator style={{ marginTop: 12 }} color={INSIGHTS_COLORS.gradientMiddle} /> : null}
+              {availabilityError ? <Text accessibilityLiveRegion="polite" style={styles.availabilityError}>{availabilityError}</Text> : null}
+              {availability ? (
+                <View style={styles.availabilityMetrics}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.availabilityMetricValue}>{availability.availability_percent === null ? "—" : `${availability.availability_percent.toLocaleString("pt-BR")}%`}</Text>
+                    <Text style={styles.availabilityMetricLabel}>Disponível no tempo medido</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.availabilityMetricValue}>{availability.coverage_percent.toLocaleString("pt-BR")}%</Text>
+                    <Text style={styles.availabilityMetricLabel}>Cobertura das últimas 24h</Text>
+                  </View>
+                </View>
+              ) : null}
               <View style={styles.activityChart}>
                 <View style={styles.activityTrack}>
                   {selectedData.availabilitySegments.map((segment, index) => (
@@ -881,14 +823,15 @@ export function Insights() {
                       style={[
                         styles.activitySegment,
                         segment.status === "offline" && styles.activitySegmentOffline,
+                        segment.status === "unknown" && styles.activitySegmentUnknown,
                         { left: segment.left, width: segment.width },
                       ]}
                     />
                   ))}
                 </View>
                 <View style={styles.activityGrid}>
-                  {["00h", "06h00", "12h00", "18h00", "23h59"].map((time) => (
-                    <View key={time} style={styles.activityTick}>
+                  {selectedData.availabilityTimeLabels.map((time, index) => (
+                    <View key={`${time}-${index}`} style={styles.activityTick}>
                       <View style={styles.activityDash} />
                       <Text style={styles.activityTime}>{time}</Text>
                     </View>
@@ -904,6 +847,10 @@ export function Insights() {
                 <View style={styles.legendRow}>
                   <View style={styles.legendOfflineDot} />
                   <Text style={styles.legendText}>Fora do ar</Text>
+                </View>
+                <View style={styles.legendRow}>
+                  <View style={styles.legendInactiveDot} />
+                  <Text style={styles.legendText}>Sem dados</Text>
                 </View>
               </View>
               <Text style={styles.availabilityNote}>
@@ -933,6 +880,37 @@ export function Insights() {
             </Pressable>
           </View>
         </ScrollView>
+
+        {clipModal}
+        <Modal transparent animationType="slide" visible={isCameraPickerOpen} onRequestClose={() => setIsCameraPickerOpen(false)}>
+          <View style={styles.bottomSheetRoot}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Fechar seleção de câmera" onPress={() => setIsCameraPickerOpen(false)} style={[styles.bottomSheetBackdropPressable, { backgroundColor: "rgba(0,0,0,0.4)" }]} />
+            <View style={styles.bottomSheetContainer}>
+              <View style={styles.cameraPickerHeader}>
+                <Text style={styles.bottomSheetTitle}>Selecionar câmera</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Fechar seleção" onPress={() => setIsCameraPickerOpen(false)} style={styles.cameraPickerClose}>
+                  <Ionicons name="close" size={24} color="#344054" />
+                </Pressable>
+              </View>
+              <TextInput accessibilityLabel="Buscar câmera ou workspace" placeholder="Buscar câmera ou workspace" placeholderTextColor="#667085" value={cameraSearch} onChangeText={setCameraSearch} style={styles.cameraSearch} />
+              <ScrollView style={styles.cameraPickerList} keyboardShouldPersistTaps="handled">
+                {cameras.filter((camera) => `${camera.name} ${workspaceNamesById.get(camera.workspace_id) ?? ""}`.toLocaleLowerCase("pt-BR").includes(cameraSearch.trim().toLocaleLowerCase("pt-BR"))).map((camera) => (
+                  <Pressable key={camera.id} accessibilityRole="button" accessibilityState={{ selected: camera.id === selectedAvailabilityCameraId }}
+                    onPress={() => { setSelectedAvailabilityCameraId(camera.id); setIsCameraPickerOpen(false); }}
+                    style={[styles.cameraPickerRow, camera.id === selectedAvailabilityCameraId && styles.cameraPickerRowSelected]}>
+                    <Ionicons name="videocam-outline" size={22} color={INSIGHTS_COLORS.gradientMiddle} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cameraSelectorName}>{camera.name}</Text>
+                      <Text style={styles.cameraSelectorLabel}>{workspaceNamesById.get(camera.workspace_id)}</Text>
+                    </View>
+                    {camera.id === selectedAvailabilityCameraId ? <Ionicons name="checkmark-circle" size={22} color={INSIGHTS_COLORS.gradientMiddle} /> : null}
+                  </Pressable>
+                ))}
+                {!cameras.some((camera) => `${camera.name} ${workspaceNamesById.get(camera.workspace_id) ?? ""}`.toLocaleLowerCase("pt-BR").includes(cameraSearch.trim().toLocaleLowerCase("pt-BR"))) ? <Text style={styles.availabilityEmptyText}>Nenhuma câmera encontrada.</Text> : null}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         <Modal
           animationType="none"
@@ -984,10 +962,10 @@ export function Insights() {
                 {cameraOptions.map((item) => (
                   <FilterOptionButton
                     iconName="videocam-outline"
-                    key={item}
-                    label={item}
-                    onPress={() => toggleCameraFilter(item)}
-                    selected={item === effectiveCamera}
+                    key={item.id}
+                    label={item.label}
+                    onPress={() => toggleCameraFilter(item.id)}
+                    selected={item.id === effectiveCamera}
                   />
                 ))}
               </View>
@@ -1015,6 +993,7 @@ export function Insights() {
 
 function buildInsightsData({
   cameras,
+  availability,
   cameraName,
   fallEvents,
   notifications,
@@ -1029,6 +1008,7 @@ function buildInsightsData({
   period: Period;
   selectedAvailabilityCameraId: string | null;
   workspaceNamesById: Map<string, string>;
+  availability: CameraAvailabilityResponse | null;
 }): CameraData {
   const { filteredNotifications, now, startTime } = filterNotificationsBySelection({
     cameras,
@@ -1045,11 +1025,13 @@ function buildInsightsData({
   );
   const availabilityCamera =
     cameras.find((camera) => camera.id === selectedAvailabilityCameraId) ?? cameras[0];
-  const availabilitySegments = buildAvailabilitySegments({
-    camera: availabilityCamera,
-    endTime: now,
-    notifications,
-  });
+  const availabilityStart = availability ? Date.parse(availability.start_at) : now - 24 * 60 * 60 * 1000;
+  const availabilityEnd = availability ? Date.parse(availability.end_at) : now;
+  const availabilitySegments: AvailabilitySegment[] = (availability?.segments ?? []).map((segment) => ({
+    left: `${((Date.parse(segment.start_at) - availabilityStart) / (availabilityEnd - availabilityStart)) * 100}%`,
+    width: `${((Date.parse(segment.end_at) - Date.parse(segment.start_at)) / (availabilityEnd - availabilityStart)) * 100}%`,
+    status: segment.status,
+  }));
   const countableNotifications = filteredNotifications.filter(
     (notification) => getIncidentStatus(notification) !== "false_positive",
   );
@@ -1089,11 +1071,15 @@ function buildInsightsData({
     availabilityCameraName: availabilityCamera
       ? `${workspaceNamesById.get(availabilityCamera.workspace_id) ?? "Workspace"} • ${availabilityCamera.name}`
       : "Câmeras",
-    availabilityMessage: buildAvailabilityMessage(availabilityCamera, availabilitySegments),
+    availabilityMessage: !availabilityCamera ? "Cadastre uma câmera para acompanhar a disponibilidade."
+      : !availability || availability.availability_percent === null
+        ? "Ainda não há verificações registradas para esta câmera. Intervalos sem medições aparecem em cinza."
+        : `Disponível por ${formatDuration(availability.online_seconds)} e fora do ar por ${formatDuration(availability.offline_seconds)}. Sem dados por ${formatDuration(availability.unknown_seconds)}. Verificações a cada minuto; intervalos sem atualização por mais de 3 minutos ficam sem dados.`,
+    availabilityTimeLabels: Array.from({ length: 5 }, (_, index) => new Date(availabilityStart + (availabilityEnd - availabilityStart) * index / 4).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })),
     availabilitySegments,
-    availabilityStatusLabel: availabilityCamera
-      ? `Status atual: ${availabilityCamera.status.toLowerCase() === "online" ? "online" : "fora do ar"}`
-      : "Cadastre uma câmera para visualizar disponibilidade.",
+    availabilityStatusLabel: availability?.last_checked_at
+      ? `${availability.current_status === "online" ? "Disponível" : availability.current_status === "offline" ? "Fora do ar" : "Sem verificação recente"} • Última verificação: ${new Date(availability.last_checked_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+      : "Sem verificação recente",
     dailyIncidentMessage:
       dailyIncidentTotal > 0
         ? `${dailyIncidentTotal} queda${dailyIncidentTotal === 1 ? "" : "s"} detectada${dailyIncidentTotal === 1 ? "" : "s"} nas últimas 24 horas.`
@@ -1132,148 +1118,15 @@ function buildInsightsData({
     roomIncidents:
       roomIncidents.length > 0
         ? roomIncidents
-        : [{ room: "Sem quedas no período", value: 0, barStyle: { width: "0%" }, isEmpty: true }],
+        : [{ room: "Sem incidentes no período", value: 0, barStyle: { width: "0%" }, isEmpty: true }],
   };
 }
 
-function buildIncidentSeries(
-  notifications: NotificationResponse[],
-  startTime: number,
-  endTime: number,
-): IncidentSeriesPoint[] {
-  const bucketCount = 8;
-  const bucketSize = Math.max(1, (endTime - startTime) / bucketCount);
-  const series = Array.from({ length: bucketCount }, (_, index) => ({
-    label: formatChartDateLabel(startTime + bucketSize * index),
-    value: 0,
-  }));
 
-  notifications.forEach((notification) => {
-    const createdAt = new Date(notification.created_at).getTime();
-    if (!Number.isFinite(createdAt)) {
-      return;
-    }
-
-    const bucketIndex = Math.min(
-      bucketCount - 1,
-      Math.max(0, Math.floor((createdAt - startTime) / bucketSize)),
-    );
-    series[bucketIndex].value += 1;
-  });
-
-  return series;
-}
-
-function buildAvailabilitySegments({
-  camera,
-  endTime,
-  notifications,
-}: {
-  camera?: CameraResponse;
-  endTime: number;
-  notifications: NotificationResponse[];
-}): AvailabilitySegment[] {
-  if (!camera) {
-    return [];
-  }
-
-  const startTime = endTime - 24 * 60 * 60 * 1000;
-  const bucketCount = 24;
-  const bucketSize = (endTime - startTime) / bucketCount;
-  const currentCameraStatus = camera.status.toLowerCase();
-  const initialStatus: "offline" | "online" =
-    currentCameraStatus === "online" ? "online" : "offline";
-  const bucketStatuses = Array.from({ length: bucketCount }, () => initialStatus);
-  const lastSeenAt = camera.last_seen_at ? new Date(camera.last_seen_at).getTime() : NaN;
-
-  if (currentCameraStatus !== "online" && Number.isFinite(lastSeenAt) && lastSeenAt > startTime) {
-    bucketStatuses.forEach((_, index) => {
-      const bucketStart = startTime + index * bucketSize;
-      bucketStatuses[index] = bucketStart <= lastSeenAt ? "online" : "offline";
-    });
-  }
-
-  notifications
-    .filter((notification) => notification.camera_id === camera.id)
-    .map((notification) => ({
-      createdAt: new Date(notification.created_at).getTime(),
-      status: resolveAvailabilityEventStatus(notification),
-    }))
-    .filter(
-      (event): event is { createdAt: number; status: "offline" | "online" } =>
-        Number.isFinite(event.createdAt) &&
-        event.createdAt >= startTime &&
-        event.createdAt <= endTime &&
-        event.status !== null,
-    )
-    .sort((a, b) => a.createdAt - b.createdAt)
-    .forEach((event) => {
-      const startBucket = Math.min(
-        bucketCount - 1,
-        Math.max(0, Math.floor((event.createdAt - startTime) / bucketSize)),
-      );
-      for (let index = startBucket; index < bucketCount; index += 1) {
-        bucketStatuses[index] = event.status;
-      }
-    });
-
-  const segments: AvailabilitySegment[] = [];
-  let segmentStart = 0;
-  let currentStatus = bucketStatuses[0];
-
-  bucketStatuses.forEach((status, index) => {
-    const isLastBucket = index === bucketStatuses.length - 1;
-    if (status !== currentStatus || isLastBucket) {
-      const segmentEnd = status !== currentStatus ? index : index + 1;
-      segments.push({
-        left: `${Math.round((segmentStart / bucketCount) * 100)}` as `${number}%`,
-        status: currentStatus,
-        width: `${Math.max(4, Math.round(((segmentEnd - segmentStart) / bucketCount) * 100))}` as `${number}%`,
-      });
-      segmentStart = index;
-      currentStatus = status;
-    }
-  });
-
-  return segments;
-}
-
-function resolveAvailabilityEventStatus(notification: NotificationResponse) {
-  const searchableText = `${notification.notification_type} ${notification.title} ${notification.body}`.toLowerCase();
-  if (
-    searchableText.includes("offline") ||
-    searchableText.includes("desconect") ||
-    searchableText.includes("fora do ar")
-  ) {
-    return "offline" as const;
-  }
-
-  if (
-    searchableText.includes("online") ||
-    searchableText.includes("conectada") ||
-    searchableText.includes("disponivel") ||
-    searchableText.includes("disponível")
-  ) {
-    return "online" as const;
-  }
-
-  return null;
-}
-
-function buildAvailabilityMessage(
-  camera: CameraResponse | undefined,
-  segments: AvailabilitySegment[],
-) {
-  if (!camera) {
-    return "Sem câmera selecionada para calcular disponibilidade.";
-  }
-
-  const offlineSegments = segments.filter((segment) => segment.status === "offline");
-  if (offlineSegments.length === 0) {
-    return "Sem períodos fora do ar identificados nas últimas 24 horas.";
-  }
-
-  return `${offlineSegments.length} período${offlineSegments.length === 1 ? "" : "s"} fora do ar nas últimas 24 horas.`;
+function formatDuration(seconds: number) {
+  if (seconds > 0 && seconds < 60) return "menos de 1 min";
+  const minutes = Math.floor(seconds / 60);
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}min` : `${minutes} min`;
 }
 
 function isFallNotification(notification: NotificationResponse) {
@@ -1390,12 +1243,6 @@ function resolveNotificationRoom(
   return camera?.name ?? notification.notification_type;
 }
 
-function formatChartDateLabel(timestamp: number) {
-  return new Date(timestamp).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-  });
-}
 
 function filterNotificationsBySelection(params: {
   cameras: CameraResponse[];
@@ -1424,11 +1271,14 @@ function filterNotificationsBySelection({
   withBounds?: true;
 }) {
   const now = Date.now();
-  const startTime = now - PERIOD_DAYS[period] * 24 * 60 * 60 * 1000;
-  const selectedCamera = cameras.find((camera) => camera.name === cameraName);
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (PERIOD_DAYS[period] - 1));
+  const startTime = start.getTime();
+  const selectedCamera = cameras.find((camera) => camera.id === cameraName);
   const filteredNotifications = notifications.filter((notification) => {
     const createdAt = new Date(notification.created_at).getTime();
-    const isInsidePeriod = Number.isFinite(createdAt) && createdAt >= startTime;
+    const isInsidePeriod = Number.isFinite(createdAt) && createdAt >= startTime && createdAt <= now;
     const matchesCamera =
       cameraName === ALL_CAMERAS_FILTER || notification.camera_id === selectedCamera?.id;
 
@@ -1532,7 +1382,8 @@ function buildPdfReportHtml({
         </div>
 
         <div class="grid">
-          <div class="metric"><span>Total de quedas</span><strong>${data.incidentTotal}</strong></div>
+          <div class="metric"><span>Total de incidentes
+          </span><strong>${data.incidentTotal}</strong></div>
           <div class="metric"><span>Últimas 24h</span><strong>${data.dailyIncidentTotal}</strong></div>
           <div class="metric"><span>Falsas detecções</span><strong>${data.falsePositiveTotal}</strong></div>
         </div>
@@ -1540,13 +1391,14 @@ function buildPdfReportHtml({
         <h2>Resumo</h2>
         <p>${escapeHtml(data.dailyIncidentMessage)}</p>
 
-        <h2>Quedas por Cômodo</h2>
+        <h2>
+        Incidentes por Cômodo</h2>
         <table>
           <thead><tr><th>Workspace e local</th><th>Total</th></tr></thead>
           <tbody>${roomRows}</tbody>
         </table>
 
-        <h2>Quedas por Dia</h2>
+        <h2>Incidentes por Dia</h2>
         <table>
           <thead><tr><th>Data</th><th>Total</th></tr></thead>
           <tbody>${dayRows}</tbody>
@@ -1554,14 +1406,14 @@ function buildPdfReportHtml({
 
         <h2>Disponibilidade das Câmeras</h2>
         <div class="note">
-          ${escapeHtml(data.availabilityMessage)} A disponibilidade histórica ainda depende dos registros de status disponíveis no sistema.
+          ${escapeHtml(data.availabilityMessage)}
         </div>
         <table>
           <thead><tr><th>Workspace</th><th>Câmera</th><th>Status atual</th><th>Tipo</th><th>Última vez online</th></tr></thead>
           <tbody>${cameraRows}</tbody>
         </table>
 
-        <h2>Histórico de Quedas</h2>
+        <h2>Histórico de Incidentes</h2>
         <table>
           <thead>
             <tr>
@@ -1624,40 +1476,6 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function IncidentActionButton({
-  disabled,
-  label,
-  onPress,
-  selected,
-}: {
-  disabled: boolean;
-  label: string;
-  onPress: () => void;
-  selected: boolean;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.incidentActionButton,
-        selected && styles.incidentActionButtonSelected,
-        (pressed || disabled) && styles.pressed,
-      ]}
-    >
-      <Text
-        style={[
-          styles.incidentActionButtonText,
-          selected && styles.incidentActionButtonTextSelected,
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 function FilterOptionButton({
   iconName,
   label,
@@ -1671,7 +1489,7 @@ function FilterOptionButton({
         name={iconName}
         size={20}
       />
-      <Text style={[styles.filterOptionText, selected && styles.filterOptionTextActive]}>
+      <Text numberOfLines={2} style={[styles.filterOptionText, selected && styles.filterOptionTextActive]}>
         {label}
       </Text>
     </>
@@ -1747,12 +1565,12 @@ function IncidentsChart({ series }: IncidentsChartProps) {
   const width = 294;
   const height = 192;
   const chartTop = 28;
-  const chartLeft = 24;
-  const plotWidth = 270;
+  const chartLeft = 28;
+  const plotWidth = 250;
   const plotHeight = 120;
   const min = 0;
   const values = series.length > 0 ? series.map((point) => point.value) : [0, 0];
-  const max = Math.max(5, ...values);
+  const max = Math.max(4, Math.ceil(Math.max(...values) / 4) * 4);
   const ticks = [max, max * 0.75, max * 0.5, max * 0.25, min];
   const labels =
     series.length > 0
@@ -1865,6 +1683,7 @@ function IncidentsChart({ series }: IncidentsChartProps) {
         />
 
         {labels.map((label, index) => {
+          if (labels.length > 7 && index % Math.ceil((labels.length - 1) / 6) !== 0 && index !== labels.length - 1) return null;
           const x = chartLeft + (index / (labels.length - 1)) * plotWidth;
 
           return (

@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { WebView } from 'react-native-webview';
@@ -15,6 +16,7 @@ import {
 import { ApiRequestError, getMe, listFallEvents } from '../../../lib/api';
 import { SettingsStackParamList } from '../types';
 import { styles } from '../styles/CameraLiveViewScreen';
+import { buildMjpegViewerHtml, CameraStreamState, isMjpegStreamUrl, parseCameraStreamMessage } from '../../../lib/cameraStream';
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'CameraLiveView'>;
 
@@ -26,6 +28,8 @@ type CameraHistoryItem = {
 
 const CAMERA_WEBVIEW_INJECTED_JS = `
   (function() {
+    if (window.__vardCameraMonitorInstalled) return;
+    window.__vardCameraMonitorInstalled = true;
     function applyFullscreenStyles() {
       try {
         var style = document.getElementById('vard-camera-fullscreen-style');
@@ -43,6 +47,21 @@ const CAMERA_WEBVIEW_INJECTED_JS = `
     applyFullscreenStyles();
     setTimeout(applyFullscreenStyles, 300);
     setTimeout(applyFullscreenStyles, 1000);
+    var ready = false;
+    function report(type) {
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({type:type}));
+    }
+    function checkMedia() {
+      var images = Array.from(document.querySelectorAll('img'));
+      var videos = Array.from(document.querySelectorAll('video'));
+      if (!ready && (images.some(function(image){return image.naturalWidth>0;}) || videos.some(function(video){return video.readyState>=2;}))) {
+        ready=true; report('connected');
+      }
+    }
+    document.addEventListener('error',function(event){if(event.target && /^(IMG|VIDEO)$/.test(event.target.tagName)) report('error');},true);
+    var timer=setInterval(checkMedia,300);
+    var timeout=setTimeout(function(){if(!ready)report('error');},15000);
+    window.addEventListener('beforeunload',function(){clearInterval(timer);clearTimeout(timeout);});
   })();
   true;
 `;
@@ -51,12 +70,39 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
   const { accessToken, cameraId, cameraName, protocol, url, workspaceId } = route.params;
   const player = useVideoPlayer(null);
   const clipPlayer = useVideoPlayer(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [history, setHistory] = useState<CameraHistoryItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(Boolean(accessToken && cameraId && workspaceId));
   const [loadingClipId, setLoadingClipId] = useState<string | null>(null);
   const [isClipVisible, setIsClipVisible] = useState(false);
   const [clipError, setClipError] = useState('');
   const [clipUri, setClipUri] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState('');
+  const [streamState, setStreamState] = useState<CameraStreamState>('connecting');
+  const [streamError, setStreamError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
+  const isFocused = useIsFocused();
+  const focused = useRef(isFocused);
+  focused.current = isFocused;
+  useEffect(() => () => removePreparedFallEventClip(clipUri), [clipUri]);
+  const isMjpeg = protocol === 'local-webview' && isMjpegStreamUrl(url);
+  const webSource = useMemo(() => isMjpeg
+    ? { html: buildMjpegViewerHtml(url) }
+    : { uri: url, headers: protocol === 'agent-mjpeg' && accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined },
+  [isMjpeg, url, protocol, accessToken]);
+
+  function reportStreamState(next: CameraStreamState) {
+    setStreamState(next);
+    if (next === 'error') setStreamError('Não foi possível carregar a imagem. Verifique se a câmera está ligada e acessível nesta rede.');
+    else setStreamError('');
+    if (__DEV__) console.info('[camera-stream]', cameraId ?? cameraName, next);
+  }
+
+  useEffect(() => {
+    setStreamState('connecting');
+    setStreamError('');
+  }, [url, protocol, retryCount, isFocused]);
 
   useEffect(() => {
     if (!accessToken || !cameraId || !workspaceId) {
@@ -66,6 +112,8 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
     }
 
     let isMounted = true;
+    setIsHistoryLoading(true);
+    setHistoryError('');
     void (async () => {
       try {
         const [me, events] = await Promise.all([
@@ -90,6 +138,11 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
           const firstClip = events.find((event) => event.camera_id === cameraId && event.has_clip);
           if (firstClip) prefetchFallEventClip(accessToken, firstClip.id);
         }
+      } catch (error) {
+        if (isMounted) {
+          setHistory([]);
+          setHistoryError(error instanceof ApiRequestError ? error.message : 'Não foi possível carregar o histórico desta câmera.');
+        }
       } finally {
         if (isMounted) setIsHistoryLoading(false);
       }
@@ -101,34 +154,52 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
   }, [accessToken, cameraId, workspaceId]);
 
   useEffect(() => {
+    if (protocol !== 'hls' || !isFocused) {
+      // Pause while the player is alive. useVideoPlayer releases it on
+      // unmount, before this effect's cleanup runs.
+      player.pause();
+      return;
+    }
+    let active = true;
     async function syncPlayerSource() {
-      if (protocol !== 'hls') {
-        return;
-      }
-
       try {
         await player.replaceAsync(url);
-        player.play();
+        if (active) player.play();
       } catch {
-        // caller already handles the failure state
+        if (active) {
+          setStreamState('error');
+          setStreamError('Não foi possível iniciar o vídeo desta câmera. Tente conectar novamente.');
+        }
       }
     }
 
     void syncPlayerSource();
-  }, [player, protocol, url]);
+    const listener = player.addListener('statusChange', ({ status }) => {
+      if (!active) return;
+      if (status === 'readyToPlay') reportStreamState('connected');
+      else if (status === 'error') reportStreamState('error');
+      else reportStreamState('connecting');
+    });
+    return () => { active = false; listener.remove(); };
+  }, [player, protocol, url, retryCount, isFocused]);
 
   async function openClip(event: CameraHistoryItem) {
     if (!accessToken || !event.hasClip || loadingClipId) return;
 
     setLoadingClipId(event.id);
     setClipError('');
+    let prepared: string | null = null;
     try {
-      const clipUri = await prepareFallEventClip(accessToken, event.id);
-      await clipPlayer.replaceAsync(clipUri);
+      prepared = await prepareFallEventClip(accessToken, event.id);
+      if (!mounted.current || !focused.current) { removePreparedFallEventClip(prepared); return; }
+      await clipPlayer.replaceAsync(prepared);
+      if (!mounted.current || !focused.current) { removePreparedFallEventClip(prepared); return; }
       clipPlayer.play();
-      setClipUri(clipUri);
+      setClipUri(prepared);
       setIsClipVisible(true);
     } catch (error) {
+      removePreparedFallEventClip(prepared);
+      if (!mounted.current || !focused.current) return;
       setClipError(
         error instanceof ApiRequestError
           ? error.status === 401
@@ -137,11 +208,12 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
           : 'Não foi possível abrir o trecho da queda. Tente novamente.'
       );
     } finally {
-      setLoadingClipId(null);
+      if (mounted.current) setLoadingClipId(null);
     }
   }
 
   async function closeClip() {
+    if (!mounted.current) return;
     clipPlayer.pause();
     setIsClipVisible(false);
     if (clipUri) {
@@ -168,30 +240,33 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
           <View style={styles.headerBalance} />
         </View>
 
-        <View style={styles.liveStatus}>
-          <View style={styles.liveDot} />
-          <Text style={styles.liveStatusText}>Conectado</Text>
+        <View style={[styles.liveStatus, streamState !== 'connected' && styles.liveStatusInactive]}>
+          <View style={[styles.liveDot, streamState !== 'connected' && styles.liveDotInactive]} />
+          <Text style={[styles.liveStatusText, streamState !== 'connected' && styles.liveStatusTextInactive]}>
+            {streamState === 'connected' ? 'Conectado' : streamState === 'connecting' ? 'Conectando…' : 'Sem imagem'}
+          </Text>
         </View>
 
         <View style={styles.viewerCard}>
-          {protocol === 'local-webview' ? (
+          {!isFocused ? null : protocol !== 'hls' ? (
             <WebView
-              injectedJavaScript={CAMERA_WEBVIEW_INJECTED_JS}
-              injectedJavaScriptBeforeContentLoaded={CAMERA_WEBVIEW_INJECTED_JS}
+              key={`${protocol}:${url}:${retryCount}`}
+              injectedJavaScript={isMjpeg ? undefined : CAMERA_WEBVIEW_INJECTED_JS}
+              injectedJavaScriptBeforeContentLoaded={isMjpeg ? undefined : CAMERA_WEBVIEW_INJECTED_JS}
               javaScriptEnabled
+              originWhitelist={['*']}
+              mixedContentMode="always"
+              cacheEnabled={false}
               scalesPageToFit={false}
-              source={{ uri: url }}
-              startInLoadingState
-              style={styles.webview}
-            />
-          ) : protocol === 'agent-mjpeg' ? (
-            <WebView
-              injectedJavaScript={CAMERA_WEBVIEW_INJECTED_JS}
-              injectedJavaScriptBeforeContentLoaded={CAMERA_WEBVIEW_INJECTED_JS}
-              javaScriptEnabled
-              scalesPageToFit={false}
-              source={{ uri: url, headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined }}
-              startInLoadingState
+              source={webSource}
+              onMessage={(event) => {
+                const next = parseCameraStreamMessage(event.nativeEvent.data);
+                if (next) reportStreamState(next);
+              }}
+              onError={() => reportStreamState('error')}
+              onHttpError={() => reportStreamState('error')}
+              onContentProcessDidTerminate={() => reportStreamState('error')}
+              onRenderProcessGone={() => reportStreamState('error')}
               style={styles.webview}
             />
           ) : (
@@ -202,7 +277,22 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
               style={styles.video}
             />
           )}
+          {streamState === 'connecting' ? (
+            <View pointerEvents="none" style={styles.streamOverlay}>
+              <ActivityIndicator color="#FFFFFF" />
+              <Text style={styles.streamOverlayText}>Carregando imagem…</Text>
+            </View>
+          ) : null}
         </View>
+        {streamError ? (
+          <View style={styles.streamErrorPanel}>
+            <Text accessibilityLiveRegion="polite" style={styles.streamErrorText}>{streamError}</Text>
+            <Pressable accessibilityRole="button" onPress={() => setRetryCount((count) => count + 1)} style={styles.streamRetry}>
+              <Feather name="refresh-cw" size={16} color="#FFFFFF" />
+              <Text style={styles.streamRetryText}>Tentar novamente</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.historySection}>
           <View style={styles.historyHeader}>
@@ -249,6 +339,7 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
               </Pressable>
             ))
           )}
+          {historyError ? <Text style={styles.clipError}>{historyError}</Text> : null}
           {clipError ? <Text style={styles.clipError}>{clipError}</Text> : null}
         </View>
       </ScrollView>

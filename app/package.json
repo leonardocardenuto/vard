@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start --dev-client",
+    "start": "expo start --dev-client --scheme exp+com.vard.app",
+    "start:emulator": "EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8000 expo start --dev-client --scheme exp+com.vard.app --localhost --android",
     "start:expo-go": "expo start --go",
-    "android": "GRADLE_USER_HOME=$PWD/.gradle-local expo run:android",
+    "android": "bash ../scripts/run_android.sh",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test:e2e": "bash maestro/run-cases.sh"

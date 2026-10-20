@@ -131,7 +131,7 @@ def parse_args():
         help="Limita a captura/preview. Use 0 para consumir no FPS nativo do stream.",
     )
     parser.add_argument("--stride-seconds", type=float, default=1.0)
-    parser.add_argument("--threshold", type=float, default=0.75)
+    parser.add_argument("--threshold", type=float, default=0.8)
     parser.add_argument("--smoothing-window", type=int, default=5)
     parser.add_argument("--min-consecutive-hits", type=int, default=2)
     parser.add_argument("--buffer-seconds", type=float, default=8.0)

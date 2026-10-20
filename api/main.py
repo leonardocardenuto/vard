@@ -11,6 +11,7 @@ from api.routers import mobile_monitor
 settings = get_settings()
 register_cache_invalidation_hooks()
 fall_monitor_supervisor = None
+availability_sampler = None
 
 app = FastAPI(title=settings.app_name, debug=settings.app_debug)
 app.add_middleware(
@@ -46,6 +47,21 @@ def stop_background_jobs():
     if fall_monitor_supervisor is not None:
         fall_monitor_supervisor.stop()
     app.state.fall_monitor_supervisor = None
+
+
+@app.on_event("startup")
+def start_availability_sampler():
+    global availability_sampler
+    if settings.camera_availability_enabled and settings.app_env != "test":
+        from api.services.camera_availability import CameraAvailabilitySampler
+        availability_sampler = CameraAvailabilitySampler(app)
+        availability_sampler.start()
+
+
+@app.on_event("shutdown")
+def stop_availability_sampler():
+    if availability_sampler is not None:
+        availability_sampler.stop()
 
 
 app.include_router(auth.router)

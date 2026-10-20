@@ -2,7 +2,7 @@
   "expo": {
     "name": "Vard",
     "slug": "vard",
-    "scheme": "vard",
+    "scheme": ["vard", "exp+com.vard.app"],
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

@@ -1,4 +1,5 @@
 import { DeviceEventEmitter } from 'react-native';
+import { fetchWithTimeout, RequestTimeoutError } from './requestTimeout';
 
 type AuthPayload = {
   email: string;
@@ -89,6 +90,26 @@ export type CameraResponse = {
   updated_at: string;
 };
 
+export type CameraAvailabilityResponse = {
+  camera_id: string;
+  start_at: string;
+  end_at: string;
+  segments: Array<{ status: 'online' | 'offline' | 'unknown'; start_at: string; end_at: string }>;
+  online_seconds: number;
+  offline_seconds: number;
+  unknown_seconds: number;
+  availability_percent: number | null;
+  coverage_percent: number;
+  last_checked_at: string | null;
+  current_status: 'online' | 'offline' | 'unknown';
+};
+
+export function getCameraAvailability(token: string, cameraId: string) {
+  return requestWithToken<CameraAvailabilityResponse>(
+    `/insights/camera-availability?${new URLSearchParams({ camera_id: cameraId })}`, token,
+  );
+}
+
 export type NotificationResponse = {
   id: string;
   workspace_id: string;
@@ -145,6 +166,7 @@ type CameraUpdatePayload = Partial<Omit<CameraCreatePayload, 'workspace_id'>>;
 
 type CameraAutoConfigurePayload = {
   workspace_id: string;
+  name?: string;
   host: string;
   username: string;
   password: string;
@@ -256,7 +278,7 @@ async function requestWithToken<T>(
   let response: Response;
 
   try {
-    response = await fetch(url, {
+    response = await fetchWithTimeout(url, {
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -264,7 +286,10 @@ async function requestWithToken<T>(
       },
       ...init,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof RequestTimeoutError) {
+      throw new Error(`A API em ${resolveApiBaseUrl()} demorou para responder. Verifique a conexão e tente novamente.`);
+    }
     throw new Error(`Não foi possível conectar com a API em ${url}.`);
   }
 

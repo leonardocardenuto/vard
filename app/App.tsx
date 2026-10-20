@@ -18,7 +18,9 @@ import { Settings } from './src/views/settings/pages/Settings';
 import Workspaces from './src/views/workspace/pages/workspaces';
 import { Header } from './src/components/Header';
 import { initializeOneSignal } from './src/lib/onesignal';
-import { Alerts } from './src/views/alerts/pages/Alerts';
+import { Alerts, notificationToAlert } from './src/views/alerts/pages/Alerts';
+import { GlobalFallAlert } from './src/components/GlobalFallAlert';
+import { fallOccurrenceTarget } from './src/lib/fallAlertQueue';
 import { AcceptInviteScreen } from './src/views/invites/AcceptInviteScreen';
 import { getMobileMonitorProfile, MobileMonitorProfile } from './src/lib/api';
 import { ElderlyMonitorScreen } from './src/views/elderly/ElderlyMonitorScreen';
@@ -85,6 +87,7 @@ function AppTabs({ navigation: stackNavigation, route }: AppTabsProps) {
   }
 
   return (
+    <>
     <Tabs.Navigator
       screenOptions={{
         headerShown: true,
@@ -129,6 +132,25 @@ function AppTabs({ navigation: stackNavigation, route }: AppTabsProps) {
         {() => <Settings onLogout={handleLogout} />}
       </Tabs.Screen>
     </Tabs.Navigator>
+    <GlobalFallAlert key={accessToken} accessToken={accessToken} onOpen={(notification) => {
+      const target = fallOccurrenceTarget(notification);
+      if (target) {
+        stackNavigation.navigate('AppTabs', {
+          ...route.params, accessToken, userEmail,
+          screen: 'Workspace',
+          params: { accessToken, userEmail, screen: target.screen,
+            params: { accessToken, ...target.params } },
+        });
+        return;
+      }
+      stackNavigation.navigate('AppTabs', {
+        ...route.params, accessToken, userEmail,
+        screen: 'Alerts',
+        params: { accessToken, userEmail, screen: 'AlertDetails',
+          params: { accessToken, alert: notificationToAlert(notification, new Map()), openedFrom: 'alerts' } },
+      });
+    }} />
+    </>
   );
 }
 

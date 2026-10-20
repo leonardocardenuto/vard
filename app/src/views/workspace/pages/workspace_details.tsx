@@ -30,6 +30,7 @@ import {
   listFallEvents,
   listNotifications,
   listWorkspaceMembers,
+  listWorkspaces,
   startCameraHlsStream,
 } from '../../../lib/api';
 import {
@@ -45,7 +46,7 @@ import { styles } from '../styles/workspace_details';
 
 type Props = NativeStackScreenProps<WorkspaceStackParamList, 'WorkspaceDetails'>;
 type CameraLiveViewProps = NativeStackScreenProps<WorkspaceStackParamList, 'CameraLiveView'>;
-type CameraOccurrencesProps = NativeStackScreenProps<WorkspaceStackParamList, 'CameraOccurrences'>;
+type CameraOccurrencesProps = NativeStackScreenProps<WorkspaceStackParamList, 'CameraOccurrences' | 'WorkspaceOccurrences'>;
 
 type FamilyMember = {
   id: string;
@@ -64,6 +65,7 @@ type CameraProtocol =
   | 'rtsp-manual';
 
 type CameraFormState = {
+  name: string;
   host: string;
   password: string;
   username: string;
@@ -72,6 +74,7 @@ type CameraFormState = {
 type MemberRole = FamilyMember['role'];
 
 const initialCameraForm: CameraFormState = {
+  name: '',
   host: '',
   password: '',
   username: '',
@@ -172,6 +175,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           cameraName: camera.name,
           protocol: 'local-webview',
           url: camera.stream_url,
+          accessToken,
           cameraId: camera.id,
           workspaceId: workspace.id,
         });
@@ -183,6 +187,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
         cameraName: camera.name,
         protocol: 'hls',
         url: response.playlist_url,
+        accessToken,
         cameraId: camera.id,
         workspaceId: workspace.id,
       });
@@ -268,6 +273,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
     setCameraFormMode('edit');
     setEditingCamera(camera);
     setCameraForm({
+      name: camera.name,
       host: firstString(metadata.host, parsedConnection.host),
       password: '',
       username: firstString(metadata.username, parsedConnection.username),
@@ -298,13 +304,18 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
       return;
     }
 
+    const name = cameraForm.name.trim();
     const host = cameraForm.host.trim();
     const username = cameraForm.username.trim();
-    if (!host || !username || !cameraForm.password) {
-      setCameraFormError('Preencha host, nome de usuário e senha.');
+    if (!name || !host) {
+      setCameraFormError('Preencha o nome da câmera e o IP ou URL.');
       return;
     }
 
+    if (Boolean(username) !== Boolean(cameraForm.password)) {
+      setCameraFormError('Informe usuário e senha juntos, ou deixe ambos vazios se a câmera não exigir acesso.');
+      return;
+    }
     setIsSavingCamera(true);
     setCameraFormError('');
     try {
@@ -312,6 +323,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
         accessToken,
         {
           workspace_id: workspace.id,
+          name,
           host,
           username,
           password: cameraForm.password,
@@ -627,8 +639,19 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                   {cameraFormMode === 'edit' ? 'Editar câmera' : 'Adicionar câmera'}
                 </Text>
                 <Text style={styles.modalSubtitle}>
-                  Informe os dados de acesso. O VARD testará a conexão e identificará o método automaticamente.
+                  Informe o nome e o IP da câmera. Usuário e senha são opcionais quando a câmera não exige autenticação.
                 </Text>
+
+                <TextInput
+                  accessibilityLabel="Nome da câmera"
+                  autoCapitalize="sentences"
+                  onChangeText={(value) => updateCameraFormField('name', value)}
+                  placeholder="Nome da câmera (ex.: cozinha)"
+                  placeholderTextColor="#98A2B3"
+                  returnKeyType="next"
+                  style={styles.modalInput}
+                  value={cameraForm.name}
+                />
 
                 <TextInput
                   autoCapitalize="none"
@@ -646,7 +669,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                   autoCapitalize="none"
                   autoCorrect={false}
                   onChangeText={(value) => updateCameraFormField('username', value)}
-                  placeholder="Nome de usuário"
+                  placeholder="Usuário da câmera (opcional)"
                   placeholderTextColor="#98A2B3"
                   returnKeyType="next"
                   style={styles.modalInput}
@@ -657,7 +680,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                   autoCapitalize="none"
                   autoCorrect={false}
                   onChangeText={(value) => updateCameraFormField('password', value)}
-                  placeholder="Senha"
+                  placeholder="Senha da câmera (opcional)"
                   placeholderTextColor="#98A2B3"
                   secureTextEntry
                   style={styles.modalInput}
@@ -849,6 +872,7 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
   const { accessToken, cameraId, cameraName, workspaceId } = route.params;
   const clipPlayer = useVideoPlayer(null);
   const [occurrences, setOccurrences] = useState<NotificationResponse[]>([]);
+  const [workspaceName, setWorkspaceName] = useState('');
   const [fallEventsByNotificationId, setFallEventsByNotificationId] = useState<
     Record<string, FallEventResponse>
   >({});
@@ -863,20 +887,22 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
   const loadOccurrences = useCallback(async () => {
     try {
       setOccurrencesError('');
-      const [notifications, fallEvents] = await Promise.all([
+      const [notifications, fallEvents, workspaces] = await Promise.all([
         listNotifications(accessToken, workspaceId),
         listFallEvents(accessToken, workspaceId),
+        cameraId ? Promise.resolve([]) : listWorkspaces(accessToken),
       ]);
-      setOccurrences(notifications.filter((notification) => notification.camera_id === cameraId));
+      setWorkspaceName(workspaces.find((workspace) => workspace.id === workspaceId)?.name ?? '');
+      setOccurrences(notifications.filter((notification) => !cameraId || notification.camera_id === cameraId));
       setFallEventsByNotificationId(
         Object.fromEntries(
           fallEvents
-            .filter((event) => event.camera_id === cameraId && event.notification_id)
+            .filter((event) => (!cameraId || event.camera_id === cameraId) && event.notification_id)
             .map((event) => [event.notification_id as string, event])
         )
       );
       const firstClip = fallEvents.find(
-        (event) => event.camera_id === cameraId && event.has_clip
+        (event) => (!cameraId || event.camera_id === cameraId) && event.has_clip
       );
       if (firstClip) prefetchFallEventClip(accessToken, firstClip.id);
     } catch (error) {
@@ -955,7 +981,7 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
             </Pressable>
             <View style={styles.headerTitleWrap}>
               <Text style={styles.title}>Ocorrências</Text>
-              <Text numberOfLines={1} style={styles.occurrencesCameraName}>{cameraName}</Text>
+              <Text numberOfLines={1} style={styles.occurrencesCameraName}>{cameraName ?? (workspaceName || 'Todas as ocorrências deste workspace')}</Text>
             </View>
           </View>
 
@@ -976,7 +1002,7 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
               <Feather color="#039855" name="check-circle" size={32} />
               <Text style={styles.occurrencesEmptyTitle}>Nenhuma ocorrência</Text>
               <Text style={styles.occurrencesStateText}>
-                Esta câmera não possui ocorrências registradas.
+                {cameraId ? 'Esta câmera não possui ocorrências registradas.' : 'Este workspace não possui ocorrências registradas.'}
               </Text>
             </View>
           ) : (

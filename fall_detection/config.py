@@ -8,7 +8,7 @@ class FallDetectionConfig:
     num_frames: int = 16
     sample_fps: float = 6.0
     stride_seconds: float = 1.0
-    threshold: float = 0.75
+    threshold: float = 0.8
     smoothing_window: int = 5
     min_consecutive_hits: int = 2
     buffer_seconds: float = 8.0

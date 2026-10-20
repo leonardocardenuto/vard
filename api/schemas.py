@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class TokenResponse(BaseModel):
@@ -157,9 +157,17 @@ class CameraPingResponse(BaseModel):
 
 class CameraAutoConfigure(BaseModel):
     workspace_id: uuid.UUID
+    name: str | None = Field(default=None, min_length=1, max_length=255)
     host: str = Field(min_length=1, max_length=512)
-    username: str = Field(min_length=1, max_length=255)
-    password: str = Field(min_length=1, max_length=255)
+    username: str = Field(default="", max_length=255)
+    password: str = Field(default="", max_length=255)
+
+    @field_validator("name")
+    @classmethod
+    def strip_camera_name(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Informe um nome para a câmera.")
+        return value.strip() if value is not None else None
 
 
 class InviteCreate(BaseModel):

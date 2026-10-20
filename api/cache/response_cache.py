@@ -255,7 +255,11 @@ def get_response_cache() -> ResponseCache:
         return ResponseCache(None)
 
     try:
-        client = Redis.from_url(settings.redis_url, decode_responses=False)
+        # Cache is optional: an unreachable server must not stall camera
+        # status updates, detection or API requests indefinitely.
+        client = Redis.from_url(settings.redis_url, decode_responses=False,
+                                socket_connect_timeout=1.0, socket_timeout=1.0,
+                                retry_on_timeout=False)
         client.ping()
     except RedisError:
         return ResponseCache(None)

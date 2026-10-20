@@ -1,4 +1,5 @@
 from api.models.cameras import Camera
+from api.models.camera_availability import CameraAvailabilityCheck
 from api.models.mobile_monitor import MobileMonitorDevice
 from api.models.fall_events import FallEvent
 from api.models.notifications import Notification, NotificationChannel, NotificationDelivery
@@ -14,6 +15,7 @@ __all__ = [
     "WorkspaceMember",
     "WorkspaceInvite",
     "Camera",
+    "CameraAvailabilityCheck",
     "FallEvent",
     "NotificationChannel",
     "Notification",

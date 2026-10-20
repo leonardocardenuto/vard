@@ -7,6 +7,7 @@ from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.cache import CachePolicy, CacheScope, CachedAPIRoute, cache_response
@@ -21,6 +22,23 @@ from api.services.camera_discovery import (
 )
 
 router = APIRouter(prefix="/cameras", tags=["cameras"], route_class=CachedAPIRoute)
+
+
+def _commit_camera(db: Session, camera: Camera) -> None:
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        if getattr(exc.orig, "pgcode", None) == "23505":
+            constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", "") or ""
+            detail = (
+                "Já existe uma câmera com esse nome neste workspace. Edite a conexão existente ou escolha outro nome."
+                if "name" in constraint
+                else "Já existe uma câmera com esse identificador neste workspace."
+            )
+            raise HTTPException(status_code=409, detail=detail) from exc
+        raise
+    db.refresh(camera)
 
 
 def _detect_connection(payload: CameraAutoConfigure):
@@ -122,8 +140,7 @@ def create_camera(
         created_by_user_id=current_user.id,
     )
     db.add(camera)
-    db.commit()
-    db.refresh(camera)
+    _commit_camera(db, camera)
     return camera
 
 
@@ -143,14 +160,14 @@ def auto_configure_camera(
     camera_host = parsed.hostname or payload.host.strip()
     camera = Camera(
         workspace_id=payload.workspace_id,
-        name=f"Câmera {camera_host}",
+        name=payload.name or f"Câmera {camera_host}",
         connection_type=detected.connection_type,
         stream_url=detected.stream_url,
         status="online",
         is_active=True,
         metadata_json={
             "host": camera_host,
-            "location": camera_host,
+            "location": payload.name or camera_host,
             "protocol": detected.protocol,
             "username": payload.username.strip(),
         },
@@ -158,8 +175,7 @@ def auto_configure_camera(
         last_seen_at=datetime.now(UTC),
     )
     db.add(camera)
-    db.commit()
-    db.refresh(camera)
+    _commit_camera(db, camera)
     return camera
 
 
@@ -187,12 +203,13 @@ def auto_configure_existing_camera(
     metadata.update(
         {
             "host": camera_host,
-            "location": camera_host,
+            "location": payload.name or metadata.get("location") or camera.name,
             "protocol": detected.protocol,
             "username": payload.username.strip(),
         }
     )
-    camera.name = f"Câmera {camera_host}"
+    if payload.name is not None:
+        camera.name = payload.name
     camera.connection_type = detected.connection_type
     camera.stream_url = detected.stream_url
     camera.status = "online"
@@ -200,8 +217,7 @@ def auto_configure_existing_camera(
     camera.metadata_json = metadata
     camera.last_seen_at = datetime.now(UTC)
     camera.updated_at = datetime.now(UTC)
-    db.commit()
-    db.refresh(camera)
+    _commit_camera(db, camera)
     return camera
 
 
@@ -271,8 +287,7 @@ def update_camera(
         setattr(camera, field, value)
     camera.updated_at = datetime.now(UTC)
 
-    db.commit()
-    db.refresh(camera)
+    _commit_camera(db, camera)
     return camera
 
 

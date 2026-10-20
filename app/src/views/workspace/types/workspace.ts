@@ -36,6 +36,12 @@ export type WorkspaceStackParamList = {
     cameraName: string;
     workspaceId: string;
   };
+  WorkspaceOccurrences: {
+    accessToken: string;
+    workspaceId: string;
+    cameraId?: never;
+    cameraName?: never;
+  };
 };
 
 export type WorkspaceFallAlert = {

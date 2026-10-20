@@ -126,11 +126,14 @@ class DetectionPipelineTests(unittest.TestCase):
             return original_predict(frames, **kwargs)
 
         self.provider.predict_frames.side_effect = predict
-        with patch("api.services.fall_monitor.ThreadPoolExecutor", ImmediateExecutor), patch("api.services.fall_monitor.CameraWorker", return_value=worker), patch.object(self.job, "_update_camera_status"), patch.object(self.job, "_create_notification") as notify:
+        layers = self.job._detection_layers()
+        with patch("api.services.fall_monitor.ThreadPoolExecutor", ImmediateExecutor), patch("api.services.fall_monitor.CameraWorker", return_value=worker), patch.object(self.job, "_detection_layers", return_value=layers), patch.object(self.job, "_update_camera_status"), patch.object(self.job, "_create_notification") as notify:
             self.job._monitor_loop()
             self.assertIsNone(self.job.failed_at)
             self.assertEqual(notify.call_count, 1)
             self.assertEqual(notify.call_args.kwargs["layer"].kind, "armed")
+            self.assertEqual(layers[0].last_error, "fall checkpoint unavailable")
+            self.assertIsNone(layers[1].last_error)
             worker.release.assert_called_once()
 
     def test_confrontation_routes_payload_with_its_own_cooldown(self):
@@ -178,6 +181,30 @@ class DetectionPipelineTests(unittest.TestCase):
                 job._process_layer(layer, self.buffer, timestamp)
             notify.assert_not_called()
 
+    def test_pre_event_clip_survives_slow_inference_and_rolling_buffer_eviction(self):
+        config = replace(self.config, min_consecutive_hits=1)
+        job = CameraMonitorJob(replace(self.spec, config=config, clip_pre_seconds=4,
+                                      clip_post_seconds=0, freeze_seconds=0), self.provider)
+        layer = job._detection_layers()[0]
+        buffer = FrameBuffer(5)
+        frame = np.zeros((12, 16, 3), dtype=np.uint8)
+        for timestamp in range(5):
+            buffer.append(frame, float(timestamp))
+        pending = Future()
+        executor = MagicMock()
+        executor.submit.return_value = pending
+        with patch.object(job, '_create_notification') as notify:
+            job._process_layer(layer, buffer, 4, executor=executor)
+            for timestamp in range(5, 11):
+                buffer.append(frame, float(timestamp))
+                job._process_layer(layer, buffer, timestamp, executor=executor)
+            self.assertGreater(buffer.frames()[0].timestamp, 0)
+            pending.set_result({'predicted_class': 'queda', 'fall_probability': 0.95})
+            job._process_layer(layer, buffer, 10, executor=executor)
+            saved = notify.call_args.kwargs['clip_frames']
+            self.assertEqual([item.timestamp for item in saved], list(range(11)))
+            self.assertEqual(layer.result_delay_seconds, 6)
+
     def test_fall_post_roll_keeps_other_layer_active_and_preserves_snapshot(self):
         spec = replace(self.spec, clip_pre_seconds=1, clip_post_seconds=2)
         job = CameraMonitorJob(spec, self.provider)
@@ -210,6 +237,23 @@ class MonitorConfigurationTests(unittest.TestCase):
         self.supervisor = CameraMonitorSupervisor(settings)
         self.camera = SimpleNamespace(id=uuid.uuid4(), workspace_id=uuid.uuid4(), name="Sala",
                                       stream_url="rtsp://camera", metadata_json={})
+
+    def test_detector_selection_isolates_layers_without_changing_camera_metadata(self):
+        self.camera.metadata_json = {"fall_monitor": {"enabled": True},
+                                     "confrontation_monitor": {"enabled": True}}
+        for detector in ("fall", "confrontation"):
+            with self.subTest(detector=detector):
+                supervisor = CameraMonitorSupervisor(self.supervisor.settings, detectors={detector})
+                spec = supervisor._spec_from_camera(self.camera)
+                layers = CameraMonitorJob(spec, MagicMock())._detection_layers()
+                self.assertEqual([layer.kind for layer in layers], [detector])
+                self.assertTrue(self.camera.metadata_json["fall_monitor"]["enabled"])
+                self.assertTrue(self.camera.metadata_json["confrontation_monitor"]["enabled"])
+
+    def test_detector_selection_preserves_camera_opt_in(self):
+        self.supervisor.detectors = {"confrontation"}
+        self.camera.metadata_json = {"fall_monitor": {"enabled": True}}
+        self.assertIsNone(self.supervisor._spec_from_camera(self.camera))
 
     def test_armed_layer_inherits_existing_camera_opt_in(self):
         self.camera.metadata_json = {"fall_monitor": {"enabled": True, "freeze_seconds": 0,
