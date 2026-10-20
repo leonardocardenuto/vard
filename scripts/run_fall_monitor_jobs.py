@@ -58,12 +58,6 @@ def parse_args():
     parser.add_argument("--demo-password", default=DEFAULT_DEMO_PASSWORD, help="Senha da conta de demonstração.")
     parser.add_argument("--demo-workspace", default="Demonstração Webcam", help="Nome do workspace de demonstração.")
     parser.add_argument("--webcam-source", default="0", help="Índice ou origem OpenCV da webcam usada somente no modo demo.")
-    parser.add_argument(
-        "--demo-checkpoint",
-        default=None,
-        help="Checkpoint opcional aplicado apenas à câmera de demonstração.",
-    )
-    parser.add_argument("--demo-threshold", type=float, default=None, help="Limiar opcional aplicado apenas à câmera demo.")
     return parser.parse_args()
 
 
@@ -203,15 +197,9 @@ def seed_webcam_demo(args) -> dict[str, str]:
 
 
 def _demo_camera_metadata(args) -> dict:
-    monitor = {"enabled": not args.demo_seed_only}
-    if args.demo_checkpoint:
-        monitor["checkpoint"] = str(Path(args.demo_checkpoint).resolve())
-    if args.demo_threshold is not None:
-        monitor["threshold"] = args.demo_threshold
     return {
         "protocol": "local-agent-webcam",
         "demo": True,
-        "fall_monitor": monitor,
     }
 
 

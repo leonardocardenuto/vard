@@ -146,18 +146,21 @@ Os endpoints `GET` autenticados usam Redis para cache por usuário, sem expiraç
 
 O fluxo de inferência contínua com vídeo local, webcam ou câmera RTSP/IP está documentado em `docs/fall_detection.md`.
 
-Para monitorar somente uma câmera cadastrada e habilitada em `metadata.fall_monitor.enabled`,
+Os parâmetros e a habilitação dos detectores vêm somente do `.env`; os valores
+antigos em `cameras.metadata` são ignorados. Para monitorar uma câmera cadastrada,
 use `python -m scripts.run_fall_monitor_jobs --camera-id UUID_DA_CAMERA`. A opção
 `--camera-id` pode ser repetida para selecionar mais de uma câmera. Sem ela, o
-supervisor considera todas as câmeras ativas com monitoramento habilitado.
+supervisor considera todas as câmeras ativas e os detectores habilitados no `.env`.
+Use `--detector fall` ou `--detector confrontation` para separar os modelos.
 
 Para visualizar o vídeo e também registrar as quedas e notificações no app, use
 `python -m scripts.run_fall_monitor_jobs --camera-id UUID_DA_CAMERA --show-preview`.
-Essa opção abre o preview mesmo quando ele está desabilitado nos metadados da câmera,
+Essa opção abre o preview mesmo com `FALL_MONITOR_SHOW_PREVIEW=false`,
 sem alterar o banco. Ctrl+C encerra o monitoramento; Q/Esc fecha apenas a janela.
 O script `scripts.run_fall_detection` é uma ferramenta de inferência local: seus
 alertas aparecem no terminal/preview e não são gravados no app. Ao usar jobs separados,
-inicie a API com `FALL_MONITOR_ENABLED=false` para evitar inferência duplicada.
+use `CAMERA_MONITOR_AUTOSTART=false` para evitar inferência duplicada na API.
+Reinicie os jobs após editar o `.env`; veja [configuração local](docs/local_inference.md).
 
 ### Demo com webcam local
 
@@ -180,8 +183,9 @@ Para criar os dados sem ligar a webcam, use:
 python -m scripts.run_fall_monitor_jobs --demo --demo-seed-only
 ```
 
-`--webcam-source`, `--demo-checkpoint` e `--demo-threshold` permitem ajustar a
-origem, o checkpoint e o limiar exclusivamente para a câmera demo.
+`--webcam-source` ajusta a origem da câmera demo. Configure checkpoint e limiar
+com `FALL_MONITOR_CHECKPOINT` e `FALL_MONITOR_THRESHOLD` no `.env`; as antigas
+opções `--demo-checkpoint` e `--demo-threshold` foram removidas.
 
 O monitor integrado agora inclui uma segunda camada para pessoas armadas, com
 checkpoint binario, notificacoes e push. Veja [ativacao e validacao](docs/armed_detection.md).

@@ -44,29 +44,13 @@ ARMED_MONITOR_MIN_CONSECUTIVE_HITS=2
 ARMED_MONITOR_ALERT_COOLDOWN_SECONDS=60
 ```
 
-Com isso, cameras ativas que ja possuem `metadata.fall_monitor.enabled=true`
-recebem a segunda camada automaticamente. Para ativar somente armas em uma
-camera, use o PATCH de cameras existente, preservando os demais metadados:
+Os parâmetros vêm somente do `.env`, inclusive a habilitação. Os metadados
+antigos de inferência em `cameras.metadata` são ignorados. Use `--camera-id`
+para limitar as câmeras ativas e `--detector armed` para executar apenas armas.
+Mudanças no `.env` exigem reinício do processo. `FALL_MONITOR_CAPTURE_FPS`
+e `FALL_MONITOR_SHOW_PREVIEW` controlam a captura e a janela de todos os modelos.
 
-```json
-{
-  "metadata": {
-    "armed_monitor": { "enabled": true }
-  }
-}
-```
-
-`metadata.armed_monitor.enabled=false` desabilita explicitamente essa camada
-na camera. Dentro de `armed_monitor`, os campos `checkpoint`, `device`,
-`num_frames`, `sample_fps`, `stride_seconds`, `threshold`, `smoothing_window`,
-`min_consecutive_hits`, `buffer_seconds` e `alert_cooldown_seconds` sobrescrevem
-os padroes globais. Em cameras com apenas armas, `capture_fps` e `show_preview`
-tambem podem ser definidos nesse objeto. O restante dos parametros esta em
-`.env.example`. Mudancas nos metadados reiniciam o job na proxima reconciliacao;
-mudancas no `.env` exigem reinicio do processo.
-
-Para executar junto da API, habilite `ARMED_MONITOR_ENABLED` ou
-`FALL_MONITOR_ENABLED` e inicie o Uvicorn com um unico processo, ou execute o
+Para executar junto da API, habilite `CAMERA_MONITOR_AUTOSTART=true` e `ARMED_MONITOR_ENABLED=true` e inicie o Uvicorn com um unico processo, ou execute o
 supervisor dedicado:
 
 ```powershell
@@ -74,8 +58,7 @@ supervisor dedicado:
 ```
 
 Execute apenas um supervisor por banco/conjunto de cameras para evitar alertas
-duplicados. Ao usar o processo dedicado, deixe os tres flags globais como
-`false` no processo da API. A camada de queda continua usando sua configuracao
+duplicados. Ao usar o processo dedicado, use `CAMERA_MONITOR_AUTOSTART=false` no processo da API. A camada de queda continua usando sua configuracao
 existente. Nesta copia do projeto, o checkpoint de queda presente na raiz e
 `best_vjepa2_fall_classifier.pt`; configure `FALL_MONITOR_CHECKPOINT` com esse
 arquivo caso nao tenha instalado o checkpoint configurado. A main atualizada

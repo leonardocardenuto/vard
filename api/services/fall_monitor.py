@@ -516,15 +516,9 @@ class CameraMonitorSupervisor:
             return specs
 
     def _spec_from_camera(self, camera: Camera) -> CameraMonitorSpec | None:
-        metadata = dict(camera.metadata_json or {})
-        monitor_metadata = dict(metadata.get("fall_monitor") or {})
-        armed_metadata = dict(metadata.get("armed_monitor") or {})
-        confrontation_metadata = dict(metadata.get("confrontation_monitor") or {})
-        fall_enabled = monitor_metadata.get("enabled") is True
-        armed_enabled = armed_metadata.get("enabled", self.settings.armed_monitor_enabled and fall_enabled) is True
-        confrontation_enabled = confrontation_metadata.get(
-            "enabled", self.settings.confrontation_monitor_enabled and (fall_enabled or armed_enabled)
-        ) is True
+        fall_enabled = self.settings.fall_monitor_enabled
+        armed_enabled = self.settings.armed_monitor_enabled
+        confrontation_enabled = self.settings.confrontation_monitor_enabled
         if self.detectors is not None:
             fall_enabled = fall_enabled and "fall" in self.detectors
             armed_enabled = armed_enabled and "armed" in self.detectors
@@ -532,10 +526,10 @@ class CameraMonitorSupervisor:
         if not (fall_enabled or armed_enabled or confrontation_enabled):
             return None
 
-        def detection_config(values: dict, prefix: str) -> FallDetectionConfig:
+        def detection_config(prefix: str) -> FallDetectionConfig:
             names = ("checkpoint", "num_frames", "sample_fps", "stride_seconds", "threshold",
                      "smoothing_window", "min_consecutive_hits", "buffer_seconds", "device")
-            config_values = {name: values.get(name, getattr(self.settings, f"{prefix}_monitor_{name}")) for name in names}
+            config_values = {name: getattr(self.settings, f"{prefix}_monitor_{name}") for name in names}
             config_values["checkpoint"] = Path(config_values["checkpoint"])
             for name in ("num_frames", "smoothing_window", "min_consecutive_hits"):
                 config_values[name] = int(config_values[name])
@@ -543,21 +537,20 @@ class CameraMonitorSupervisor:
                 config_values[name] = float(config_values[name])
             return FallDetectionConfig(**config_values)
 
-        armed_config = detection_config(armed_metadata, "armed") if armed_enabled else None
-        confrontation_config = detection_config(confrontation_metadata, "confrontation") if confrontation_enabled else None
-        config = detection_config(monitor_metadata, "fall") if fall_enabled else (armed_config or confrontation_config)
-        capture_metadata = monitor_metadata if fall_enabled else (armed_metadata if armed_enabled else confrontation_metadata)
-        capture_fps = float(capture_metadata.get("capture_fps", self.settings.fall_monitor_capture_fps))
+        armed_config = detection_config("armed") if armed_enabled else None
+        confrontation_config = detection_config("confrontation") if confrontation_enabled else None
+        config = detection_config("fall") if fall_enabled else (armed_config or confrontation_config)
+        capture_fps = float(self.settings.fall_monitor_capture_fps)
         capture_fps = capture_fps if capture_fps > 0 else None
-        clip_pre = max(0.0, float(monitor_metadata.get("clip_pre_seconds", self.settings.fall_monitor_clip_pre_seconds)))
-        clip_post = max(0.0, float(monitor_metadata.get("clip_post_seconds", self.settings.fall_monitor_clip_post_seconds)))
-        freeze_seconds = float(monitor_metadata.get("freeze_seconds", self.settings.fall_monitor_freeze_seconds))
-        show_preview = bool(capture_metadata.get("show_preview", self.settings.fall_monitor_show_preview))
+        clip_pre = max(0.0, float(self.settings.fall_monitor_clip_pre_seconds))
+        clip_post = max(0.0, float(self.settings.fall_monitor_clip_post_seconds))
+        freeze_seconds = float(self.settings.fall_monitor_freeze_seconds)
+        show_preview = self.settings.fall_monitor_show_preview
         if self.show_preview is not None:
             show_preview = self.show_preview
-        cooldown = float(monitor_metadata.get("alert_cooldown_seconds", self.settings.fall_monitor_alert_cooldown_seconds))
-        armed_cooldown = float(armed_metadata.get("alert_cooldown_seconds", self.settings.armed_monitor_alert_cooldown_seconds))
-        confrontation_cooldown = float(confrontation_metadata.get("alert_cooldown_seconds", self.settings.confrontation_monitor_alert_cooldown_seconds))
+        cooldown = float(self.settings.fall_monitor_alert_cooldown_seconds)
+        armed_cooldown = float(self.settings.armed_monitor_alert_cooldown_seconds)
+        confrontation_cooldown = float(self.settings.confrontation_monitor_alert_cooldown_seconds)
         if min(freeze_seconds, cooldown, armed_cooldown, confrontation_cooldown) < 0:
             raise ValueError("Freeze e cooldown nao podem ser negativos.")
         signature = (camera.stream_url, camera.name, camera.workspace_id, config, armed_config, confrontation_config,

@@ -232,70 +232,73 @@ class DetectionPipelineTests(unittest.TestCase):
 
 class MonitorConfigurationTests(unittest.TestCase):
     def setUp(self):
-        settings = Settings(_env_file=None, DATABASE_URL="postgresql://test:test@localhost/test",
-                            JWT_SECRET_KEY="test", ARMED_MONITOR_ENABLED=True)
-        self.supervisor = CameraMonitorSupervisor(settings)
+        self.settings = Settings(_env_file=None, DATABASE_URL="postgresql://test:test@localhost/test",
+                                 JWT_SECRET_KEY="test", FALL_MONITOR_ENABLED=True,
+                                 ARMED_MONITOR_ENABLED=True, CONFRONTATION_MONITOR_ENABLED=True)
+        self.supervisor = CameraMonitorSupervisor(self.settings)
         self.camera = SimpleNamespace(id=uuid.uuid4(), workspace_id=uuid.uuid4(), name="Sala",
                                       stream_url="rtsp://camera", metadata_json={})
 
-    def test_detector_selection_isolates_layers_without_changing_camera_metadata(self):
-        self.camera.metadata_json = {"fall_monitor": {"enabled": True},
-                                     "confrontation_monitor": {"enabled": True}}
-        for detector in ("fall", "confrontation"):
+    def test_detector_selection_isolates_layers(self):
+        for detector in ("fall", "confrontation", "armed"):
             with self.subTest(detector=detector):
-                supervisor = CameraMonitorSupervisor(self.supervisor.settings, detectors={detector})
+                supervisor = CameraMonitorSupervisor(self.settings, detectors={detector})
                 spec = supervisor._spec_from_camera(self.camera)
                 layers = CameraMonitorJob(spec, MagicMock())._detection_layers()
                 self.assertEqual([layer.kind for layer in layers], [detector])
-                self.assertTrue(self.camera.metadata_json["fall_monitor"]["enabled"])
-                self.assertTrue(self.camera.metadata_json["confrontation_monitor"]["enabled"])
 
-    def test_detector_selection_preserves_camera_opt_in(self):
+    def test_disabled_env_detector_cannot_be_enabled_by_database(self):
+        self.settings.confrontation_monitor_enabled = False
         self.supervisor.detectors = {"confrontation"}
-        self.camera.metadata_json = {"fall_monitor": {"enabled": True}}
+        self.camera.metadata_json = {"confrontation_monitor": {"enabled": True}}
         self.assertIsNone(self.supervisor._spec_from_camera(self.camera))
 
-    def test_armed_layer_inherits_existing_camera_opt_in(self):
-        self.camera.metadata_json = {"fall_monitor": {"enabled": True, "freeze_seconds": 0,
-                                                     "alert_cooldown_seconds": 0, "threshold": 0}}
-        spec = self.supervisor._spec_from_camera(self.camera)
-        self.assertIsNotNone(spec.armed_config)
-        self.assertEqual(spec.armed_config.sample_fps, 5)
-        self.assertEqual(spec.freeze_seconds, 0)
-        self.assertEqual(spec.alert_cooldown_seconds, 0)
-        self.assertEqual(spec.config.threshold, 0)
-
-    def test_armed_only_and_explicit_disable(self):
-        self.camera.metadata_json = {"armed_monitor": {"enabled": True}}
-        spec = self.supervisor._spec_from_camera(self.camera)
-        self.assertFalse(spec.fall_enabled)
-        self.assertEqual([layer.kind for layer in CameraMonitorJob(spec, MagicMock())._detection_layers()], ["armed"])
-        self.camera.metadata_json = {"fall_monitor": {"enabled": True}, "armed_monitor": {"enabled": False}}
-        self.assertIsNone(self.supervisor._spec_from_camera(self.camera).armed_config)
-
-    def test_unconfigured_camera_not_monitored_and_changes_restart_job(self):
-        self.assertIsNone(self.supervisor._spec_from_camera(self.camera))
-        self.camera.metadata_json = {"armed_monitor": {"enabled": True}}
+    def test_all_parameters_ignore_database_overrides(self):
         first = self.supervisor._spec_from_camera(self.camera)
-        self.camera.metadata_json["armed_monitor"]["threshold"] = 0.9
-        second = self.supervisor._spec_from_camera(self.camera)
-        self.assertNotEqual(first.signature, second.signature)
+        stale = {"enabled": False, "checkpoint": "missing.pt", "device": "invalid",
+                 "num_frames": "invalid", "sample_fps": 0, "stride_seconds": 0,
+                 "threshold": 0.99, "smoothing_window": 0, "min_consecutive_hits": 99,
+                 "buffer_seconds": 0, "capture_fps": 1, "clip_pre_seconds": 0,
+                 "clip_post_seconds": 90, "freeze_seconds": 0, "show_preview": True,
+                 "alert_cooldown_seconds": -1}
+        self.camera.metadata_json = {key: dict(stale) for key in
+                                     ("fall_monitor", "armed_monitor", "confrontation_monitor")}
+        self.assertEqual(first, self.supervisor._spec_from_camera(self.camera))
 
-    def test_confrontation_only_inheritance_disable_and_reconfigure(self):
-        self.camera.metadata_json = {"confrontation_monitor": {"enabled": True, "capture_fps": 15}}
+    def test_settings_control_models_capture_clips_and_cooldowns(self):
+        self.settings.fall_monitor_threshold = 0.85
+        self.settings.fall_monitor_capture_fps = 16
+        self.settings.fall_monitor_clip_pre_seconds = 13
+        self.settings.fall_monitor_clip_post_seconds = 0
+        self.settings.fall_monitor_freeze_seconds = 120
+        self.settings.fall_monitor_alert_cooldown_seconds = 240
+        self.settings.armed_monitor_alert_cooldown_seconds = 30
+        self.settings.confrontation_monitor_threshold = 0.12
+        self.settings.confrontation_monitor_min_consecutive_hits = 3
+        self.settings.confrontation_monitor_alert_cooldown_seconds = 60
+        spec = self.supervisor._spec_from_camera(self.camera)
+        self.assertEqual(spec.config.threshold, 0.85)
+        self.assertEqual(spec.capture_fps, 16)
+        self.assertEqual((spec.clip_pre_seconds, spec.clip_post_seconds), (13, 0))
+        self.assertEqual(spec.freeze_seconds, 120)
+        self.assertEqual(spec.alert_cooldown_seconds, 240)
+        self.assertEqual(spec.armed_alert_cooldown_seconds, 30)
+        self.assertEqual(spec.confrontation_alert_cooldown_seconds, 60)
+        self.assertEqual(spec.confrontation_config.threshold, 0.12)
+        self.assertEqual(spec.confrontation_config.min_consecutive_hits, 3)
+        self.supervisor.detectors = {"confrontation"}
+        self.assertEqual(self.supervisor._spec_from_camera(self.camera).capture_fps, 16)
+
+    def test_settings_changes_update_job_signature(self):
         first = self.supervisor._spec_from_camera(self.camera)
-        self.assertFalse(first.fall_enabled)
-        self.assertIsNone(first.armed_config)
-        self.assertEqual(first.capture_fps, 15)
-        self.assertEqual(first.confrontation_config.sample_fps, 7.5)
-        self.assertEqual([layer.kind for layer in CameraMonitorJob(first, MagicMock())._detection_layers()], ["confrontation"])
-        self.camera.metadata_json["confrontation_monitor"]["threshold"] = 0.99
+        self.settings.confrontation_monitor_threshold = 0.3
         self.assertNotEqual(first.signature, self.supervisor._spec_from_camera(self.camera).signature)
-        self.supervisor.settings.confrontation_monitor_enabled = True
-        self.camera.metadata_json = {"fall_monitor": {"enabled": True}}
-        self.assertIsNotNone(self.supervisor._spec_from_camera(self.camera).confrontation_config)
-        self.camera.metadata_json["confrontation_monitor"] = {"enabled": False}
-        self.assertIsNone(self.supervisor._spec_from_camera(self.camera).confrontation_config)
+
+    def test_preview_flag_overrides_env_without_database_changes(self):
+        self.settings.fall_monitor_show_preview = False
+        self.supervisor.show_preview = True
+        self.assertTrue(self.supervisor._spec_from_camera(self.camera).show_preview)
+        self.assertEqual(self.camera.metadata_json, {})
 
 
 class NotificationTests(unittest.TestCase):

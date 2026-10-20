@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # new records; the remaining keys allow a key rotation without losing history.
     fall_event_encryption_keys: str = Field("", alias="FALL_EVENT_ENCRYPTION_KEYS")
 
+    camera_monitor_autostart: bool = Field(True, alias="CAMERA_MONITOR_AUTOSTART")
     fall_monitor_enabled: bool = Field(False, alias="FALL_MONITOR_ENABLED")
     fall_monitor_checkpoint: str = Field(
         "var/best_vjepa2_fall_classifier_combined.pt",

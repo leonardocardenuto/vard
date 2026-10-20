@@ -32,7 +32,9 @@ def health() -> dict[str, str]:
 @app.on_event("startup")
 def start_background_jobs():
     global fall_monitor_supervisor
-    if not (settings.fall_monitor_enabled or settings.armed_monitor_enabled or settings.confrontation_monitor_enabled):
+    if not settings.camera_monitor_autostart or not (
+        settings.fall_monitor_enabled or settings.armed_monitor_enabled or settings.confrontation_monitor_enabled
+    ):
         return
 
     from api.services.fall_monitor import CameraMonitorSupervisor
