@@ -8,6 +8,7 @@ export type MonitorStatus = {
   sensorActive: boolean;
   workspaceId: string | null;
   pendingDeadline: number;
+  rearmDeadline: number;
   lastSent: number;
   queued: number;
   error: string;

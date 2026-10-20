@@ -24,6 +24,7 @@ class FallMonitorService : Service(), SensorEventListener {
         @Volatile var running = false
         @Volatile var lastSample = 0L
         @Volatile var lastError = ""
+        @Volatile var rearmUntil = 0L
     }
     private lateinit var store: MonitorStore
     private lateinit var sensors: SensorManager
@@ -121,7 +122,7 @@ class FallMonitorService : Service(), SensorEventListener {
         pendingDeadline = 0
         store.prefs.edit().remove("pendingDeadline").remove("pendingEvent").commit()
         notifications.cancel(711)
-        detector.reset(SystemClock.elapsedRealtime())
+        rearmUntil = detector.reset(SystemClock.elapsedRealtime())
     }
 
     private fun enqueuePending() {
@@ -201,7 +202,7 @@ class FallMonitorService : Service(), SensorEventListener {
     }
     override fun onDestroy() {
         alive = false
-        running = false; lastSample = 0
+        running = false; lastSample = 0; rearmUntil = 0
         sensors.unregisterListener(this)
         handler.removeCallbacksAndMessages(null)
         network.shutdownNow()
