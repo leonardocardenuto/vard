@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
-from api.models import AppUser, MobileMonitorDevice, Notification, WorkspaceMember
+from api.models import AppUser, MobileMonitorDevice, Notification, WorkspaceMember, PushDelivery
 from tests.api.helpers import auth_headers, create_workspace, register_user
 
 
@@ -36,7 +36,7 @@ def test_invite_restricts_elderly_and_monitor_registration(client):
 
 def test_reports_idempotently_without_login_token_and_revokes(client, db_session, monkeypatch):
     pushed = []
-    monkeypatch.setattr("api.routers.mobile_monitor.send_push_to_subscription_ids", lambda ids, **data: pushed.append(data))
+    monkeypatch.setattr("api.routers.mobile_monitor.enqueue_notification_push", lambda db, notification: pushed.append(notification))
     owner, elderly, workspace = setup_elderly(client)
     registered = client.post("/mobile-monitor/devices", headers=auth_headers(elderly), json={"workspace_id": workspace["id"]})
     assert registered.status_code == 200, registered.text
@@ -78,8 +78,8 @@ def test_role_removal_invalidates_device_and_foreign_workspace_cannot_register(c
 
 def test_same_device_can_send_multiple_distinct_falls(client, db_session, monkeypatch):
     pushed = []
-    monkeypatch.setattr("api.routers.mobile_monitor.send_push_to_subscription_ids",
-                        lambda ids, **data: pushed.append(data))
+    monkeypatch.setattr("api.routers.mobile_monitor.enqueue_notification_push",
+                        lambda db, notification: pushed.append(notification))
     _, elderly, workspace = setup_elderly(client)
     device = client.post("/mobile-monitor/devices", headers=auth_headers(elderly),
                          json={"workspace_id": workspace["id"]}).json()
@@ -96,9 +96,8 @@ def test_same_device_can_send_multiple_distinct_falls(client, db_session, monkey
 
 
 def test_fall_push_excludes_elderly_and_shared_phone_subscriptions(client, db_session, monkeypatch):
-    pushed = []
-    monkeypatch.setattr("api.routers.mobile_monitor.send_push_to_subscription_ids",
-                        lambda ids, **data: pushed.append(ids))
+    from api.core.config import get_settings
+    monkeypatch.setattr(get_settings(), "push_provider", "onesignal")
     owner, elderly, workspace = setup_elderly(client)
     elder_user = db_session.scalar(select(AppUser).where(AppUser.email == "mobile-elder@example.com"))
     owner_user = db_session.scalar(select(AppUser).where(AppUser.email == "mobile-owner@example.com"))
@@ -116,4 +115,4 @@ def test_fall_push_excludes_elderly_and_shared_phone_subscriptions(client, db_se
         "event_id": str(uuid.uuid4()), "occurred_at": datetime.now(UTC).isoformat(), "peak_g": 3,
     })
     assert response.status_code == 200, response.text
-    assert pushed == [["family-phone"]]
+    assert [item.token for item in db_session.scalars(select(PushDelivery)).all()] == ["family-phone"]

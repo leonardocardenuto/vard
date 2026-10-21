@@ -48,6 +48,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      ["expo-notifications", {"defaultChannel": "vard-alerts"}],
       "./plugins/withFallMonitor",
       [
         "expo-splash-screen",

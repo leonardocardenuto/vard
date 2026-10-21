@@ -9,7 +9,7 @@ from api.db import get_db
 from api.deps import get_current_user, require_workspace_membership
 from api.models import AppUser, Notification, WorkspaceMember
 from api.schemas import NotificationCreate, NotificationResponse, NotificationUpdate
-from api.services.onesignal import send_push_to_subscription_ids
+from api.services.push import enqueue_notification_push
 
 router = APIRouter(prefix="/notifications", tags=["notifications"], route_class=CachedAPIRoute)
 
@@ -42,32 +42,10 @@ def create_notification(
 
     notification = Notification(**payload.model_dump())
     db.add(notification)
+    db.flush()
+    enqueue_notification_push(db, notification)
     db.commit()
     db.refresh(notification)
-
-    subscription_ids = list(
-        db.scalars(
-            select(AppUser.onesignal_subscription_id)
-            .join(WorkspaceMember, WorkspaceMember.user_id == AppUser.id)
-            .where(
-                WorkspaceMember.workspace_id == notification.workspace_id,
-                WorkspaceMember.status == "active",
-                AppUser.onesignal_subscription_id.is_not(None),
-            )
-        ).all()
-    )
-    send_push_to_subscription_ids(
-        subscription_ids,
-        title=notification.title,
-        body=notification.body,
-        data={
-            "notification_id": str(notification.id),
-            "workspace_id": str(notification.workspace_id),
-            "camera_id": str(notification.camera_id) if notification.camera_id else None,
-            "notification_type": notification.notification_type,
-            "severity": notification.severity,
-        },
-    )
     return notification
 
 

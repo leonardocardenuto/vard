@@ -7,11 +7,14 @@ from api.core.config import get_settings
 from api.routers import auth, camera_streams, cameras, encryption_keys, fall_events, insights, invites, notifications, users, workspaces
 from api.services.camera_streams import STREAMS_ROOT
 from api.routers import mobile_monitor
+from api.routers import push
+from api.services.push import PushWorker
 
 settings = get_settings()
 register_cache_invalidation_hooks()
 fall_monitor_supervisor = None
 availability_sampler = None
+push_worker = None
 
 app = FastAPI(title=settings.app_name, debug=settings.app_debug)
 app.add_middleware(
@@ -32,6 +35,10 @@ def health() -> dict[str, str]:
 @app.on_event("startup")
 def start_background_jobs():
     global fall_monitor_supervisor
+    global push_worker
+    if settings.push_worker_enabled:
+        push_worker = PushWorker()
+        push_worker.start()
     if not settings.camera_monitor_autostart or not (
         settings.fall_monitor_enabled or settings.armed_monitor_enabled or settings.confrontation_monitor_enabled
     ):
@@ -46,6 +53,8 @@ def start_background_jobs():
 
 @app.on_event("shutdown")
 def stop_background_jobs():
+    if push_worker is not None:
+        push_worker.stop()
     if fall_monitor_supervisor is not None:
         fall_monitor_supervisor.stop()
     app.state.fall_monitor_supervisor = None
@@ -77,3 +86,4 @@ app.include_router(fall_events.router)
 app.include_router(insights.router)
 app.include_router(encryption_keys.router)
 app.include_router(mobile_monitor.router)
+app.include_router(push.router)

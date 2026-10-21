@@ -72,8 +72,8 @@ def test_invite_can_only_be_accepted_by_recipient(client, db_session: Session):
 def test_notification_creation_lists_for_members_and_persists(client, db_session: Session, monkeypatch):
     pushed = []
     monkeypatch.setattr(
-        "api.routers.notifications.send_push_to_subscription_ids",
-        lambda subscription_ids, **payload: pushed.append((subscription_ids, payload)),
+        "api.routers.notifications.enqueue_notification_push",
+        lambda db, notification: pushed.append(notification),
     )
 
     owner_token = register_user(client, "notification-owner@example.com")
@@ -97,7 +97,7 @@ def test_notification_creation_lists_for_members_and_persists(client, db_session
     persisted = db_session.get(Notification, notification_id)
     assert persisted is not None
     assert persisted.payload == {"confidence": 0.96}
-    assert pushed and pushed[0][1]["title"] == "Queda detectada"
+    assert pushed and pushed[0].title == "Queda detectada"
 
     listed = client.get(
         "/notifications",
@@ -110,8 +110,8 @@ def test_notification_creation_lists_for_members_and_persists(client, db_session
 
 def test_detection_vote_can_be_corrected_without_losing_payload_or_sending_push(client, db_session, monkeypatch):
     pushed = []
-    monkeypatch.setattr("api.routers.notifications.send_push_to_subscription_ids",
-                        lambda ids, **payload: pushed.append(payload))
+    monkeypatch.setattr("api.routers.notifications.enqueue_notification_push",
+                        lambda db, notification: pushed.append(notification))
     owner = register_user(client, "vote-owner@example.com")
     outsider = register_user(client, "vote-outsider@example.com")
     workspace = create_workspace(client, owner, slug="vote-home")

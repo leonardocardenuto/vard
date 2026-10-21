@@ -33,6 +33,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db), token: str
         WorkspaceMember.role == "elderly").limit(1)) is not None
     if restricted and not (
         request.url.path.startswith("/mobile-monitor/")
+        or request.url.path == "/push/devices" or request.url.path.startswith("/push/devices/")
+        or (request.url.path.startswith("/push/deliveries/") and request.url.path.endswith("/received"))
         or request.url.path in {"/auth/me", "/auth/me/password", "/auth/me/onesignal-subscription", "/encryption-keys/me", "/invites/accept"}
     ):
         raise HTTPException(403, "Este perfil tem acesso somente ao monitoramento do celular.")
