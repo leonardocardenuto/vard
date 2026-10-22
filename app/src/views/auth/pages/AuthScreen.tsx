@@ -14,9 +14,10 @@ import {
   login,
   register,
   requestPasswordReset,
+  updateMyOneSignalSubscription,
 } from '../../../lib/api';
 import { prepareFallHistoryKey } from '../../../lib/fallHistoryCrypto';
-import { syncPushRegistration } from '../../../lib/pushNotifications';
+import { identifyOneSignalUser } from '../../../lib/onesignal';
 import { clearSession, loadToken, saveToken } from '../../../lib/session';
 import { RootStackParamList } from '../../../navigation/types';
 import { EmailAuthScreen } from '../screens/EmailAuthScreen';
@@ -193,7 +194,21 @@ export function AuthScreen({ navigation, route }: Props) {
         console.warn('Não foi possível preparar a chave do histórico de quedas.', error);
       });
     }
-    void syncPushRegistration(accessToken, me.id).catch(() => console.warn('Não foi possível registrar as notificações.'));
+    void syncOneSignalSubscription(accessToken, me.id);
+  }
+
+  async function syncOneSignalSubscription(
+    accessToken: string,
+    userId: string,
+  ) {
+    try {
+      const subscriptionId = await identifyOneSignalUser(userId);
+      if (subscriptionId) {
+        await updateMyOneSignalSubscription(accessToken, subscriptionId);
+      }
+    } catch (error) {
+      console.warn('Não foi possível registrar o OneSignal para este usuário.', error);
+    }
   }
 
   async function handleLogin() {

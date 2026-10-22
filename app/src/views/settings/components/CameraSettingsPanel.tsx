@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { changeMyPassword, deleteMyAccount, updateMyProfile } from '../../../lib/api';
 import { clearSession } from '../../../lib/session';
-import { PushTestPanel } from '../../../components/PushTestPanel';
 
 const SETTINGS_PANEL_FONTS = {
   regular: 'Poppins-Regular',
@@ -491,7 +490,6 @@ export function CameraSettingsPanel({
         </View>
       </View>
 
-      <PushTestPanel accessToken={accessToken} />
       <View style={styles.accountSection}>
         <Pressable
           accessibilityRole="button"

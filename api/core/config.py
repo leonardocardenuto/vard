@@ -31,9 +31,6 @@ class Settings(BaseSettings):
 
     onesignal_app_id: str | None = Field(default=None, alias="ONESIGNAL_APP_ID")
     onesignal_api_key: str | None = Field(default=None, alias="ONESIGNAL_API_KEY")
-    push_provider: str = Field("onesignal", pattern="^(onesignal|fcm)$", alias="PUSH_PROVIDER")
-    fcm_service_account_file: str | None = Field(default=None, alias="FCM_SERVICE_ACCOUNT_FILE")
-    push_worker_enabled: bool = Field(True, alias="PUSH_WORKER_ENABLED")
 
     # A comma-separated set of urlsafe base64 Fernet keys. The first key encrypts
     # new records; the remaining keys allow a key rotation without losing history.

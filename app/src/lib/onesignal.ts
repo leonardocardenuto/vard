@@ -41,7 +41,6 @@ export function initializeOneSignal() {
 }
 
 async function initializeOneSignalSdk() {
-  if (process.env.EXPO_PUBLIC_PUSH_MODE === 'fcm') return;
   const appId = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID?.trim();
   if (!appId || isInitialized) {
     return;
@@ -53,6 +52,8 @@ async function initializeOneSignalSdk() {
   }
 
   oneSignalModule.OneSignal.initialize(appId);
+  // Remote in-app campaigns are not part of Vard's UI; keep push alerts enabled.
+  oneSignalModule.OneSignal.InAppMessages.setPaused(true);
   void oneSignalModule.OneSignal.Notifications.requestPermission(true);
   isInitialized = true;
 }
@@ -103,19 +104,6 @@ export async function identifyOneSignalUser(userId: string) {
 
   oneSignalModule.OneSignal.login(userId);
   return waitForOneSignalSubscriptionId(oneSignalModule);
-}
-
-export async function listenOneSignalNotifications(onData: (data: unknown, source: 'foreground' | 'tap') => void) {
-  await initializeOneSignal();
-  if (!isInitialized) return;
-  const module = await loadOneSignal();
-  if (!module) return;
-  module.OneSignal.Notifications.addEventListener('foregroundWillDisplay', (event: import('react-native-onesignal').NotificationWillDisplayEvent) => {
-    onData(event.notification.additionalData, 'foreground');
-  });
-  module.OneSignal.Notifications.addEventListener('click', (event: import('react-native-onesignal').NotificationClickEvent) => {
-    onData(event.notification.additionalData, 'tap');
-  });
 }
 
 export async function logoutOneSignalUser() {

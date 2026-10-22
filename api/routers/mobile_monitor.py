@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from api.db import get_db
 from api.deps import get_current_user, require_workspace_membership
 from api.models import AppUser, MobileMonitorDevice, Notification, Workspace, WorkspaceMember
-from api.services.push import enqueue_notification_push
+from api.services.onesignal import send_push_to_subscription_ids
 
 router = APIRouter(prefix="/mobile-monitor", tags=["mobile-monitor"])
 
@@ -118,7 +118,22 @@ def report_fall(payload: MobileFall, tasks: BackgroundTasks, db: Session = Depen
     if inserted is None:
         raise HTTPException(409, "Identificador de ocorrência já utilizado.")
     device.last_seen_at = datetime.now(UTC)
-    enqueue_notification_push(db, db.get(Notification, payload.event_id))
+    # Elderly is an account-wide restriction. Also exclude their subscription
+    # IDs: an old login on the same phone may still reference that subscription.
+    elderly_user_ids = select(WorkspaceMember.user_id).where(
+        WorkspaceMember.status == "active", WorkspaceMember.role == "elderly")
+    elderly_subscriptions = select(AppUser.onesignal_subscription_id).where(
+        AppUser.id.in_(elderly_user_ids), AppUser.onesignal_subscription_id.is_not(None))
+    subscription_ids = list(db.scalars(select(AppUser.onesignal_subscription_id)
+        .join(WorkspaceMember, WorkspaceMember.user_id == AppUser.id).where(
+            WorkspaceMember.workspace_id == device.workspace_id,
+            WorkspaceMember.status == "active", WorkspaceMember.role != "elderly",
+            AppUser.id != device.user_id, AppUser.id.not_in(elderly_user_ids),
+            AppUser.onesignal_subscription_id.not_in(elderly_subscriptions),
+            AppUser.onesignal_subscription_id.is_not(None))).all())
     db.info.setdefault("cache_invalidation_tags", set()).add("notifications")
     db.commit()
+    tasks.add_task(send_push_to_subscription_ids, subscription_ids, title=title, body=body,
+                   data={"notification_id": str(payload.event_id), "workspace_id": str(device.workspace_id),
+                         "notification_type": "fall_detected", "source": "accelerometer"})
     return {"notification_id": str(payload.event_id)}

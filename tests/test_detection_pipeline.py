@@ -302,7 +302,7 @@ class MonitorConfigurationTests(unittest.TestCase):
 
 
 class NotificationTests(unittest.TestCase):
-    @patch("api.services.notifications.enqueue_notification_push")
+    @patch("api.services.notifications.send_push_to_subscription_ids")
     def test_persist_then_push_both_event_types_to_workspace_members(self, push):
         for create, event_type in ((create_armed_person_detected_notification, "armed_person_detected"),
                                    (create_fall_detected_notification, "fall_detected"),
@@ -315,9 +315,12 @@ class NotificationTests(unittest.TestCase):
             db.commit.assert_called_once()
             self.assertEqual(notification.notification_type, event_type)
             self.assertEqual(notification.severity, "critical")
-            self.assertIs(push.call_args.args[0], db)
-            self.assertIs(push.call_args.args[1], notification)
-            db.flush.assert_called_once()
+            self.assertEqual(push.call_args.args[0], ["subscription-1"])
+            self.assertEqual(push.call_args.kwargs["data"]["notification_type"], event_type)
+            self.assertEqual(push.call_args.kwargs["data"]["workspace_id"], str(workspace_id))
+            query = db.scalars.call_args.args[0].compile(compile_kwargs={"literal_binds": True})
+            self.assertIn("workspace_members.status = 'active'", str(query))
+            self.assertIn(workspace_id.hex, str(query).replace("-", ""))
 
 
 if __name__ == "__main__":

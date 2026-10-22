@@ -373,49 +373,58 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         visible={isAcceptInviteOpen}
         onRequestClose={() => !isAcceptingInvite && setIsAcceptInviteOpen(false)}
       >
-        <Pressable
-          onPress={() => !isAcceptingInvite && setIsAcceptInviteOpen(false)}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.workspaceActionsOverlay}
         >
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <Pressable onPress={() => undefined} style={styles.workspaceActionsCard}>
-              <Text style={styles.workspaceActionsTitle}>Aceitar convite</Text>
-              <Text style={styles.workspaceActionsSubtitle}>
-                Cole o código que você recebeu para entrar no espaço.
-              </Text>
-              <TextInput
-                autoCapitalize="characters"
-                autoCorrect={false}
-                editable={!isAcceptingInvite}
-                onChangeText={setInviteCode}
-                placeholder="Código do convite"
-                placeholderTextColor="#98A2B3"
-                style={styles.inviteCodeInput}
-                testID="workspace-accept-invite-code"
-                value={inviteCode}
-              />
-              <Pressable
-                accessibilityLabel="Confirmar aceite do convite"
-                accessibilityRole="button"
-                disabled={isAcceptingInvite}
-                onPress={() => void handleAcceptInvite()}
-                style={[styles.acceptInviteButton, isAcceptingInvite && styles.acceptInviteButtonDisabled]}
-              >
-                {isAcceptingInvite ? <ActivityIndicator color="#FFFFFF" /> : null}
-                <Text style={styles.acceptInviteButtonText}>
-                  {isAcceptingInvite ? 'Aceitando...' : 'Aceitar convite'}
+          <ScrollView
+            contentContainerStyle={styles.acceptInviteScrollContent}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <Pressable
+              onPress={() => !isAcceptingInvite && setIsAcceptInviteOpen(false)}
+              style={styles.acceptInviteSheetContainer}
+            >
+              <Pressable onPress={() => undefined} style={styles.workspaceActionsCard}>
+                <Text style={styles.workspaceActionsTitle}>Aceitar convite</Text>
+                <Text style={styles.workspaceActionsSubtitle}>
+                  Cole o código que você recebeu para entrar no espaço.
                 </Text>
-              </Pressable>
-              <Pressable
-                disabled={isAcceptingInvite}
-                onPress={() => setIsAcceptInviteOpen(false)}
-                style={styles.workspaceActionsCancel}
-              >
-                <Text style={styles.workspaceActionsCancelText}>Cancelar</Text>
+                <TextInput
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  editable={!isAcceptingInvite}
+                  onChangeText={setInviteCode}
+                  placeholder="Código do convite"
+                  placeholderTextColor="#98A2B3"
+                  style={styles.inviteCodeInput}
+                  testID="workspace-accept-invite-code"
+                  value={inviteCode}
+                />
+                <Pressable
+                  accessibilityLabel="Confirmar aceite do convite"
+                  accessibilityRole="button"
+                  disabled={isAcceptingInvite}
+                  onPress={() => void handleAcceptInvite()}
+                  style={[styles.acceptInviteButton, isAcceptingInvite && styles.acceptInviteButtonDisabled]}
+                >
+                  {isAcceptingInvite ? <ActivityIndicator color="#FFFFFF" /> : null}
+                  <Text style={styles.acceptInviteButtonText}>
+                    {isAcceptingInvite ? 'Aceitando...' : 'Aceitar convite'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  disabled={isAcceptingInvite}
+                  onPress={() => setIsAcceptInviteOpen(false)}
+                  style={styles.workspaceActionsCancel}
+                >
+                  <Text style={styles.workspaceActionsCancelText}>Cancelar</Text>
+                </Pressable>
               </Pressable>
             </Pressable>
-          </KeyboardAvoidingView>
-        </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal

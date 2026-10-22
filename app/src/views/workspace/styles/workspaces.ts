@@ -209,6 +209,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 24,
   },
+  acceptInviteScrollContent: {
+    flexGrow: 1,
+  },
+  acceptInviteSheetContainer: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+  },
   workspaceActionsTitle: {
     color: VARD_COLORS.text,
     fontFamily: WORKSPACES_FONTS.bold,

@@ -17,7 +17,7 @@ import { Insights } from './src/views/insights/pages/Insights';
 import { Settings } from './src/views/settings/pages/Settings';
 import Workspaces from './src/views/workspace/pages/workspaces';
 import { Header } from './src/components/Header';
-import { initializePushNotifications } from './src/lib/pushNotifications';
+import { initializeOneSignal } from './src/lib/onesignal';
 import { Alerts, notificationToAlert } from './src/views/alerts/pages/Alerts';
 import { GlobalFallAlert } from './src/components/GlobalFallAlert';
 import { fallOccurrenceTarget } from './src/lib/fallAlertQueue';
@@ -167,7 +167,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    void initializePushNotifications();
+    void initializeOneSignal();
 
   }, []);
 

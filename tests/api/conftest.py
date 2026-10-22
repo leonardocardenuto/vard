@@ -31,7 +31,6 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("JWT_SECRET_KEY", "vard-api-integration-test-secret")
 os.environ["REDIS_URL"] = ""
 os.environ["FALL_MONITOR_ENABLED"] = "false"
-os.environ["PUSH_WORKER_ENABLED"] = "false"
 
 from api.db import Base, get_db  # noqa: E402
 from api.main import app  # noqa: E402

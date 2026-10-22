@@ -36,8 +36,10 @@ name: Workspace - aceite completo do convite
 - tapOn: "Aceitar convite"
 - tapOn:
     id: workspace-accept-invite-code
+- assertVisible:
+    id: workspace-accept-invite-code
 - pasteText
-- hideKeyboard
+- assertVisible: "Confirmar aceite do convite"
 - tapOn: "Confirmar aceite do convite"
 - extendedWaitUntil:
     visible: "Convite aceito!"

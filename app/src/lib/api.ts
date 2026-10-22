@@ -34,37 +34,6 @@ export type WorkspaceResponse = {
   updated_at: string;
 };
 
-export type PushProvider = 'onesignal' | 'fcm';
-export type PushDeliveryStatus = {
-  id: string; provider: PushProvider; status: string; attempts: number;
-  accepted_at: string | null; received_at: string | null; error: string | null;
-  created_at: string; send_started_at: string | null;
-  receipt_source: 'foreground' | 'tap' | 'unknown' | null;
-  timing_ms: { queue: number | null; provider_request: number | null; confirmation: number | null;
-    send_to_confirmation: number | null };
-};
-export function registerPushDevice(token: string, installationId: string, provider: PushProvider, deviceToken: string) {
-  return requestWithToken<{id: string; provider: PushProvider}>('/push/devices', token, {
-    method: 'POST', body: JSON.stringify({ installation_id: installationId, provider, token: deviceToken }),
-  });
-}
-export function revokePushDevices(token: string, installationId: string) {
-  return requestWithToken<void>(`/push/devices/${installationId}`, token, { method: 'DELETE' });
-}
-export function sendTestPush(token: string, installationId: string, provider: PushProvider) {
-  return requestWithToken<{delivery_id: string; provider: PushProvider; status: string}>('/push/test', token, {
-    method: 'POST', body: JSON.stringify({ installation_id: installationId, provider }),
-  });
-}
-export function getPushDelivery(token: string, id: string) {
-  return requestWithToken<PushDeliveryStatus>(`/push/deliveries/${id}`, token);
-}
-export function acknowledgePush(token: string, id: string, source: 'foreground' | 'tap') {
-  return requestWithToken<void>(`/push/deliveries/${id}/received`, token, {
-    method: 'POST', body: JSON.stringify({ source }),
-  });
-}
-
 export type WorkspaceMemberResponse = {
   user_id: string;
   email: string;
