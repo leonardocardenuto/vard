@@ -156,8 +156,8 @@ class DetectionPipelineTests(unittest.TestCase):
                 for layer in (fall, armed, confrontation):
                     job._process_layer(layer, self.buffer, timestamp)
             self.assertEqual(fall_notify.call_count, 1)
-            record_event.assert_called_once()
-            self.assertEqual(record_event.return_value.notification_id, fall_notify.return_value.id)
+            self.assertEqual(record_event.call_count, 2)
+            self.assertEqual(record_event.return_value.notification_id, confrontation_notify.return_value.id)
             self.assertEqual(armed_notify.call_count, 1)
             self.assertEqual(confrontation_notify.call_count, 1)
             payload = confrontation_notify.call_args.kwargs["payload"]
@@ -181,29 +181,52 @@ class DetectionPipelineTests(unittest.TestCase):
                 job._process_layer(layer, self.buffer, timestamp)
             notify.assert_not_called()
 
+    def test_confrontation_stores_clip_and_links_it_to_its_notification(self):
+        job = CameraMonitorJob(replace(self.spec, confrontation_config=self.config), self.provider)
+        layer = job._detection_layers()[-1]
+        layer.prediction = {'predicted_class': 'confronto', 'confrontation_probability': 0.95}
+        layer.smoothing = SimpleNamespace(moving_average=0.95, consecutive_hits=2)
+        clip_path = MagicMock()
+        clip_path.read_bytes.return_value = b'video-confrontation'
+        with patch('api.services.fall_monitor.SessionLocal'), \
+             patch('api.services.fall_monitor.ClipExporter') as exporter, \
+             patch('api.services.fall_events.record_fall_event') as record, \
+             patch('api.services.fall_monitor.create_confrontation_detected_notification') as notify:
+            exporter.return_value.export_mp4.return_value = SimpleNamespace(path=clip_path)
+            job._create_notification(layer=layer, timestamp=2, clip_frames=self.buffer.frames(), clip_fps=30)
+            self.assertEqual(record.call_args.kwargs['clip_bytes'], b'video-confrontation')
+            self.assertEqual(record.call_args.kwargs['camera_id'], self.spec.camera_id)
+            self.assertEqual(record.return_value.notification_id, notify.return_value.id)
+            self.assertEqual(notify.call_args.kwargs['payload']['detector'], 'confrontation')
+            clip_path.unlink.assert_called_once_with(missing_ok=True)
+
     def test_pre_event_clip_survives_slow_inference_and_rolling_buffer_eviction(self):
-        config = replace(self.config, min_consecutive_hits=1)
-        job = CameraMonitorJob(replace(self.spec, config=config, clip_pre_seconds=4,
-                                      clip_post_seconds=0, freeze_seconds=0), self.provider)
-        layer = job._detection_layers()[0]
-        buffer = FrameBuffer(5)
-        frame = np.zeros((12, 16, 3), dtype=np.uint8)
-        for timestamp in range(5):
-            buffer.append(frame, float(timestamp))
-        pending = Future()
-        executor = MagicMock()
-        executor.submit.return_value = pending
-        with patch.object(job, '_create_notification') as notify:
-            job._process_layer(layer, buffer, 4, executor=executor)
-            for timestamp in range(5, 11):
-                buffer.append(frame, float(timestamp))
-                job._process_layer(layer, buffer, timestamp, executor=executor)
-            self.assertGreater(buffer.frames()[0].timestamp, 0)
-            pending.set_result({'predicted_class': 'queda', 'fall_probability': 0.95})
-            job._process_layer(layer, buffer, 10, executor=executor)
-            saved = notify.call_args.kwargs['clip_frames']
-            self.assertEqual([item.timestamp for item in saved], list(range(11)))
-            self.assertEqual(layer.result_delay_seconds, 6)
+        for kind in ('fall', 'confrontation'):
+            with self.subTest(detector=kind):
+                config = replace(self.config, min_consecutive_hits=1)
+                spec = replace(self.spec, config=config, clip_pre_seconds=4,
+                                   clip_post_seconds=0, freeze_seconds=0,
+                                   confrontation_config=config if kind == 'confrontation' else None)
+                job = CameraMonitorJob(spec, self.provider)
+                layer = job._detection_layers()[-1] if kind == "confrontation" else job._detection_layers()[0]
+                buffer = FrameBuffer(5)
+                frame = np.zeros((12, 16, 3), dtype=np.uint8)
+                for timestamp in range(5):
+                    buffer.append(frame, float(timestamp))
+                pending = Future()
+                executor = MagicMock()
+                executor.submit.return_value = pending
+                with patch.object(job, '_create_notification') as notify:
+                    job._process_layer(layer, buffer, 4, executor=executor)
+                    for timestamp in range(5, 11):
+                        buffer.append(frame, float(timestamp))
+                        job._process_layer(layer, buffer, timestamp, executor=executor)
+                    self.assertGreater(buffer.frames()[0].timestamp, 0)
+                    pending.set_result({'predicted_class': kind, layer.probability_key: 0.95})
+                    job._process_layer(layer, buffer, 10, executor=executor)
+                    saved = notify.call_args.kwargs['clip_frames']
+                    self.assertEqual([item.timestamp for item in saved], list(range(11)))
+                    self.assertEqual(layer.result_delay_seconds, 6)
 
     def test_fall_post_roll_keeps_other_layer_active_and_preserves_snapshot(self):
         spec = replace(self.spec, clip_pre_seconds=1, clip_post_seconds=2)

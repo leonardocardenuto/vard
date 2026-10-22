@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { getNotification, listNotifications, listWorkspaces, NotificationResponse } from '../lib/api';
-import { newFallNotices } from '../lib/fallAlertQueue';
+import { isDetectionNotice, newFallNotices } from '../lib/fallAlertQueue';
 import { subscribeToFallPush } from '../lib/onesignal';
 
 export function GlobalFallAlert({ accessToken, onOpen }: {
@@ -20,11 +20,13 @@ export function GlobalFallAlert({ accessToken, onOpen }: {
     setQueue([]);
     const receive = (items: NotificationResponse[]) => {
       if (!active) return;
-      const fresh = newFallNotices(items, seen, since);
+      const fresh = newFallNotices(items, seen, Math.max(since, Date.now() - 120_000));
       if (fresh.length) setQueue((current) => [...current, ...fresh]);
     };
     const check = async () => {
       if (!active || checking || AppState.currentState !== 'active') return;
+      const cutoff = Date.now() - 120_000;
+      setQueue((current) => current.filter((item) => Date.parse(item.created_at) >= cutoff));
       checking = true;
       try {
         const workspaces = await listWorkspaces(accessToken);
@@ -36,7 +38,7 @@ export function GlobalFallAlert({ accessToken, onOpen }: {
     let unsubscribe = () => {};
     void subscribeToFallPush((id, clicked) => {
       void getNotification(accessToken, id).then((notification) => {
-        if (!active || notification.notification_type !== 'fall_detected') return;
+        if (!active || !isDetectionNotice(notification.notification_type)) return;
         if (clicked) {
           seen.add(id);
           setQueue((current) => current.filter((item) => item.id !== id));
@@ -55,7 +57,7 @@ export function GlobalFallAlert({ accessToken, onOpen }: {
     <View style={styles.backdrop}>
       <View accessibilityViewIsModal style={styles.card}>
         <Feather name="alert-triangle" size={42} color="#FFF" />
-        <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.title}>Queda detectada</Text>
+        <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.title}>{notification?.notification_type === 'confrontation_detected' ? 'Confronto detectado' : 'Queda detectada'}</Text>
         <Text style={styles.body}>{notification?.body}</Text>
         <Text style={styles.hint}>Verifique a ocorrência e se a pessoa precisa de ajuda.</Text>
         <Pressable accessibilityRole="button" style={styles.primary} onPress={() => {

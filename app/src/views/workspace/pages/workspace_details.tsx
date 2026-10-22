@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -893,7 +894,8 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
         cameraId ? Promise.resolve([]) : listWorkspaces(accessToken),
       ]);
       setWorkspaceName(workspaces.find((workspace) => workspace.id === workspaceId)?.name ?? '');
-      setOccurrences(notifications.filter((notification) => !cameraId || notification.camera_id === cameraId));
+      setOccurrences(notifications.filter((notification) => !cameraId || notification.camera_id === cameraId)
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)));
       setFallEventsByNotificationId(
         Object.fromEntries(
           fallEvents
@@ -914,9 +916,11 @@ export function WorkspaceCameraOccurrencesScreen({ navigation, route }: CameraOc
     }
   }, [accessToken, cameraId, workspaceId]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     void loadOccurrences();
-  }, [loadOccurrences]);
+    const timer = setInterval(() => void loadOccurrences(), 4000);
+    return () => clearInterval(timer);
+  }, [loadOccurrences]));
 
   async function openOccurrenceClip(event: FallEventResponse) {
     if (!event.has_clip || loadingClipId) return;

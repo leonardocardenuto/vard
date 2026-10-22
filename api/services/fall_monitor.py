@@ -284,7 +284,7 @@ class CameraMonitorJob:
             return
         layer.last_inference_at = timestamp
         layer.inference_count += 1
-        if layer.kind == "fall" and (self.spec.clip_pre_seconds or self.spec.clip_post_seconds):
+        if layer.kind in {"fall", "confrontation"} and (self.spec.clip_pre_seconds or self.spec.clip_post_seconds):
             # Preserve the pre-event frames while the GPU is busy. The rolling
             # capture buffer can evict them before the prediction completes.
             layer.inference_clip_frames = [item for item in buffer.frames()
@@ -310,7 +310,7 @@ class CameraMonitorJob:
                     layer.config.threshold, layer.result_delay_seconds)
         if not smoothing.alert or timestamp - layer.last_alert_at < layer.cooldown_seconds:
             return
-        if layer.kind == "fall" and (self.spec.clip_pre_seconds or self.spec.clip_post_seconds):
+        if layer.kind in {"fall", "confrontation"} and (self.spec.clip_pre_seconds or self.spec.clip_post_seconds):
             clip_frames = {item.timestamp: item for item in (layer.inference_clip_frames or [])}
             clip_frames.update({item.timestamp: item for item in buffer.frames()
                 if timestamp - self.spec.clip_pre_seconds <= item.timestamp <= current_timestamp})
@@ -370,7 +370,7 @@ class CameraMonitorJob:
         }[layer.kind]
         with SessionLocal() as db:
             event = None
-            if layer.kind == "fall":
+            if layer.kind in {"fall", "confrontation"}:
                 from datetime import UTC, datetime
                 from api.services.fall_events import record_fall_event
 
