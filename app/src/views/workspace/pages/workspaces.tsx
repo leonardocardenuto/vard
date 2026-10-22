@@ -374,7 +374,10 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         onRequestClose={() => !isAcceptingInvite && setIsAcceptInviteOpen(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          // Android modals already use adjustResize; a second height adjustment
+          // can retain keyboard space after dismissal.
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          enabled={Platform.OS === 'ios'}
           style={styles.workspaceActionsOverlay}
         >
           <ScrollView

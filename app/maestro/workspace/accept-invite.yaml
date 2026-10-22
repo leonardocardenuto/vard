@@ -38,6 +38,10 @@ name: Workspace - aceite completo do convite
     id: workspace-accept-invite-code
 - assertVisible:
     id: workspace-accept-invite-code
+- hideKeyboard
+- assertVisible: "Cancelar"
+- tapOn:
+    id: workspace-accept-invite-code
 - pasteText
 - assertVisible: "Confirmar aceite do convite"
 - tapOn: "Confirmar aceite do convite"
