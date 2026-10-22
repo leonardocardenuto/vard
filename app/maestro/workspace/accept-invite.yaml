@@ -34,12 +34,15 @@ name: Workspace - aceite completo do convite
 - tapOn:
     id: tab-Workspace
 - tapOn: "Aceitar convite"
+- takeScreenshot: invite-before-keyboard
 - tapOn:
     id: workspace-accept-invite-code
 - assertVisible:
     id: workspace-accept-invite-code
+- takeScreenshot: invite-keyboard-open
 - hideKeyboard
 - assertVisible: "Cancelar"
+- takeScreenshot: invite-keyboard-dismissed
 - tapOn:
     id: workspace-accept-invite-code
 - pasteText

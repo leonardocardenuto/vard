@@ -92,10 +92,26 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
   const [menuWorkspace, setMenuWorkspace] = useState<WorkspaceResponse | null>(null);
   const [deleteWorkspaceTarget, setDeleteWorkspaceTarget] = useState<WorkspaceResponse | null>(null);
   const [isAcceptInviteOpen, setIsAcceptInviteOpen] = useState(false);
+  const [isInviteKeyboardVisible, setIsInviteKeyboardVisible] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [isAcceptingInvite, setIsAcceptingInvite] = useState(false);
   const [feedback, setFeedback] = useState<WorkspaceFeedback | null>(null);
   const fontsLoaded = useWorkspaceFonts();
+
+  useEffect(() => {
+    if (!isAcceptInviteOpen) {
+      setIsInviteKeyboardVisible(false);
+      return;
+    }
+
+    setIsInviteKeyboardVisible(Keyboard.isVisible());
+    const show = Keyboard.addListener('keyboardDidShow', () => setIsInviteKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setIsInviteKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [isAcceptInviteOpen]);
 
   const loadWorkspaces = useCallback(async () => {
     if (!accessToken) {
@@ -374,10 +390,10 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         onRequestClose={() => !isAcceptingInvite && setIsAcceptInviteOpen(false)}
       >
         <KeyboardAvoidingView
-          // Android modals already use adjustResize; a second height adjustment
-          // can retain keyboard space after dismissal.
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          enabled={Platform.OS === 'ios'}
+          behavior="padding"
+          // Android hide events can leave a stale inset in KeyboardAvoidingView.
+          // Disable it when hidden so the bottom padding always returns to zero.
+          enabled={Platform.OS === 'ios' || isInviteKeyboardVisible}
           style={styles.workspaceActionsOverlay}
         >
           <ScrollView
