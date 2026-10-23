@@ -13,8 +13,13 @@ do banco e dos checkpoints, como os comandos de terminal existentes.
 
 - Cole o `camera-id` ou clique em **Buscar câmeras** para escolher uma câmera ativa.
 - **Iniciar / Parar / Reiniciar** controla cada detector individualmente.
-- **Iniciar as duas / Parar as duas / Reiniciar as duas** controla os dois processos.
-- Cada detector tem um PID separado, exibido na janela e no registro de ações.
+- **Iniciar as duas / Parar as duas / Reiniciar as duas** controla um processo compartilhado
+  com os dois modelos, uma conexão de vídeo e uma janela de preview.
+- Ao iniciar o segundo modelo na mesma câmera pelos botões individuais, o launcher
+  substitui o processo anterior pelo compartilhado. Assim não duplica a leitura da câmera.
+- Sozinhos, os modelos têm PID próprio. Juntos, os dois campos mostram o mesmo PID.
+- Parar um dos modelos enquanto estão juntos encerra o PID compartilhado e retoma
+  somente o modelo restante. Reiniciar um deles nesse modo reinicia o processo dos dois.
 - A seleção de câmera e preview é salva localmente em `var/launcher/settings.json`.
 - Parâmetros e habilitação dos modelos continuam no `.env`, lido por cada novo processo.
 - A opção de vídeo pode ser desativada mesmo com preview habilitado no `.env`.
@@ -23,8 +28,22 @@ do banco e dos checkpoints, como os comandos de terminal existentes.
 
 O launcher usa `REDIS_URL=''`, `PYTORCH_ENABLE_MPS_FALLBACK=1` e
 `OPENCV_FFMPEG_CAPTURE_OPTIONS='rtsp_transport;tcp|allowed_media_types;video'`.
-Os processos executam `scripts.run_fall_monitor_jobs --detector fall` e
-`--detector confrontation`, com os mesmos registros de ocorrências e notificações.
+Os processos individuais executam `scripts.run_fall_monitor_jobs --detector fall`
+ou `--detector confrontation`. O compartilhado usa os dois argumentos no mesmo
+comando, com os mesmos registros de ocorrências e notificações.
+
+Para abrir a janela e iniciar os dois modelos na última câmera selecionada:
+
+```bash
+.venv/bin/python -m scripts.inference_launcher --start-both
+```
+
+O preview tem limite de `FALL_MONITOR_PREVIEW_FPS=8` e largura máxima de
+`FALL_MONITOR_PREVIEW_MAX_WIDTH=960`, configuráveis no `.env`. O redimensionamento
+acontece antes de desenhar e comprimir o vídeo, e a fila mantém a imagem mais recente.
+Esses ajustes não alteram a captura, os frames analisados ou os clipes salvos.
+No processo compartilhado, os modelos são executados em sequência na GPU; ainda
+existe tempo de processamento e espera entre as análises.
 
 Ao parar, o PID registrado recebe `SIGTERM`. O launcher aguarda até 20 segundos.
 Se o processo não sair, sinaliza o grupo criado para aquela instância e depois
@@ -42,9 +61,11 @@ Logs detalhados:
 ```text
 var/logs/gui_fall.log
 var/logs/gui_confrontation.log
+var/logs/gui_both.log
 var/logs/gui_fall_console.log
 var/logs/gui_confrontation_console.log
+var/logs/gui_both_console.log
 ```
 
-Os dois primeiros têm rotação de arquivos pelo monitor. Os arquivos de console
+Os arquivos `.log` sem `_console` têm rotação pelo monitor. Os arquivos de console
 recebem stdout/stderr para diagnosticar falhas de importação ou bibliotecas nativas.

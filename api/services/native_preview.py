@@ -9,6 +9,7 @@ window in this child process leaves capture and inference uninterrupted.
 """
 
 import multiprocessing as mp
+import time
 from queue import Empty, Full
 
 import cv2
@@ -44,7 +45,12 @@ def _preview_process(frame_queue, window_name: str) -> None:
 class NativePreview:
     """Non-blocking frame sender for the separate desktop preview window."""
 
-    def __init__(self, camera_name: str):
+    def __init__(self, camera_name: str, *, max_fps: float = 8.0, max_width: int = 960):
+        if max_fps <= 0 or max_width < 1:
+            raise ValueError('FPS e largura do preview devem ser positivos.')
+        self._interval = 1 / max_fps
+        self._max_width = max_width
+        self._last_submission = -float('inf')
         context = mp.get_context("spawn")
         self._queue = context.Queue(maxsize=1)
         self._process = context.Process(
@@ -59,18 +65,36 @@ class NativePreview:
     def is_alive(self) -> bool:
         return self._process.is_alive()
 
-    def submit(self, frame_bgr) -> None:
-        if not self.is_alive:
-            return
-        success, encoded = cv2.imencode(".jpg", frame_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+    def should_submit(self) -> bool:
+        return self.is_alive and time.monotonic() - self._last_submission >= self._interval
+
+    def prepare_frame(self, frame):
+        height, width = frame.shape[:2]
+        if width <= self._max_width:
+            return frame
+        return cv2.resize(frame, (self._max_width, max(1, round(height * self._max_width / width))),
+                          interpolation=cv2.INTER_AREA)
+
+    def submit(self, frame_bgr) -> bool:
+        if not self.should_submit():
+            return False
+        self._last_submission = time.monotonic()
+        success, encoded = cv2.imencode(".jpg", frame_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
         if not success:
-            return
+            return False
         try:
             self._queue.put_nowait(encoded.tobytes())
         except Full:
-            # The window displays the most recent frame it received; never
-            # slow inference to render an old preview frame.
-            return
+            # Replace the stale image instead of accumulating display latency.
+            try:
+                self._queue.get_nowait()
+            except Empty:
+                pass
+            try:
+                self._queue.put_nowait(encoded.tobytes())
+            except Full:
+                return False
+        return True
 
     def close(self) -> None:
         if self.is_alive:

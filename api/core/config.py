@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     fall_monitor_clip_post_seconds: float = Field(0.0, alias="FALL_MONITOR_CLIP_POST_SECONDS")
     fall_monitor_freeze_seconds: float = Field(300.0, alias="FALL_MONITOR_FREEZE_SECONDS")
     fall_monitor_show_preview: bool = Field(False, alias="FALL_MONITOR_SHOW_PREVIEW")
+    fall_monitor_preview_fps: float = Field(8.0, gt=0, alias="FALL_MONITOR_PREVIEW_FPS")
+    fall_monitor_preview_max_width: int = Field(960, ge=320, alias="FALL_MONITOR_PREVIEW_MAX_WIDTH")
     fall_monitor_alert_cooldown_seconds: float = Field(60.0, alias="FALL_MONITOR_ALERT_COOLDOWN_SECONDS")
     fall_monitor_restart_backoff_seconds: float = Field(30.0, alias="FALL_MONITOR_RESTART_BACKOFF_SECONDS")
 

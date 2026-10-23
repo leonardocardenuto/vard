@@ -23,8 +23,7 @@ class InferenceLauncherTests(unittest.TestCase):
         self.manager.command = lambda *args: [sys.executable, '-u', '-c', 'import time; time.sleep(60)']
 
     def tearDown(self):
-        for kind in self.manager.instances:
-            self.manager.stop(kind)
+        self.manager.stop_all()
         self.tmp.cleanup()
 
     def test_start_uses_real_pid_and_stop_waits_for_it(self):
@@ -37,13 +36,55 @@ class InferenceLauncherTests(unittest.TestCase):
         self.assertFalse(self.manager.snapshot()['fall']['running'])
         self.assertTrue(any(f'PID {pid} (SIGTERM)' in message for message in self.messages))
 
-    def test_two_detectors_are_independent_and_start_is_idempotent(self):
+    def test_starting_second_detector_merges_same_camera_into_one_pid(self):
         fall_pid = self.manager.start('fall', CAMERA)
+        previous = self.manager.instances['fall'].process
         other_pid = self.manager.start('confrontation', CAMERA)
         self.assertNotEqual(fall_pid, other_pid)
-        self.assertEqual(self.manager.start('fall', CAMERA), fall_pid)
+        self.assertIsNotNone(previous.poll())
+        self.assertEqual(self.manager.start('fall', CAMERA), other_pid)
+        status = self.manager.snapshot()
+        self.assertEqual(status['fall']['pid'], status['confrontation']['pid'])
+        self.assertTrue(status['fall']['shared'])
         self.manager.stop('fall')
+        self.assertFalse(self.manager.snapshot()['fall']['running'])
         self.assertTrue(self.manager.snapshot()['confrontation']['running'])
+
+    def test_start_both_is_one_process_and_stop_all_does_not_restart_models(self):
+        pid = self.manager.start_both(CAMERA)
+        process = self.manager.instances['both'].process
+        self.assertEqual(self.manager.start_both(CAMERA), pid)
+        self.assertEqual(self.manager.snapshot()['fall']['pid'], pid)
+        self.assertEqual(self.manager.snapshot()['confrontation']['pid'], pid)
+        self.assertIsNone(self.manager.instances['fall'].process)
+        self.assertIsNone(self.manager.instances['confrontation'].process)
+        self.manager.stop_all()
+        self.assertIsNotNone(process.poll())
+        self.assertFalse(any(s['running'] for s in self.manager.snapshot().values()))
+
+    def test_individual_restart_of_shared_process_keeps_both_models(self):
+        pid = self.manager.start_both(CAMERA)
+        previous = self.manager.instances['both'].process
+        new_pid = self.manager.restart('fall', CAMERA)
+        self.assertNotEqual(pid, new_pid)
+        self.assertIsNotNone(previous.poll())
+        self.assertTrue(all(s['running'] and s['shared'] for s in self.manager.snapshot().values()))
+
+    def test_stop_one_shared_model_preserves_other_camera_and_preview(self):
+        self.manager.start_both(CAMERA, preview=False)
+        previous = self.manager.instances['both'].process
+        self.manager.stop('confrontation')
+        self.assertIsNotNone(previous.poll())
+        self.assertTrue(self.manager.snapshot()['fall']['running'])
+        self.assertFalse(self.manager.snapshot()['confrontation']['running'])
+        self.assertEqual(self.manager.instances['fall'].camera_id, CAMERA)
+        self.assertFalse(self.manager.instances['fall'].preview)
+
+    def test_different_cameras_stay_in_separate_processes(self):
+        first = self.manager.start('fall', CAMERA)
+        second = self.manager.start('confrontation', 'ae7a503b-25c8-40a1-aecd-2278bee24507')
+        self.assertNotEqual(first, second)
+        self.assertFalse(any(s['shared'] for s in self.manager.snapshot().values()))
 
     def test_restart_reaps_old_pid_before_creating_new_one(self):
         old_pid = self.manager.start('fall', CAMERA)
@@ -117,6 +158,10 @@ class InferenceLauncherTests(unittest.TestCase):
                 self.assertEqual(command[0], sys.executable)
                 self.assertEqual(command[command.index('--detector') + 1], kind)
                 self.assertIn('--show-preview' if preview else '--no-preview', command)
+        shared = manager.command('both', CAMERA, True)
+        selected = [shared[i+1] for i, word in enumerate(shared) if word == '--detector']
+        self.assertEqual(selected, ['fall', 'confrontation'])
+        self.assertIn(str(Path(self.tmp.name) / 'var/logs/gui_both.log'), shared)
 
     def test_preview_cli_defaults_and_overrides(self):
         from scripts.run_fall_monitor_jobs import parse_args

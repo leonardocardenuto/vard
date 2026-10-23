@@ -45,6 +45,8 @@ class CameraMonitorSpec:
     armed_alert_cooldown_seconds: float = 60.0
     confrontation_config: FallDetectionConfig | None = None
     confrontation_alert_cooldown_seconds: float = 60.0
+    preview_fps: float = 8.0
+    preview_max_width: int = 960
 
 
 @dataclass
@@ -201,7 +203,8 @@ class CameraMonitorJob:
         preview = None
         if self.spec.show_preview:
             try:
-                preview = NativePreview(self.spec.name)
+                preview = NativePreview(self.spec.name, max_fps=self.spec.preview_fps,
+                                        max_width=self.spec.preview_max_width)
             except Exception:
                 LOGGER.exception("Preview indisponivel: camera_id=%s", self.spec.camera_id)
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="camera-inference")
@@ -232,11 +235,11 @@ class CameraMonitorJob:
                         LOGGER.exception("Detector falhou; nova tentativa em 30s: camera_id=%s detector=%s",
                                          self.spec.camera_id, layer.kind)
                 if preview is not None:
-                    if preview.is_alive:
-                        preview.submit(_render_preview_frame(frame, layers))
-                    else:
+                    if not preview.is_alive:
                         preview.close()
                         preview = None
+                    elif preview.should_submit():
+                        preview.submit(_render_preview_frame(preview.prepare_frame(frame), layers))
         except Exception as exc:
             self.failed_at = time.monotonic()
             LOGGER.exception("Monitor de camera falhou: camera_id=%s", self.spec.camera_id)
@@ -555,7 +558,8 @@ class CameraMonitorSupervisor:
         if min(freeze_seconds, cooldown, armed_cooldown, confrontation_cooldown) < 0:
             raise ValueError("Freeze e cooldown nao podem ser negativos.")
         signature = (camera.stream_url, camera.name, camera.workspace_id, config, armed_config, confrontation_config,
-                     fall_enabled, capture_fps, clip_pre, clip_post, freeze_seconds, show_preview, cooldown, armed_cooldown, confrontation_cooldown)
+                     fall_enabled, capture_fps, clip_pre, clip_post, freeze_seconds, show_preview, cooldown, armed_cooldown, confrontation_cooldown,
+                     self.settings.fall_monitor_preview_fps, self.settings.fall_monitor_preview_max_width)
         return CameraMonitorSpec(
             camera_id=camera.id, workspace_id=camera.workspace_id, name=camera.name,
             source=camera.stream_url, config=config, capture_fps=capture_fps,
@@ -564,6 +568,8 @@ class CameraMonitorSupervisor:
             alert_cooldown_seconds=cooldown, signature=signature, fall_enabled=fall_enabled,
             armed_config=armed_config, armed_alert_cooldown_seconds=armed_cooldown,
             confrontation_config=confrontation_config, confrontation_alert_cooldown_seconds=confrontation_cooldown,
+            preview_fps=self.settings.fall_monitor_preview_fps,
+            preview_max_width=self.settings.fall_monitor_preview_max_width,
         )
 
 

@@ -17,6 +17,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DETECTORS = {'fall': 'Quedas', 'confrontation': 'Confrontos'}
+PROCESS_LABELS = {**DETECTORS, 'both': 'Quedas + Confrontos'}
 
 
 @dataclass
@@ -26,6 +27,7 @@ class Instance:
     stopping: bool = False
     last_pid: int | None = None
     last_exit: int | None = None
+    preview: bool = True
 
 
 class InferenceProcesses:
@@ -38,16 +40,19 @@ class InferenceProcesses:
         self.emit = emit
         self.grace_seconds = grace_seconds
         self.force_seconds = force_seconds
-        self.instances = {kind: Instance() for kind in DETECTORS}
+        self.instances = {kind: Instance() for kind in PROCESS_LABELS}
         self.lock = threading.RLock()
+        self.operation_lock = threading.RLock()
 
     def command(self, detector, camera_id, preview):
+        detectors = ['fall', 'confrontation'] if detector == 'both' else [detector]
+        selection = [argument for kind in detectors for argument in ('--detector', kind)]
         return [self.python, '-u', '-m', 'scripts.run_fall_monitor_jobs',
-                '--camera-id', camera_id, '--detector', detector,
+                '--camera-id', camera_id, *selection,
                 '--show-preview' if preview else '--no-preview',
                 '--log-file', str(self.repo / 'var' / 'logs' / f'gui_{detector}.log')]
 
-    def start(self, detector, camera_id, preview=True):
+    def _start_process(self, detector, camera_id, preview=True):
         camera_id = str(uuid.UUID(camera_id.strip()))
         with self.lock:
             state = self.instances[detector]
@@ -56,8 +61,8 @@ class InferenceProcesses:
             if state.process is not None:
                 if state.process.poll() is None:
                     if state.camera_id != camera_id:
-                        raise RuntimeError(f'{DETECTORS[detector]} ja esta ativo em outra camera. Use Reiniciar.')
-                    self.emit(f'{DETECTORS[detector]} ja esta ativo: PID {state.process.pid}.')
+                        raise RuntimeError(f'{PROCESS_LABELS[detector]} ja esta ativo em outra camera. Use Reiniciar.')
+                    self.emit(f'{PROCESS_LABELS[detector]} ja esta ativo: PID {state.process.pid}.')
                     return state.process.pid
                 # Never signal an old PID that may have been reused after exit.
                 state.process = None
@@ -73,10 +78,44 @@ class InferenceProcesses:
                                            stderr=subprocess.STDOUT, start_new_session=True)
             state.process = process
             state.camera_id = camera_id
+            state.preview = preview
             state.last_pid = process.pid
             state.last_exit = None
-            self.emit(f'{DETECTORS[detector]} iniciado: PID {process.pid} | camera {camera_id}.')
+            self.emit(f'{PROCESS_LABELS[detector]} iniciado: PID {process.pid} | camera {camera_id}.')
             return process.pid
+
+    def _running(self, kind):
+        state = self.instances[kind]
+        return state.process is not None and state.process.poll() is None
+
+    def start(self, detector, camera_id, preview=True):
+        camera_id = str(uuid.UUID(camera_id.strip()))
+        with self.operation_lock:
+            if detector == 'both':
+                return self.start_both(camera_id, preview)
+            if self._running('both'):
+                state = self.instances['both']
+                if state.camera_id != camera_id:
+                    raise RuntimeError('Os dois modelos ja estao ativos em outra camera. Use Reiniciar as duas.')
+                self.emit(f'{DETECTORS[detector]} ja esta ativo no PID compartilhado {state.process.pid}.')
+                return state.process.pid
+            if self.instances['both'].process is not None:
+                self._stop_process('both')
+            other = 'confrontation' if detector == 'fall' else 'fall'
+            if self._running(other) and self.instances[other].camera_id == camera_id:
+                return self.start_both(camera_id, preview)
+            return self._start_process(detector, camera_id, preview)
+
+    def start_both(self, camera_id, preview=True):
+        camera_id = str(uuid.UUID(camera_id.strip()))
+        with self.operation_lock:
+            if self._running('both'):
+                state = self.instances['both']
+                if state.camera_id == camera_id and state.preview == preview:
+                    return state.process.pid
+            self.stop_all()
+            self.emit('Iniciando os dois modelos com captura e preview compartilhados.')
+            return self._start_process('both', camera_id, preview)
 
     def _clean_group(self, pid):
         """Also close a leftover preview child in the group created by start_new_session."""
@@ -118,11 +157,11 @@ class InferenceProcesses:
                 return True
         return False
 
-    def stop(self, detector):
+    def _stop_process(self, detector):
         with self.lock:
             state = self.instances[detector]
             if state.process is None:
-                self.emit(f'{DETECTORS[detector]} ja esta parado.')
+                self.emit(f'{PROCESS_LABELS[detector]} ja esta parado.')
                 return
             if state.stopping:
                 raise RuntimeError('Este processo ja esta sendo encerrado.')
@@ -132,7 +171,7 @@ class InferenceProcesses:
         try:
             was_running = process.poll() is None
             if was_running:
-                self.emit(f'Encerrando {DETECTORS[detector]} pelo PID {pid} (SIGTERM)...')
+                self.emit(f'Encerrando {PROCESS_LABELS[detector]} pelo PID {pid} (SIGTERM)...')
                 try:
                     os.kill(pid, signal.SIGTERM)
                 except ProcessLookupError:
@@ -150,26 +189,57 @@ class InferenceProcesses:
             with self.lock:
                 state.last_exit = code
                 state.process = None
-            self.emit(f'{DETECTORS[detector]} encerrado: PID {pid}, saida {code}.')
+            self.emit(f'{PROCESS_LABELS[detector]} encerrado: PID {pid}, saida {code}.')
         finally:
             with self.lock:
                 state.stopping = False
 
+    def stop(self, detector):
+        with self.operation_lock:
+            if detector == 'both':
+                return self.stop_all()
+            if self._running('both'):
+                state = self.instances['both']
+                camera_id, preview = state.camera_id, state.preview
+                other = 'confrontation' if detector == 'fall' else 'fall'
+                self.emit(f'Parando {DETECTORS[detector]}; o outro modelo sera retomado sozinho.')
+                self._stop_process('both')
+                return self._start_process(other, camera_id, preview)
+            if self.instances['both'].process is not None:
+                self._stop_process('both')
+            self._stop_process(detector)
+
+    def stop_all(self):
+        with self.operation_lock:
+            for kind in ('both', *DETECTORS):
+                self._stop_process(kind)
+
     def restart(self, detector, camera_id, preview=True):
-        # Validate before stopping a working instance.
         camera_id = str(uuid.UUID(camera_id.strip()))
-        self.stop(detector)
-        return self.start(detector, camera_id, preview)
+        with self.operation_lock:
+            if detector == 'both' or self._running('both'):
+                self.emit('Reiniciando o processo compartilhado dos dois modelos.')
+                return self.restart_both(camera_id, preview)
+            self._stop_process(detector)
+            return self.start(detector, camera_id, preview)
+
+    def restart_both(self, camera_id, preview=True):
+        camera_id = str(uuid.UUID(camera_id.strip()))
+        with self.operation_lock:
+            self.stop_all()
+            return self._start_process('both', camera_id, preview)
 
     def snapshot(self):
         with self.lock:
             result = {}
-            for kind, state in self.instances.items():
+            shared = self.instances['both'].process is not None
+            for kind in DETECTORS:
+                state = self.instances['both'] if shared else self.instances[kind]
                 code = state.process.poll() if state.process else state.last_exit
                 running = state.process is not None and code is None
                 result[kind] = {'running': running, 'stopping': state.stopping,
                                 'pid': state.process.pid if state.process else None,
-                                'last_pid': state.last_pid, 'exit': code}
+                                'last_pid': state.last_pid, 'exit': code, 'shared': shared}
             return result
 
 
@@ -199,7 +269,7 @@ class LauncherWindow:
         frame = ttk.Frame(root, padding=18)
         frame.pack(fill='both', expand=True)
         ttk.Label(frame, text='Controle de inferências', font=('Helvetica', 19, 'bold')).pack(anchor='w')
-        ttk.Label(frame, text='Parâmetros do .env são carregados a cada início ou reinício.').pack(anchor='w', pady=(5, 14))
+        ttk.Label(frame, text='As duas usam captura e PID compartilhados. Parâmetros vêm do .env.').pack(anchor='w', pady=(5, 14))
         selection = ttk.Frame(frame)
         selection.pack(fill='x')
         ttk.Label(selection, text='Câmera / camera-id').pack(anchor='w')
@@ -237,7 +307,7 @@ class LauncherWindow:
         self.log.configure(yscrollcommand=scrollbar.set)
         self.log.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
-        ttk.Label(frame, text='Logs: var/logs/gui_fall.log e gui_confrontation.log. Fechar a janela encerra as instâncias abertas aqui.',
+        ttk.Label(frame, text='Logs: var/logs/gui_both.log (as duas), gui_fall.log e gui_confrontation.log. Fechar encerra as instâncias abertas aqui.',
                   wraplength=730).pack(anchor='w', pady=(9, 0))
         self.root.after(150, self.tick)
 
@@ -268,12 +338,19 @@ class LauncherWindow:
         self.activity.set('Executando ação… aguarde.')
         def work():
             try:
-                for detector in detectors:
-                    try:
+                try:
+                    if len(detectors) == 2:
+                        if action == 'stop':
+                            self.manager.stop_all()
+                        else:
+                            method = self.manager.start_both if action == 'start' else self.manager.restart_both
+                            method(camera_id, preview)
+                    else:
+                        detector = detectors[0]
                         method = getattr(self.manager, action)
                         method(detector) if action == 'stop' else method(detector, camera_id, preview)
-                    except Exception as exc:
-                        self.events.put(('log', f'Erro em {DETECTORS[detector]}: {exc}'))
+                except Exception as exc:
+                    self.events.put(('log', f'Erro na operação: {exc}'))
             finally:
                 self.events.put(('done', None))
         threading.Thread(target=work, daemon=True).start()
@@ -333,7 +410,7 @@ class LauncherWindow:
             if status['stopping']:
                 text = f'Encerrando PID {status["pid"]}…'
             elif status['running']:
-                text = f'Processo ativo · PID {status["pid"]}'
+                text = f'{"Compartilhado" if status["shared"] else "Processo ativo"} · PID {status["pid"]}'
             elif status['last_pid'] is not None:
                 text = f'Parado · último PID {status["last_pid"]}'
                 key = (kind, status['last_pid'])
@@ -357,11 +434,10 @@ class LauncherWindow:
         self.activity.set('Encerrando processos por PID antes de fechar…')
         def finish():
             errors = []
-            for kind in DETECTORS:
-                try:
-                    self.manager.stop(kind)
-                except Exception as exc:
-                    errors.append(f'Falha ao encerrar {DETECTORS[kind]}: {exc}')
+            try:
+                self.manager.stop_all()
+            except Exception as exc:
+                errors.append(f'Falha ao encerrar processos: {exc}')
             if errors:
                 for error in errors:
                     self.events.put(('log', error))
@@ -376,6 +452,7 @@ class LauncherWindow:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--smoke-test', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--start-both', action='store_true', help='Inicia os dois modelos na ultima camera selecionada.')
     args = parser.parse_args()
     if os.name != 'posix':
         raise SystemExit('Este launcher usa sinais POSIX e foi preparado para macOS/Linux.')
@@ -398,11 +475,12 @@ def main():
             signal.signal(signum, lambda *_: root.after(0, window.close))
         if args.smoke_test:
             root.after(1000, window.close)
+        elif args.start_both:
+            root.after(300, lambda: window.action('start', list(DETECTORS)))
         try:
             root.mainloop()
         finally:
-            for kind in DETECTORS:
-                window.manager.stop(kind)
+            window.manager.stop_all()
 
 
 if __name__ == '__main__':

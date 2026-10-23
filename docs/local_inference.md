@@ -53,6 +53,10 @@ REDIS_URL='' PYTORCH_ENABLE_MPS_FALLBACK=1 OPENCV_FFMPEG_CAPTURE_OPTIONS='rtsp_t
 
 Para executar os dois juntos, remova `--detector`. Sem `--camera-id`, o supervisor
 monitora todas as câmeras ativas; use o ID para limitar o teste à câmera desejada.
+Para reduzir leituras duplicadas da câmera, prefira **Iniciar as duas** no
+[launcher](inference_launcher.md): os modelos compartilham uma conexão e um preview.
+O preview usa `FALL_MONITOR_PREVIEW_FPS=8` e `FALL_MONITOR_PREVIEW_MAX_WIDTH=960`;
+esses valores não mudam os frames enviados aos modelos nem a resolução dos clipes.
 `--show-preview` abre a janela mesmo com `FALL_MONITOR_SHOW_PREVIEW=false`.
 Ctrl+C encerra o monitor; Q/Esc fecha somente o preview.
 
