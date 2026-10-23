@@ -738,7 +738,7 @@ export function Insights() {
               </Text>
             </View>
 
-            <View style={styles.incidentHistoryCard}>
+            {/* <View style={styles.incidentHistoryCard}>
               <View style={styles.incidentHistoryHeader}>
                 <View>
                   <Text style={styles.roomsTitle}>Histórico de quedas</Text>
@@ -780,7 +780,7 @@ export function Insights() {
                 })}
                 {clipError ? <Text style={styles.availabilityError}>{clipError}</Text> : null}
               </View>
-            </View>
+            </View> */}
 
             <Text style={styles.availabilitySectionTitle}>Disponibilidade de câmeras</Text>
 
@@ -869,7 +869,7 @@ export function Insights() {
             >
               <ExpoLinearGradient
                 colors={INSIGHTS_GRADIENT_COLORS}
-                end={{ x: 1, y: 0 }}
+                end={{ x: 1, y: 2 }}
                 locations={INSIGHTS_GRADIENT_LOCATIONS}
                 start={{ x: 0, y: 0 }}
                 style={styles.exportGradient}
@@ -1059,7 +1059,7 @@ function buildInsightsData({
       barStyle: {
         backgroundColor:
           index % 3 === 0
-            ? INSIGHTS_COLORS.gradientEnd
+            ? INSIGHTS_COLORS.gradientMiddle
             : index % 3 === 1
               ? INSIGHTS_COLORS.gradientStart
               : INSIGHTS_COLORS.gradientMiddle,
@@ -1540,12 +1540,17 @@ function GradientTitle({
   const gradientId = `${text}TitleGradient`;
 
   return (
-    <Svg height={height} style={style} viewBox={`0 0 ${width} ${height}`} width={width}>
+    <Svg
+      height={height}
+      style={style}
+      viewBox={`0 0 ${width} ${height}`}
+      width={width}
+    >
       <Defs>
-        <LinearGradient id={gradientId} x1="0" x2="1" y1="0" y2="0">
+        <LinearGradient id={gradientId} x1="0" x2="1" y1="0" y2="1">
           <Stop offset="8%" stopColor={INSIGHTS_COLORS.gradientStart} />
-          <Stop offset="38%" stopColor={INSIGHTS_COLORS.gradientMiddle} />
-          <Stop offset="100%" stopColor={INSIGHTS_COLORS.gradientEnd} />
+          <Stop offset="58%" stopColor={INSIGHTS_COLORS.gradientMiddle} />
+          <Stop offset="58%" stopColor={INSIGHTS_COLORS.gradientMiddle} />
         </LinearGradient>
       </Defs>
       <SvgText
@@ -1602,7 +1607,7 @@ function IncidentsChart({ series }: IncidentsChartProps) {
     <View style={styles.chartContainer}>
       <Svg height={height} viewBox={`0 0 ${width} ${height}`} width="100%">
         <Defs>
-          <LinearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1">
+          <LinearGradient id="chartFill" x1="0" x2="1" y1="0" y2="1">
             <Stop
               offset="8%"
               stopColor={INSIGHTS_COLORS.gradientStart}
@@ -1615,19 +1620,19 @@ function IncidentsChart({ series }: IncidentsChartProps) {
             />
             <Stop
               offset="100%"
-              stopColor={INSIGHTS_COLORS.gradientEnd}
+              stopColor={INSIGHTS_COLORS.gradientMiddle}
               stopOpacity="0"
             />
           </LinearGradient>
-          <LinearGradient id="chartLineGradient" x1="0" x2="1" y1="0" y2="0">
+          <LinearGradient id="chartLineGradient" x1="0" x2="1" y1="0" y2="1">
             <Stop offset="8%" stopColor={INSIGHTS_COLORS.gradientStart} />
             <Stop offset="38%" stopColor={INSIGHTS_COLORS.gradientMiddle} />
-            <Stop offset="100%" stopColor={INSIGHTS_COLORS.gradientEnd} />
           </LinearGradient>
         </Defs>
 
         {ticks.map((tick) => {
-          const y = chartTop + plotHeight - ((tick - min) / (max - min)) * plotHeight;
+          const y =
+            chartTop + plotHeight - ((tick - min) / (max - min)) * plotHeight;
 
           return (
             <G key={tick}>
@@ -1683,7 +1688,12 @@ function IncidentsChart({ series }: IncidentsChartProps) {
         />
 
         {labels.map((label, index) => {
-          if (labels.length > 7 && index % Math.ceil((labels.length - 1) / 6) !== 0 && index !== labels.length - 1) return null;
+          if (
+            labels.length > 7 &&
+            index % Math.ceil((labels.length - 1) / 6) !== 0 &&
+            index !== labels.length - 1
+          )
+            return null;
           const x = chartLeft + (index / (labels.length - 1)) * plotWidth;
 
           return (

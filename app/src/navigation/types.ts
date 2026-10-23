@@ -1,9 +1,12 @@
+import { AuthStep } from '../views/auth/types/flow';
 import type { WorkspaceStackParamList } from '../views/workspace/types/workspace';
 
 export type RootStackParamList = {
   Auth:
     | {
-        initialStep?: 'landing' | 'email' | 'password' | 'signup';
+        initialStep?: AuthStep;
+        initialEmail?: string;
+        fromSettings?: boolean;
         pendingInviteToken?: string;
       }
     | undefined;
@@ -12,7 +15,7 @@ export type RootStackParamList = {
     | {
         accessToken: string;
         screen?: keyof AppTabParamList;
-        params?: AppTabParamList['Alerts'] | AppTabParamList['Workspace'];
+        params?: AppTabParamList["Alerts"] | AppTabParamList["Workspace"];
         userAvatarUrl?: string | null;
         userEmail: string;
         userPhone?: string | null;
@@ -46,7 +49,9 @@ export type AppTabParamList = {
     | {
         accessToken: string;
         screen?: keyof WorkspaceStackParamList;
-        params?: WorkspaceStackParamList['CameraOccurrences'] | WorkspaceStackParamList['WorkspaceOccurrences'];
+        params?:
+          | WorkspaceStackParamList["CameraOccurrences"]
+          | WorkspaceStackParamList["WorkspaceOccurrences"];
         userAvatarUrl?: string | null;
         userEmail: string;
         userName?: string;
@@ -67,6 +72,14 @@ export type AppTabParamList = {
         userEmail: string;
         userPhone?: string | null;
         userName?: string;
+      }
+    | undefined;
+  Auth:
+    | {
+        initialStep?: AuthStep;
+        initialEmail?: string;
+        fromSettings?: boolean;
+        pendingInviteToken?: string;
       }
     | undefined;
 };

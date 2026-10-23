@@ -2,17 +2,17 @@ import { DefaultTheme as NavigationDefaultTheme } from '@react-navigation/native
 import { MD3LightTheme } from 'react-native-paper';
 
 export const VARD_COLORS = {
-  primary: '#00B9BB',
-  primaryPressed: '#009B9D',
-  primarySoft: '#DDF7F6',
-  secondary: '#003984',
-  secondarySoft: '#E6ECF6',
-  surface: '#FFFFFF',
-  background: '#F6FAFE',
-  text: '#171C1F',
-  muted: '#667085',
-  border: '#D8E6F1',
-  onBrand: '#FFFFFF',
+  primary: "#00B9BB",
+  primaryPressed: "#009B9D",
+  primarySoft: "#DDF7F6",
+  secondary: "#006496",
+  secondarySoft: "#E6ECF6",
+  surface: "#FFFFFF",
+  background: "#F6FAFE",
+  text: "#171C1F",
+  muted: "#667085",
+  border: "#D8E6F1",
+  onBrand: "#FFFFFF",
 } as const;
 
 export const VARD_GRADIENT = [VARD_COLORS.primary, VARD_COLORS.secondary] as const;

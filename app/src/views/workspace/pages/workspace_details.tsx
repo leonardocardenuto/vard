@@ -52,7 +52,8 @@ type CameraOccurrencesProps = NativeStackScreenProps<WorkspaceStackParamList, 'C
 type FamilyMember = {
   id: string;
   contact: string;
-  role: 'admin' | 'member' | 'caregiver' | 'viewer' | 'elderly';
+  name: string;
+  role: "admin" | "member" | "elderly";
 };
 
 type CameraFormMode = 'create' | 'edit';
@@ -85,7 +86,6 @@ const memberRoleOptions: Array<{ label: string; value: MemberRole }> = [
   { label: 'Idoso', value: 'elderly' },
   { label: 'Membro', value: 'member' },
   { label: 'Administrador', value: 'admin' },
-  { label: 'Visualizador', value: 'viewer' },
 ];
 
 export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
@@ -123,11 +123,14 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
         listWorkspaceMembers(accessToken, workspace.id),
       ]);
       setCameras(workspaceCameras);
-      setFamilyMembers(workspaceMembers.map((member) => ({
-        id: member.user_id,
-        contact: member.email,
-        role: member.role,
-      })));
+      setFamilyMembers(
+        workspaceMembers.map((member) => ({
+          id: member.user_id,
+          contact: member.email,
+          name: member.full_name?.trim() || member.email,
+          role: member.role,
+        })),
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof ApiRequestError ? error.message : 'Não foi possível carregar os detalhes.'
@@ -413,6 +416,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
         {
           id: `member-${Date.now()}`,
           contact: trimmedEmail,
+          name: trimmedEmail,
           role: newMemberRole,
         },
         ...current,
@@ -448,7 +452,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           contentContainerStyle={styles.content}
           refreshControl={
             <RefreshControl
-              colors={['#00B9BB']}
+              colors={["#00B9BB"]}
               onRefresh={handleRefresh}
               refreshing={isRefreshing}
               tintColor="#00B9BB"
@@ -457,40 +461,53 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.headerRow}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Pressable
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
               <Feather color="#111827" name="chevron-left" size={20} />
             </Pressable>
             <View style={styles.headerTitleWrap}>
-              <Text numberOfLines={1} style={styles.title}>{workspace.name}</Text>
+              <Text numberOfLines={1} style={styles.title}>
+                {workspace.name}
+              </Text>
             </View>
           </View>
 
           <View style={styles.workspaceMetrics}>
             <View style={styles.metricPill}>
-              <Feather color="#003984" name="camera" size={15} />
+              <Feather color="#006496" name="camera" size={15} />
               <Text style={styles.metricText}>{cameras.length} câmeras</Text>
             </View>
             <View style={styles.metricPill}>
-              <Feather color="#003984" name="users" size={15} />
+              <Feather color="#006496" name="users" size={15} />
               <Text style={styles.metricText}>
-                {familyMembers.length} {familyMembers.length === 1 ? 'membro' : 'membros'}
+                {familyMembers.length}{" "}
+                {familyMembers.length === 1 ? "membro" : "membros"}
               </Text>
             </View>
           </View>
 
-          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+          {errorMessage ? (
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          ) : null}
 
           <View style={styles.sectionHeader}>
             <View>
               <Text style={styles.sectionTitle}>Câmeras cadastradas</Text>
-              <Text style={styles.sectionSubtitle}>Organize nome, local e conexão de cada câmera.</Text>
+              <Text style={styles.sectionSubtitle}>
+                Organize nome, local e conexão de cada câmera.
+              </Text>
             </View>
             <Pressable
               accessibilityRole="button"
               onPress={openCreateCameraForm}
-              style={({ pressed }) => [styles.sectionActionButton, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.sectionActionButton,
+                pressed && styles.pressed,
+              ]}
             >
-              <Feather color="#003984" name="plus" size={16} />
+              <Feather color="#006496" name="plus" size={16} />
               <Text style={styles.sectionActionText}>Adicionar</Text>
             </Pressable>
           </View>
@@ -503,47 +520,66 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                     accessibilityRole="button"
                     disabled={isOpeningCameraId === room.id}
                     onPress={() => handleOpenRoomCamera(room.camera)}
-                    style={({ pressed }) => [styles.cameraRowMain, pressed && styles.pressed]}
+                    style={({ pressed }) => [
+                      styles.cameraRowMain,
+                      pressed && styles.pressed,
+                    ]}
                   >
                     <View style={styles.cameraIconBox}>
-                      <Feather color="#003984" name="video" size={19} />
+                      <Feather color="#006496" name="video" size={19} />
                     </View>
                     <View style={styles.cameraInfo}>
-                      <Text numberOfLines={1} style={styles.cameraName}>{room.name}</Text>
+                      <Text numberOfLines={1} style={styles.cameraName}>
+                        {room.name}
+                      </Text>
                       <Text numberOfLines={1} style={styles.cameraMeta}>
                         {room.location} · {room.connectionLabel}
                       </Text>
                     </View>
-                    <View style={[
-                      styles.cameraStatusDot,
-                      room.camera.status === 'online' && styles.cameraStatusDotOnline,
-                    ]} />
+                    <View
+                      style={[
+                        styles.cameraStatusDot,
+                        room.camera.status === "online" &&
+                          styles.cameraStatusDotOnline,
+                      ]}
+                    />
                   </Pressable>
 
                   <View style={styles.cameraRowActions}>
                     <Pressable
                       accessibilityRole="button"
                       onPress={() => handleOpenRoomCamera(room.camera)}
-                      style={({ pressed }) => [styles.cameraInlineAction, pressed && styles.pressed]}
+                      style={({ pressed }) => [
+                        styles.cameraInlineAction,
+                        pressed && styles.pressed,
+                      ]}
                     >
-                      <Feather color="#003984" name="play-circle" size={15} />
+                      <Feather color="#006496" name="play-circle" size={15} />
                       <Text style={styles.cameraInlineActionText}>Ao vivo</Text>
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
                       onPress={() => handleOpenCameraOccurrences(room.camera)}
-                      style={({ pressed }) => [styles.cameraInlineAction, pressed && styles.pressed]}
+                      style={({ pressed }) => [
+                        styles.cameraInlineAction,
+                        pressed && styles.pressed,
+                      ]}
                     >
-                      <Feather color="#003984" name="alert-circle" size={15} />
-                      <Text style={styles.cameraInlineActionText}>Ocorrências</Text>
+                      <Feather color="#006496" name="alert-circle" size={15} />
+                      <Text style={styles.cameraInlineActionText}>
+                        Ocorrências
+                      </Text>
                     </Pressable>
                     <Pressable
                       accessibilityLabel={`Editar câmera ${room.name}`}
                       accessibilityRole="button"
                       onPress={() => openEditCameraForm(room.camera)}
-                      style={({ pressed }) => [styles.cameraInlineAction, pressed && styles.pressed]}
+                      style={({ pressed }) => [
+                        styles.cameraInlineAction,
+                        pressed && styles.pressed,
+                      ]}
                     >
-                      <Feather color="#475467" name="edit-2" size={15} />
+                      <Feather color="#006496" name="edit-2" size={15} />
                       <Text style={styles.cameraInlineActionText}>Editar</Text>
                     </Pressable>
                     <Pressable
@@ -557,7 +593,12 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                       ]}
                     >
                       <Feather color="#B42318" name="trash-2" size={15} />
-                      <Text style={[styles.cameraInlineActionText, styles.cameraInlineDangerActionText]}>
+                      <Text
+                        style={[
+                          styles.cameraInlineActionText,
+                          styles.cameraInlineDangerActionText,
+                        ]}
+                      >
                         Excluir
                       </Text>
                     </Pressable>
@@ -567,16 +608,23 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
             ) : (
               <View style={styles.emptyCameraState}>
                 <View style={styles.cameraIconBox}>
-                  <Feather color="#003984" name="video" size={19} />
+                  <Feather color="#006496" name="video" size={19} />
                 </View>
                 <View style={styles.emptyCameraCopy}>
-                  <Text style={styles.cameraName}>Nenhuma câmera cadastrada</Text>
-                  <Text style={styles.cameraMeta}>Adicione uma câmera para iniciar o monitoramento.</Text>
+                  <Text style={styles.cameraName}>
+                    Nenhuma câmera cadastrada
+                  </Text>
+                  <Text style={styles.cameraMeta}>
+                    Adicione uma câmera para iniciar o monitoramento.
+                  </Text>
                 </View>
                 <Pressable
                   accessibilityRole="button"
                   onPress={openCreateCameraForm}
-                  style={({ pressed }) => [styles.emptyCameraButton, pressed && styles.pressed]}
+                  style={({ pressed }) => [
+                    styles.emptyCameraButton,
+                    pressed && styles.pressed,
+                  ]}
                 >
                   <Feather color="#FFFFFF" name="plus" size={16} />
                 </Pressable>
@@ -587,17 +635,22 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           <View style={styles.sectionHeader}>
             <View>
               <Text style={styles.sectionTitle}>Membros</Text>
-              <Text style={styles.sectionSubtitle}>Convites por código para acesso manual.</Text>
+              <Text style={styles.sectionSubtitle}>
+                Convites por código para acesso manual.
+              </Text>
             </View>
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                setGeneratedInviteCode('');
+                setGeneratedInviteCode("");
                 setIsAddMemberOpen(true);
               }}
-              style={({ pressed }) => [styles.sectionActionButton, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.sectionActionButton,
+                pressed && styles.pressed,
+              ]}
             >
-              <Feather color="#003984" name="user-plus" size={16} />
+              <Feather color="#006496" name="user-plus" size={16} />
               <Text style={styles.sectionActionText}>Convidar</Text>
             </Pressable>
           </View>
@@ -608,15 +661,22 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                 key={member.id}
                 accessibilityRole="button"
                 onPress={() => openMemberActions(member)}
-                style={({ pressed }) => [styles.memberRow, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.memberRow,
+                  pressed && styles.pressed,
+                ]}
               >
                 <View style={styles.memberAvatarPlaceholder}>
-                  <Feather color="#003984" name="mail" size={19} />
+                  <Feather color="#006496" name="mail" size={19} />
                 </View>
                 <View style={styles.memberInfo}>
-                  <Text numberOfLines={1} style={styles.personName}>{member.contact}</Text>
+                  <Text numberOfLines={1} style={styles.personName}>
+                    {member.name}
+                  </Text>
                 </View>
-                <Text style={styles.memberRole}>{formatMemberRole(member.role)}</Text>
+                <Text style={styles.memberRole}>
+                  {formatMemberRole(member.role)}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -624,29 +684,41 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           {isLoading ? (
             <View style={styles.activityCard}>
               <ActivityIndicator color="#00B9BB" />
-              <Text style={[styles.mutedText, { marginLeft: 10, marginTop: 0 }]}>Sincronizando câmeras...</Text>
+              <Text
+                style={[styles.mutedText, { marginLeft: 10, marginTop: 0 }]}
+              >
+                Sincronizando câmeras...
+              </Text>
             </View>
           ) : null}
         </ScrollView>
 
-        <Modal animationType="fade" transparent visible={isCameraFormOpen} onRequestClose={closeCameraForm}>
+        <Modal
+          animationType="fade"
+          transparent
+          visible={isCameraFormOpen}
+          onRequestClose={closeCameraForm}
+        >
           <Pressable onPress={closeCameraForm} style={styles.modalOverlay}>
             <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
               style={styles.keyboardModalWrap}
             >
               <Pressable onPress={() => undefined} style={styles.modalCard}>
                 <Text style={styles.modalTitle}>
-                  {cameraFormMode === 'edit' ? 'Editar câmera' : 'Adicionar câmera'}
+                  {cameraFormMode === "edit"
+                    ? "Editar câmera"
+                    : "Adicionar câmera"}
                 </Text>
                 <Text style={styles.modalSubtitle}>
-                  Informe o nome e o IP da câmera. Usuário e senha são opcionais quando a câmera não exige autenticação.
+                  Informe o nome e o IP da câmera. Usuário e senha são opcionais
+                  quando a câmera não exige autenticação.
                 </Text>
 
                 <TextInput
                   accessibilityLabel="Nome da câmera"
                   autoCapitalize="sentences"
-                  onChangeText={(value) => updateCameraFormField('name', value)}
+                  onChangeText={(value) => updateCameraFormField("name", value)}
                   placeholder="Nome da câmera (ex.: cozinha)"
                   placeholderTextColor="#98A2B3"
                   returnKeyType="next"
@@ -658,7 +730,7 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"
-                  onChangeText={(value) => updateCameraFormField('host', value)}
+                  onChangeText={(value) => updateCameraFormField("host", value)}
                   placeholder="Host ou IP da câmera"
                   placeholderTextColor="#98A2B3"
                   returnKeyType="next"
@@ -669,7 +741,9 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                 <TextInput
                   autoCapitalize="none"
                   autoCorrect={false}
-                  onChangeText={(value) => updateCameraFormField('username', value)}
+                  onChangeText={(value) =>
+                    updateCameraFormField("username", value)
+                  }
                   placeholder="Usuário da câmera (opcional)"
                   placeholderTextColor="#98A2B3"
                   returnKeyType="next"
@@ -680,7 +754,9 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                 <TextInput
                   autoCapitalize="none"
                   autoCorrect={false}
-                  onChangeText={(value) => updateCameraFormField('password', value)}
+                  onChangeText={(value) =>
+                    updateCameraFormField("password", value)
+                  }
                   placeholder="Senha da câmera (opcional)"
                   placeholderTextColor="#98A2B3"
                   secureTextEntry
@@ -688,23 +764,31 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                   value={cameraForm.password}
                 />
 
-                {cameraFormError ? <Text style={styles.errorText}>{cameraFormError}</Text> : null}
+                {cameraFormError ? (
+                  <Text style={styles.errorText}>{cameraFormError}</Text>
+                ) : null}
 
                 <Pressable
                   disabled={isSavingCamera}
                   onPress={handleSaveCamera}
-                  style={[styles.modalActionButton, isSavingCamera && styles.buttonDisabled]}
+                  style={[
+                    styles.modalActionButton,
+                    isSavingCamera && styles.buttonDisabled,
+                  ]}
                 >
                   <Text style={styles.modalActionText}>
                     {isSavingCamera
-                      ? 'Testando conexão...'
-                      : cameraFormMode === 'edit'
-                        ? 'Testar e salvar'
-                        : 'Detectar e adicionar'}
+                      ? "Testando conexão..."
+                      : cameraFormMode === "edit"
+                        ? "Testar e salvar"
+                        : "Detectar e adicionar"}
                   </Text>
                 </Pressable>
 
-                <Pressable onPress={closeCameraForm} style={styles.modalCancelButton}>
+                <Pressable
+                  onPress={closeCameraForm}
+                  style={styles.modalCancelButton}
+                >
                   <Text style={styles.modalCancelText}>Cancelar</Text>
                 </Pressable>
               </Pressable>
@@ -718,7 +802,10 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
           visible={cameraToDelete !== null}
           onRequestClose={closeDeleteCameraConfirmation}
         >
-          <Pressable onPress={closeDeleteCameraConfirmation} style={styles.modalOverlay}>
+          <Pressable
+            onPress={closeDeleteCameraConfirmation}
+            style={styles.modalOverlay}
+          >
             <Pressable onPress={() => undefined} style={styles.modalCard}>
               <View style={styles.deleteCameraIcon}>
                 <Feather color="#B42318" name="trash-2" size={24} />
@@ -727,56 +814,97 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
               <Text style={styles.modalSubtitle}>
                 {cameraToDelete
                   ? `${cameraToDelete.name} será removida deste espaço.`
-                  : 'A câmera será removida deste espaço.'}
+                  : "A câmera será removida deste espaço."}
               </Text>
 
               <Pressable
                 disabled={isDeletingCamera}
                 onPress={() => void handleDeleteCamera()}
-                style={[styles.modalActionButton, styles.modalDangerButton, isDeletingCamera && styles.buttonDisabled]}
+                style={[
+                  styles.modalActionButton,
+                  styles.modalDangerButton,
+                  isDeletingCamera && styles.buttonDisabled,
+                ]}
               >
-                {isDeletingCamera ? <ActivityIndicator color="#B42318" /> : null}
+                {isDeletingCamera ? (
+                  <ActivityIndicator color="#B42318" />
+                ) : null}
                 <Text style={[styles.modalActionText, styles.modalDangerText]}>
-                  {isDeletingCamera ? 'Excluindo...' : 'Excluir câmera'}
+                  {isDeletingCamera ? "Excluindo..." : "Excluir câmera"}
                 </Text>
               </Pressable>
 
-              <Pressable disabled={isDeletingCamera} onPress={closeDeleteCameraConfirmation} style={styles.modalCancelButton}>
+              <Pressable
+                disabled={isDeletingCamera}
+                onPress={closeDeleteCameraConfirmation}
+                style={styles.modalCancelButton}
+              >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </Pressable>
             </Pressable>
           </Pressable>
         </Modal>
 
-        <Modal animationType="fade" transparent visible={isMemberActionOpen} onRequestClose={closeMemberActions}>
+        <Modal
+          animationType="fade"
+          transparent
+          visible={isMemberActionOpen}
+          onRequestClose={closeMemberActions}
+        >
           <Pressable onPress={closeMemberActions} style={styles.modalOverlay}>
             <Pressable onPress={() => undefined} style={styles.modalCard}>
-              <Text style={styles.modalTitle}>{selectedMember ? getMemberLabel(selectedMember) : 'Membro'}</Text>
-              <Text style={styles.modalSubtitle}>Escolha a ação que deseja aplicar.</Text>
+              <Text style={styles.modalTitle}>
+                {selectedMember ? getMemberLabel(selectedMember) : "Membro"}
+              </Text>
+              <Text style={styles.modalSubtitle}>
+                Escolha a ação que deseja aplicar.
+              </Text>
 
-              <Pressable onPress={handlePromoteMember} style={styles.modalActionButton}>
+              <Pressable
+                onPress={handlePromoteMember}
+                style={styles.modalActionButton}
+              >
                 <Text style={styles.modalActionText}>
-                  {selectedMember?.role === 'admin' ? 'Remover administrador' : 'Tornar administrador'}
+                  {selectedMember?.role === "admin"
+                    ? "Remover administrador"
+                    : "Tornar administrador"}
                 </Text>
               </Pressable>
 
-              <Pressable onPress={handleRemoveMember} style={[styles.modalActionButton, styles.modalDangerButton]}>
-                <Text style={[styles.modalActionText, styles.modalDangerText]}>Remover membro</Text>
+              <Pressable
+                onPress={handleRemoveMember}
+                style={[styles.modalActionButton, styles.modalDangerButton]}
+              >
+                <Text style={[styles.modalActionText, styles.modalDangerText]}>
+                  Remover membro
+                </Text>
               </Pressable>
 
-              <Pressable onPress={closeMemberActions} style={styles.modalCancelButton}>
+              <Pressable
+                onPress={closeMemberActions}
+                style={styles.modalCancelButton}
+              >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </Pressable>
             </Pressable>
           </Pressable>
         </Modal>
 
-        <Modal animationType="fade" transparent visible={isAddMemberOpen} onRequestClose={() => setIsAddMemberOpen(false)}>
-          <Pressable onPress={() => setIsAddMemberOpen(false)} style={styles.modalOverlay}>
+        <Modal
+          animationType="fade"
+          transparent
+          visible={isAddMemberOpen}
+          onRequestClose={() => setIsAddMemberOpen(false)}
+        >
+          <Pressable
+            onPress={() => setIsAddMemberOpen(false)}
+            style={styles.modalOverlay}
+          >
             <Pressable onPress={() => undefined} style={styles.modalCard}>
               <Text style={styles.modalTitle}>Gerar código de convite</Text>
               <Text style={styles.modalSubtitle}>
-                Informe o e-mail que poderá usar o código. Depois envie o código manualmente para essa pessoa.
+                Informe o e-mail que poderá usar o código. Depois envie o código
+                manualmente para essa pessoa.
               </Text>
 
               <TextInput
@@ -798,9 +926,17 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                     <Pressable
                       key={option.value}
                       onPress={() => setNewMemberRole(option.value)}
-                      style={[styles.roleChip, isSelected && styles.roleChipSelected]}
+                      style={[
+                        styles.roleChip,
+                        isSelected && styles.roleChipSelected,
+                      ]}
                     >
-                      <Text style={[styles.roleChipText, isSelected && styles.roleChipTextSelected]}>
+                      <Text
+                        style={[
+                          styles.roleChipText,
+                          isSelected && styles.roleChipTextSelected,
+                        ]}
+                      >
                         {option.label}
                       </Text>
                     </Pressable>
@@ -814,19 +950,28 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                   accessibilityLabel="Copiar código de convite"
                   accessibilityRole="button"
                   onPress={handleCopyInviteCode}
-                  style={({ pressed }) => [styles.inviteCodeBox, pressed && styles.inviteCodeBoxPressed]}
+                  style={({ pressed }) => [
+                    styles.inviteCodeBox,
+                    pressed && styles.inviteCodeBoxPressed,
+                  ]}
                 >
                   <View style={styles.inviteCodeHeader}>
                     <Text style={styles.inviteCodeLabel}>
-                      {isInviteCodeCopied ? 'Código copiado!' : 'Toque para copiar'}
+                      {isInviteCodeCopied
+                        ? "Código copiado!"
+                        : "Toque para copiar"}
                     </Text>
                     <Feather
-                      color={isInviteCodeCopied ? '#039855' : '#003984'}
-                      name={isInviteCodeCopied ? 'check' : 'copy'}
+                      color={isInviteCodeCopied ? "#039855" : "#006496"}
+                      name={isInviteCodeCopied ? "check" : "copy"}
                       size={18}
                     />
                   </View>
-                  <Text selectable style={styles.inviteCodeText} testID="workspace-invite-code-value">
+                  <Text
+                    selectable
+                    style={styles.inviteCodeText}
+                    testID="workspace-invite-code-value"
+                  >
                     {generatedInviteCode}
                   </Text>
                 </Pressable>
@@ -835,27 +980,39 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
               <Pressable
                 disabled={isInvitingMember}
                 onPress={handleAddMember}
-                style={[styles.modalActionButton, isInvitingMember && styles.buttonDisabled]}
+                style={[
+                  styles.modalActionButton,
+                  isInvitingMember && styles.buttonDisabled,
+                ]}
               >
                 <Text style={styles.modalActionText}>
-                  {isInvitingMember ? 'Gerando...' : generatedInviteCode ? 'Gerar novo código' : 'Gerar código'}
+                  {isInvitingMember
+                    ? "Gerando..."
+                    : generatedInviteCode
+                      ? "Gerar novo código"
+                      : "Gerar código"}
                 </Text>
               </Pressable>
 
               <Pressable
                 onPress={() => {
                   setIsAddMemberOpen(false);
-                  setGeneratedInviteCode('');
+                  setGeneratedInviteCode("");
                   setIsInviteCodeCopied(false);
                 }}
                 style={styles.modalCancelButton}
               >
-                <Text style={styles.modalCancelText}>{generatedInviteCode ? 'Concluir' : 'Cancelar'}</Text>
+                <Text style={styles.modalCancelText}>
+                  {generatedInviteCode ? "Concluir" : "Cancelar"}
+                </Text>
               </Pressable>
             </Pressable>
           </Pressable>
         </Modal>
-        <WorkspaceFeedbackModal feedback={feedback} onClose={() => setFeedback(null)} />
+        <WorkspaceFeedbackModal
+          feedback={feedback}
+          onClose={() => setFeedback(null)}
+        />
       </View>
     </LayoutWithNavbar>
   );
@@ -1079,16 +1236,14 @@ function formatOccurrenceDate(value: string) {
 }
 
 function getMemberLabel(member: FamilyMember) {
-  return member.contact;
+  return member.name;
 }
 
 function formatMemberRole(role: MemberRole) {
   const labels: Record<MemberRole, string> = {
     elderly: 'Idoso',
     admin: 'Administrador',
-    caregiver: 'Cuidador',
     member: 'Membro',
-    viewer: 'Visualizador',
   };
 
   return labels[role];

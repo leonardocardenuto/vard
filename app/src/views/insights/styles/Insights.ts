@@ -4,16 +4,14 @@ import { VARD_COLORS } from '../../../theme/vardTheme';
 const INSIGHTS_COLORS = {
   gradientStart: VARD_COLORS.primary,
   gradientMiddle: VARD_COLORS.secondary,
-  gradientEnd: VARD_COLORS.primary,
 } as const;
 
 const INSIGHTS_GRADIENT_COLORS = [
   INSIGHTS_COLORS.gradientStart,
   INSIGHTS_COLORS.gradientMiddle,
-  INSIGHTS_COLORS.gradientEnd,
 ] as const;
 
-const INSIGHTS_GRADIENT_LOCATIONS = [0.08, 0.38, 1] as const;
+const INSIGHTS_GRADIENT_LOCATIONS = [0.08, 0.38, 1.0] as const;
 
 const INSIGHTS_FONTS = {
   regular: "Poppins-Regular",
@@ -33,9 +31,8 @@ const styles = StyleSheet.create({
   },
   screen: {
     width: "100%",
-    maxWidth: 390,
     paddingBottom: 36,
-    paddingHorizontal: 24,
+    paddingHorizontal: 26,
     paddingTop: 24,
   },
   hero: {
@@ -302,7 +299,7 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   roomBarQuarto: {
-    backgroundColor: INSIGHTS_COLORS.gradientEnd,
+    backgroundColor: INSIGHTS_COLORS.gradientStart,
     width: "85%",
   },
   roomBarSala: {
@@ -555,18 +552,72 @@ const styles = StyleSheet.create({
     marginTop: 16,
     minHeight: 72,
   },
-  cameraSelectorLabel: { color: "#667085", fontFamily: INSIGHTS_FONTS.regular, fontSize: 11, lineHeight: 17 },
-  cameraSelectorName: { color: "#171C1F", fontFamily: INSIGHTS_FONTS.semiBold, fontSize: 14, lineHeight: 21 },
-  cameraPickerHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  cameraPickerClose: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  cameraSearch: { backgroundColor: "#FFF", borderWidth: 1, borderColor: "#D8E6F1", borderRadius: 12, padding: 14, marginVertical: 16, color: "#171C1F", fontFamily: INSIGHTS_FONTS.regular, fontSize: 14 },
+  cameraSelectorLabel: {
+    color: "#667085",
+    fontFamily: INSIGHTS_FONTS.regular,
+    fontSize: 11,
+    lineHeight: 17,
+  },
+  cameraSelectorName: {
+    color: "#171C1F",
+    fontFamily: INSIGHTS_FONTS.semiBold,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  cameraPickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  cameraPickerClose: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cameraSearch: {
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "#D8E6F1",
+    borderRadius: 12,
+    padding: 14,
+    marginVertical: 16,
+    color: "#171C1F",
+    fontFamily: INSIGHTS_FONTS.regular,
+    fontSize: 14,
+  },
   cameraPickerList: { maxHeight: 320 },
-  cameraPickerRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, marginBottom: 6, minHeight: 68 },
+  cameraPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 6,
+    minHeight: 68,
+  },
   cameraPickerRowSelected: { backgroundColor: "#EAF6F6" },
-  availabilityError: { color: "#B42318", fontFamily: INSIGHTS_FONTS.regular, fontSize: 12, lineHeight: 18, marginTop: 12 },
+  availabilityError: {
+    color: "#B42318",
+    fontFamily: INSIGHTS_FONTS.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 12,
+  },
   availabilityMetrics: { flexDirection: "row", gap: 16, marginTop: 20 },
-  availabilityMetricValue: { color: "#171C1F", fontFamily: INSIGHTS_FONTS.bold, fontSize: 24, lineHeight: 32 },
-  availabilityMetricLabel: { color: "#667085", fontFamily: INSIGHTS_FONTS.regular, fontSize: 11, lineHeight: 16 },
+  availabilityMetricValue: {
+    color: "#171C1F",
+    fontFamily: INSIGHTS_FONTS.bold,
+    fontSize: 24,
+    lineHeight: 32,
+  },
+  availabilityMetricLabel: {
+    color: "#667085",
+    fontFamily: INSIGHTS_FONTS.regular,
+    fontSize: 11,
+    lineHeight: 16,
+  },
   availabilityFilter: {
     marginTop: 18,
   },

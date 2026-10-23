@@ -29,4 +29,4 @@ export const initialSignupForm: SignupForm = {
 };
 
 export const AUTH_GRADIENT_COLORS = [VARD_COLORS.primary, VARD_COLORS.primary, VARD_COLORS.secondary] as const;
-export const AUTH_GRADIENT_LOCATIONS = [0.08, 0.48, 1] as const;
+export const AUTH_GRADIENT_LOCATIONS = [0.08, 0.28, 1] as const;

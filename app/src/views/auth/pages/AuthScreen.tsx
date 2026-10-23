@@ -41,7 +41,6 @@ export function AuthScreen({ navigation, route }: Props) {
     "Poppins-ExtraBold": require("../../../../assets/fonts/Poppins-ExtraBold.ttf"),
   });
   const [step, setStep] = useState<AuthStep>(route.params?.initialStep ?? 'landing');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [signupForm, setSignupForm] = useState<SignupForm>(initialSignupForm);
@@ -55,6 +54,7 @@ export function AuthScreen({ navigation, route }: Props) {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [isRestoring, setIsRestoring] = useState(true);
+  const [email, setEmail] = useState(route.params?.initialEmail ?? "");
 
   const normalizedEmail = email.trim().toLowerCase();
   const fullName = useMemo(
@@ -66,6 +66,11 @@ export function AuthScreen({ navigation, route }: Props) {
     let active = true;
 
     async function restoreSession() {
+      if (route.params?.initialStep) {
+        if (active) setIsRestoring(false);
+        return;
+      }
+
       try {
         const token = await loadToken();
         if (token) {
@@ -100,6 +105,10 @@ export function AuthScreen({ navigation, route }: Props) {
   function goBack() {
     setErrorMessage("");
     setInfoMessage("");
+    if (step === "reset" && route.params?.fromSettings) {
+      navigation.goBack();
+      return;
+    }
     if (step === "landing") {
       return;
     }
@@ -287,9 +296,17 @@ export function AuthScreen({ navigation, route }: Props) {
       setNewPassword("");
       setConfirmNewPassword("");
       setPassword("");
-      setStep("password");
-      setInfoMessage("Senha redefinida. Entre com a nova senha.");
+
+      if (route.params?.fromSettings) {
+  Alert.alert("Senha redefinida", "Sua senha foi alterada com sucesso.");
+  navigation.goBack();
+  return;
+}
+
+setStep("password");
+setInfoMessage("Senha redefinida. Entre com a nova senha.");
     } catch (error) {
+
       setErrorMessage(
         error instanceof Error
           ? error.message

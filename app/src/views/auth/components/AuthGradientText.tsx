@@ -31,9 +31,9 @@ export function AuthGradientText({
   return (
     <Svg height={height} viewBox={`0 0 ${width} ${height}`} width={width}>
       <Defs>
-        <LinearGradient id="authTextGradient" x1="0" x2="1" y1="0" y2="0">
+        <LinearGradient id="authTextGradient" x1="0" x2="1" y1="0" y2="0.5">
           <Stop offset="8%" stopColor={AUTH_GRADIENT_COLORS[0]} />
-          <Stop offset="48%" stopColor={AUTH_GRADIENT_COLORS[1]} />
+          <Stop offset="18%" stopColor={AUTH_GRADIENT_COLORS[1]} />
           <Stop offset="100%" stopColor={AUTH_GRADIENT_COLORS[2]} />
         </LinearGradient>
       </Defs>

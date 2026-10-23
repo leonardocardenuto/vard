@@ -46,6 +46,7 @@ import WorkspaceDetailsScreen, {
   WorkspaceCameraLiveViewScreen,
   WorkspaceCameraOccurrencesScreen,
 } from './workspace_details';
+import { VARD_COLORS } from '../../../theme/vardTheme';
 
 type WorkspaceTabRoute = RouteProp<AppTabParamList, 'Workspace'>;
 type WorkspacesListNavigation = NativeStackNavigationProp<WorkspaceStackParamList, 'WorkspacesList'>;
@@ -255,7 +256,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            colors={['#00B9BB']}
+            colors={["#00B9BB"]}
             onRefresh={handleRefresh}
             refreshing={isRefreshing}
             tintColor="#00B9BB"
@@ -265,11 +266,7 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
       >
         <View style={styles.hero}>
           <View>
-            <GradientTitle
-              height={50}
-              text="Espaços"
-              width={160}
-            />
+            <GradientTitle height={50} text="Espaços" width={160} />
             <Text style={styles.subtitle}>Escolha o espaço de família</Text>
           </View>
 
@@ -278,7 +275,10 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
               accessibilityLabel="Aceitar convite"
               accessibilityRole="button"
               onPress={() => setIsAcceptInviteOpen(true)}
-              style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.inviteButton,
+                pressed && styles.pressed,
+              ]}
             >
               <Feather color="#00B9BB" name="key" size={21} />
             </Pressable>
@@ -325,60 +325,67 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
           </View>
         ) : (
           workspaces.map((workspace) => (
-              <Pressable
-                accessibilityRole="button"
-                key={workspace.id}
-                onPress={() => {
-                  if (menuWorkspace?.id === workspace.id) {
-                    setMenuWorkspace(null);
-                    return;
+            <Pressable
+              accessibilityRole="button"
+              key={workspace.id}
+              onPress={() => {
+                if (menuWorkspace?.id === workspace.id) {
+                  setMenuWorkspace(null);
+                  return;
+                }
+
+                navigation.navigate("WorkspaceDetails", {
+                  accessToken,
+                  workspace,
+                });
+              }}
+              style={({ pressed }) => [
+                styles.workspaceCard,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.workspaceImageWrap}>
+                {workspace.image_url?.trim() ? (
+                  <Image
+                    source={{ uri: workspace.image_url.trim() }}
+                    style={styles.workspaceImage}
+                  />
+                ) : (
+                  <View style={styles.workspaceImagePlaceholder}>
+                    <MaterialCommunityIcons
+                      color="#7B8A9A"
+                      name="image-off-outline"
+                      size={38}
+                    />
+                    <Text style={styles.workspaceImagePlaceholderText}>
+                      Sem foto
+                    </Text>
+                  </View>
+                )}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Opções de ${workspace.name}`}
+                  onPress={() =>
+                    setMenuWorkspace((current) =>
+                      current?.id === workspace.id ? null : workspace,
+                    )
                   }
-
-                  navigation.navigate("WorkspaceDetails", {
-                    accessToken,
-                    workspace,
-                  });
-                }}
-                style={({ pressed }) => [
-                  styles.workspaceCard,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={styles.workspaceImageWrap}>
-                  {workspace.image_url?.trim() ? (
-                    <Image
-                      source={{ uri: workspace.image_url.trim() }}
-                      style={styles.workspaceImage}
-                    />
-                  ) : (
-                    <View style={styles.workspaceImagePlaceholder}>
-                      <MaterialCommunityIcons color="#7B8A9A" name="image-off-outline" size={38} />
-                      <Text style={styles.workspaceImagePlaceholderText}>Sem foto</Text>
-                    </View>
-                  )}
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Opções de ${workspace.name}`}
-                    onPress={() =>
-                      setMenuWorkspace((current) => (current?.id === workspace.id ? null : workspace))
-                    }
-                    style={styles.workspaceMenuButton}
-                  >
-                    <Ionicons
-                      color="#000000"
-                      name="ellipsis-vertical"
-                      size={18}
-                    />
-                  </Pressable>
-
-                </View>
-                <View style={styles.workspaceCardFooter}>
-                  <Text numberOfLines={1} style={styles.workspaceName}>
-                    {workspace.name}
-                  </Text>
-                  <Feather color="#000000" name="chevron-right" size={22} />
-                </View>
-              </Pressable>
+                  style={styles.workspaceMenuButton}
+                >
+                  <Ionicons
+                    color="#000000"
+                    name="ellipsis-vertical"
+                    size={18}
+                  />
+                </Pressable>
+              </View>
+              <View style={styles.workspaceCardFooter}>
+                <Text numberOfLines={1} style={styles.workspaceName}>
+                  {workspace.name}
+                </Text>
+                <Feather color="#000000" name="chevron-right" size={22} />
+              </View>
+            </Pressable>
           ))
         )}
       </ScrollView>
@@ -387,13 +394,15 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         animationType="fade"
         transparent
         visible={isAcceptInviteOpen}
-        onRequestClose={() => !isAcceptingInvite && setIsAcceptInviteOpen(false)}
+        onRequestClose={() =>
+          !isAcceptingInvite && setIsAcceptInviteOpen(false)
+        }
       >
         <KeyboardAvoidingView
           behavior="padding"
           // Android hide events can leave a stale inset in KeyboardAvoidingView.
           // Disable it when hidden so the bottom padding always returns to zero.
-          enabled={Platform.OS === 'ios' || isInviteKeyboardVisible}
+          enabled={Platform.OS === "ios" || isInviteKeyboardVisible}
           style={styles.workspaceActionsOverlay}
         >
           <ScrollView
@@ -405,8 +414,13 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
               onPress={() => !isAcceptingInvite && setIsAcceptInviteOpen(false)}
               style={styles.acceptInviteSheetContainer}
             >
-              <Pressable onPress={() => undefined} style={styles.workspaceActionsCard}>
-                <Text style={styles.workspaceActionsTitle}>Aceitar convite</Text>
+              <Pressable
+                onPress={() => undefined}
+                style={styles.workspaceActionsCard}
+              >
+                <Text style={styles.workspaceActionsTitle}>
+                  Aceitar convite
+                </Text>
                 <Text style={styles.workspaceActionsSubtitle}>
                   Cole o código que você recebeu para entrar no espaço.
                 </Text>
@@ -426,11 +440,16 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
                   accessibilityRole="button"
                   disabled={isAcceptingInvite}
                   onPress={() => void handleAcceptInvite()}
-                  style={[styles.acceptInviteButton, isAcceptingInvite && styles.acceptInviteButtonDisabled]}
+                  style={[
+                    styles.acceptInviteButton,
+                    isAcceptingInvite && styles.acceptInviteButtonDisabled,
+                  ]}
                 >
-                  {isAcceptingInvite ? <ActivityIndicator color="#FFFFFF" /> : null}
+                  {isAcceptingInvite ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : null}
                   <Text style={styles.acceptInviteButtonText}>
-                    {isAcceptingInvite ? 'Aceitando...' : 'Aceitar convite'}
+                    {isAcceptingInvite ? "Aceitando..." : "Aceitar convite"}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -438,7 +457,9 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
                   onPress={() => setIsAcceptInviteOpen(false)}
                   style={styles.workspaceActionsCancel}
                 >
-                  <Text style={styles.workspaceActionsCancelText}>Cancelar</Text>
+                  <Text style={styles.workspaceActionsCancelText}>
+                    Cancelar
+                  </Text>
                 </Pressable>
               </Pressable>
             </Pressable>
@@ -452,8 +473,14 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         visible={menuWorkspace !== null}
         onRequestClose={closeWorkspaceMenu}
       >
-        <Pressable onPress={closeWorkspaceMenu} style={styles.workspaceActionsOverlay}>
-          <Pressable onPress={() => undefined} style={styles.workspaceActionsCard}>
+        <Pressable
+          onPress={closeWorkspaceMenu}
+          style={styles.workspaceActionsOverlay}
+        >
+          <Pressable
+            onPress={() => undefined}
+            style={styles.workspaceActionsCard}
+          >
             <Text style={styles.workspaceActionsTitle}>Ações do espaço</Text>
             <Text numberOfLines={1} style={styles.workspaceActionsSubtitle}>
               {menuWorkspace?.name}
@@ -461,14 +488,19 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
 
             <Pressable
               onPress={handleEditWorkspace}
-              style={({ pressed }) => [styles.workspaceActionRow, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.workspaceActionRow,
+                pressed && styles.pressed,
+              ]}
             >
               <View style={styles.workspaceActionIcon}>
                 <Feather color="#003984" name="edit-3" size={20} />
               </View>
               <View style={styles.workspaceActionCopy}>
                 <Text style={styles.workspaceActionTitle}>Editar espaço</Text>
-                <Text style={styles.workspaceActionDescription}>Alterar nome e imagem</Text>
+                <Text style={styles.workspaceActionDescription}>
+                  Alterar nome e imagem
+                </Text>
               </View>
               <Feather color="#98A2B3" name="chevron-right" size={20} />
             </Pressable>
@@ -481,19 +513,34 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
                 pressed && styles.pressed,
               ]}
             >
-              <View style={[styles.workspaceActionIcon, styles.workspaceActionDangerIcon]}>
+              <View
+                style={[
+                  styles.workspaceActionIcon,
+                  styles.workspaceActionDangerIcon,
+                ]}
+              >
                 <Feather color="#B42318" name="trash-2" size={20} />
               </View>
               <View style={styles.workspaceActionCopy}>
-                <Text style={[styles.workspaceActionTitle, styles.workspaceActionDangerTitle]}>
+                <Text
+                  style={[
+                    styles.workspaceActionTitle,
+                    styles.workspaceActionDangerTitle,
+                  ]}
+                >
                   Excluir espaço
                 </Text>
-                <Text style={styles.workspaceActionDescription}>Remover este espaço e suas configurações</Text>
+                <Text style={styles.workspaceActionDescription}>
+                  Remover este espaço e suas configurações
+                </Text>
               </View>
               <Feather color="#D92D20" name="chevron-right" size={20} />
             </Pressable>
 
-            <Pressable onPress={closeWorkspaceMenu} style={styles.workspaceActionsCancel}>
+            <Pressable
+              onPress={closeWorkspaceMenu}
+              style={styles.workspaceActionsCancel}
+            >
               <Text style={styles.workspaceActionsCancelText}>Cancelar</Text>
             </Pressable>
           </Pressable>
@@ -506,7 +553,10 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
         visible={deleteWorkspaceTarget !== null}
         onRequestClose={closeDeleteWorkspaceSheet}
       >
-        <Pressable onPress={closeDeleteWorkspaceSheet} style={styles.deleteSheetOverlay}>
+        <Pressable
+          onPress={closeDeleteWorkspaceSheet}
+          style={styles.deleteSheetOverlay}
+        >
           <Pressable onPress={() => undefined} style={styles.deleteSheetCard}>
             <View style={styles.deleteSheetWarningIcon}>
               <Feather color="#B42318" name="trash-2" size={24} />
@@ -516,19 +566,27 @@ function WorkspacesListScreen({ route }: WorkspacesListProps) {
               Você tem certeza que deseja excluir este espaço?
             </Text>
 
-            <Pressable onPress={confirmDeleteWorkspace} style={styles.deleteSheetConfirmButton}>
+            <Pressable
+              onPress={confirmDeleteWorkspace}
+              style={styles.deleteSheetConfirmButton}
+            >
               <Text style={styles.deleteSheetConfirmText}>Excluir espaço</Text>
             </Pressable>
 
-            <Pressable onPress={closeDeleteWorkspaceSheet} style={styles.deleteSheetCancelButton}>
+            <Pressable
+              onPress={closeDeleteWorkspaceSheet}
+              style={styles.deleteSheetCancelButton}
+            >
               <Text style={styles.deleteSheetCancelText}>Cancelar</Text>
             </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
 
-      <WorkspaceFeedbackModal feedback={feedback} onClose={() => setFeedback(null)} />
-
+      <WorkspaceFeedbackModal
+        feedback={feedback}
+        onClose={() => setFeedback(null)}
+      />
     </LayoutWithNavbar>
   );
 }
@@ -866,22 +924,26 @@ function WorkspaceFormLayout({
   );
 }
 
-function GradientTitle({ text }: { height?: number; text: string; width?: number }) {
+function GradientTitle({
+  text,
+}: {
+  height?: number;
+  text: string;
+  width?: number;
+}) {
   return (
-    <Svg height={38} style={styles.titleSvg} viewBox="0 0 210 38" width={210}>
+    <Svg height={42} style={styles.titleSvg} viewBox="0 0 160 42" width={160}>
       <Defs>
         <LinearGradient id="workspaceTitleGradient" x1="0" x2="1" y1="0" y2="0">
-          <Stop offset="8%" stopColor={WORKSPACE_GRADIENT_COLORS[0]} />
-          <Stop offset="48%" stopColor={WORKSPACE_GRADIENT_COLORS[1]} />
-          <Stop offset="100%" stopColor={WORKSPACE_GRADIENT_COLORS[2]} />
+          <Stop offset="0%" stopColor={VARD_COLORS.primary} />
+          <Stop offset="100%" stopColor={VARD_COLORS.secondary} />
         </LinearGradient>
       </Defs>
       <SvgText
         fill="url(#workspaceTitleGradient)"
-        fontFamily={WORKSPACES_FONTS.semiBold}
+        fontFamily="Poppins-SemiBold"
         fontSize={40}
-        fontWeight="900"
-        x={0}
+        x={-28}
         y={31}
       >
         {text}

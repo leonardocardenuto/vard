@@ -13,8 +13,15 @@ import {
   Text,
   View,
 } from 'react-native';
-import { changeMyPassword, deleteMyAccount, updateMyProfile } from '../../../lib/api';
+import { requestPasswordReset, updateMyProfile } from "../../../lib/api";
 import { clearSession } from '../../../lib/session';
+import { GradientTitle } from './GradientTitle';
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  INSIGHTS_GRADIENT_COLORS,
+  INSIGHTS_GRADIENT_LOCATIONS,
+} from '../../insights/styles/Insights';
+import { useNavigation } from "@react-navigation/native";
 
 const SETTINGS_PANEL_FONTS = {
   regular: 'Poppins-Regular',
@@ -45,6 +52,44 @@ function formatPhone(value: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
+type GradientButtonProps = {
+  label: string;
+  icon?: React.ComponentProps<typeof Feather>["name"];
+  onPress: () => void;
+  disabled?: boolean;
+};
+
+function GradientButton({
+  label,
+  icon,
+  onPress,
+  disabled,
+}: GradientButtonProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.profileActionButton,
+        pressed && !disabled && styles.pressed,
+        disabled && styles.profileActionDisabled,
+      ]}
+    >
+      <LinearGradient
+        colors={INSIGHTS_GRADIENT_COLORS}
+        locations={INSIGHTS_GRADIENT_LOCATIONS}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 2 }}
+        style={styles.profileActionGradient}
+      >
+        {icon ? <Feather color="#FFFFFF" name={icon} size={20} /> : null}
+        <Text style={styles.profileActionButtonText}>{label}</Text>
+      </LinearGradient>
+    </Pressable>
+  );
+}
+
 type CameraSettingsPanelProps = {
   accessToken: string;
   onLogout: () => void;
@@ -69,12 +114,10 @@ export function CameraSettingsPanel({
 
   const [profileAvatarUri, setProfileAvatarUri] = useState(initialAvatarUrl);
   const [profileNameDraft, setProfileNameDraft] = useState(initialDisplayName);
-  const [profilePassword, setProfilePassword] = useState('');
-  const [profilePasswordConfirmation, setProfilePasswordConfirmation] = useState('');
-  const [profileCurrentPassword, setProfileCurrentPassword] = useState('');
   const [profilePhoneDraft, setProfilePhoneDraft] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const navigation = useNavigation<any>();
+  const [isSendingReset, setIsSendingReset] = useState(false);
   const [profileStatus, setProfileStatus] = useState<{
     tone: 'success' | 'info' | 'error';
     message: string;
@@ -115,7 +158,7 @@ export function CameraSettingsPanel({
   }
 
   async function handlePickAvatar() {
-    if (isSavingProfile || isChangingPassword || isDeletingAccount) {
+    if (isSavingProfile || isDeletingAccount) {
       return;
     }
 
@@ -166,7 +209,7 @@ export function CameraSettingsPanel({
   }
 
   async function handleSaveName() {
-    if (isSavingProfile || isChangingPassword || isDeletingAccount) {
+    if (isSavingProfile || isDeletingAccount) {
       return;
     }
 
@@ -193,7 +236,7 @@ export function CameraSettingsPanel({
   }
 
   async function handleSavePhone() {
-    if (isSavingProfile || isChangingPassword || isDeletingAccount) {
+    if (isSavingProfile || isDeletingAccount) {
       return;
     }
 
@@ -223,41 +266,29 @@ export function CameraSettingsPanel({
     }
   }
 
-  async function handleSavePassword() {
-    if (isSavingProfile || isChangingPassword || isDeletingAccount) {
+  async function handleResetPassword() {
+    if (isSendingReset || isSavingProfile || isDeletingAccount) {
       return;
     }
 
-    if (!profileCurrentPassword.trim()) {
-      pushProfileStatus('error', 'Informe sua senha atual.');
-      return;
-    }
-
-    if (profilePassword.length < 8) {
-      pushProfileStatus('error', 'A nova senha precisa ter pelo menos 8 caracteres.');
-      return;
-    }
-
-    if (profilePassword !== profilePasswordConfirmation) {
-      pushProfileStatus('error', 'As senhas novas não conferem.');
-      return;
-    }
-
-    setIsChangingPassword(true);
+    setIsSendingReset(true);
 
     try {
-      await changeMyPassword(accessToken, {
-        current_password: profileCurrentPassword,
-        new_password: profilePassword,
+      await requestPasswordReset(userEmail.trim().toLowerCase());
+      navigation.navigate("Auth", {
+        initialStep: "reset",
+        initialEmail: userEmail,
+        fromSettings: true,
       });
-      setProfileCurrentPassword('');
-      setProfilePassword('');
-      setProfilePasswordConfirmation('');
-      pushProfileStatus('success', 'Senha atualizada na conta.');
-    } catch {
-      pushProfileStatus('error', 'Não foi possível alterar sua senha.');
+    } catch (error) {
+      pushProfileStatus(
+        "error",
+        error instanceof Error
+          ? error.message
+          : "Não foi possível enviar o código.",
+      );
     } finally {
-      setIsChangingPassword(false);
+      setIsSendingReset(false);
     }
   }
 
@@ -273,13 +304,11 @@ export function CameraSettingsPanel({
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <View style={styles.futureHeaderSpace} />
-        <Text style={styles.title}>Ajustes do Sistema</Text>
+        <GradientTitle fontSize={36} text="Ajustes" width={360} />
         <Text style={styles.subtitle}>
           Gerencie seu perfil e preferências da conta
         </Text>
       </View>
-
       <View style={styles.profileSection}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Seu perfil</Text>
@@ -288,23 +317,39 @@ export function CameraSettingsPanel({
         <View style={styles.profileCard}>
           <View style={styles.profileHeroRow}>
             <View style={styles.profileAvatarWrap}>
-              <Image source={profileAvatarSource} style={styles.profileAvatar} />
+              <Image
+                source={profileAvatarSource}
+                style={styles.profileAvatar}
+              />
               <Pressable
                 accessibilityRole="button"
-                disabled={isSavingProfile || isPickingAvatar || isChangingPassword || isDeletingAccount}
+                disabled={
+                  isSavingProfile || isPickingAvatar || isDeletingAccount
+                }
                 onPress={handlePickAvatar}
                 style={({ pressed }) => [
                   styles.profileAvatarAction,
-                  pressed && !isSavingProfile && !isPickingAvatar && styles.pressed,
-                  (isSavingProfile || isPickingAvatar || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
+                  pressed &&
+                    !isSavingProfile &&
+                    !isPickingAvatar &&
+                    styles.pressed,
+                  (isSavingProfile || isPickingAvatar || isDeletingAccount) &&
+                    styles.profileActionDisabled,
                 ]}
               >
-                {isPickingAvatar || isSavingProfile ? <ActivityIndicator color={VARD_COLORS.surface} size="small" /> : <Feather color={VARD_COLORS.surface} name="camera" size={16} />}
+                {isPickingAvatar || isSavingProfile ? (
+                  <ActivityIndicator color={VARD_COLORS.surface} size="small" />
+                ) : (
+                  <Feather
+                    color={VARD_COLORS.surface}
+                    name="camera"
+                    size={16}
+                  />
+                )}
               </Pressable>
             </View>
 
             <View style={styles.profileHeroCopy}>
-              <Text style={styles.profileLabel}>Conta principal</Text>
               <Text numberOfLines={1} style={styles.profileHeroName}>
                 {trimmedProfileName || initialDisplayName}
               </Text>
@@ -314,25 +359,42 @@ export function CameraSettingsPanel({
             </View>
           </View>
 
-          <Text style={styles.profileCardHint}>
-            Essas ações atualizam a interface agora e ficam prontas para conectar na API depois.
-          </Text>
-
           {profileStatus ? (
             <View
               style={[
                 styles.profileStatus,
-                profileStatus.tone === 'success' && styles.profileStatusSuccess,
-                profileStatus.tone === 'info' && styles.profileStatusInfo,
-                profileStatus.tone === 'error' && styles.profileStatusError,
+                profileStatus.tone === "success" && styles.profileStatusSuccess,
+                profileStatus.tone === "info" && styles.profileStatusInfo,
+                profileStatus.tone === "error" && styles.profileStatusError,
               ]}
             >
               <Feather
-                color={profileStatus.tone === 'error' ? '#B42318' : profileStatus.tone === 'info' ? VARD_COLORS.secondary : '#067647'}
-                name={profileStatus.tone === 'error' ? 'alert-triangle' : profileStatus.tone === 'info' ? 'info' : 'check-circle'}
+                color={
+                  profileStatus.tone === "error"
+                    ? "#B42318"
+                    : profileStatus.tone === "info"
+                      ? VARD_COLORS.secondary
+                      : "#067647"
+                }
+                name={
+                  profileStatus.tone === "error"
+                    ? "alert-triangle"
+                    : profileStatus.tone === "info"
+                      ? "info"
+                      : "check-circle"
+                }
                 size={16}
               />
-              <Text style={[styles.profileStatusText, profileStatus.tone === 'error' && styles.profileStatusTextError, profileStatus.tone === 'info' && styles.profileStatusTextInfo, profileStatus.tone === 'success' && styles.profileStatusTextSuccess]}>
+              <Text
+                style={[
+                  styles.profileStatusText,
+                  profileStatus.tone === "error" &&
+                    styles.profileStatusTextError,
+                  profileStatus.tone === "info" && styles.profileStatusTextInfo,
+                  profileStatus.tone === "success" &&
+                    styles.profileStatusTextSuccess,
+                ]}
+              >
                 {profileStatus.message}
               </Text>
             </View>
@@ -342,74 +404,13 @@ export function CameraSettingsPanel({
         <View style={styles.profileActionCard}>
           <View style={styles.profileActionHeader}>
             <View style={styles.profileActionIconWrap}>
-              <Feather color={VARD_COLORS.primary} name="image" size={18} />
+              <Feather color={VARD_COLORS.primary} name="user" size={18} />
             </View>
             <View style={styles.profileActionCopy}>
-              <Text style={styles.profileActionTitle}>Foto de perfil</Text>
-              <Text style={styles.profileActionDescription}>Troque a imagem do avatar e veja a prévia imediatamente.</Text>
-            </View>
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={isSavingProfile || isChangingPassword || isDeletingAccount}
-            onPress={handlePickAvatar}
-            style={({ pressed }) => [
-              styles.profileActionButton,
-              pressed && !isSavingProfile && styles.pressed,
-              (isSavingProfile || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
-            ]}
-          >
-            <Text style={styles.profileActionButtonText}>{isSavingProfile ? 'Salvando...' : 'Escolher foto'}</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.profileActionCard}>
-          <View style={styles.profileActionHeader}>
-            <View style={styles.profileActionIconWrap}>
-              <Feather color={VARD_COLORS.primary} name="phone" size={18} />
-            </View>
-            <View style={styles.profileActionCopy}>
-              <Text style={styles.profileActionTitle}>Telefone</Text>
-              <Text style={styles.profileActionDescription}>Adicione um número para contato e recuperação da conta.</Text>
-            </View>
-          </View>
-
-          <TextInput
-            autoCapitalize="none"
-            keyboardType="phone-pad"
-            placeholder="(00) 00000-0000"
-            placeholderTextColor="#98A2B3"
-            style={styles.profileInput}
-            value={profilePhoneDraft}
-            onChangeText={(text) => {
-              setProfilePhoneDraft(formatPhone(text));
-            }}
-            maxLength={15}
-          />
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={isSavingProfile || isChangingPassword || isDeletingAccount}
-            onPress={handleSavePhone}
-            style={({ pressed }) => [
-              styles.profileActionButton,
-              pressed && !isSavingProfile && styles.pressed,
-              (isSavingProfile || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
-            ]}
-          >
-            <Text style={styles.profileActionButtonText}>{isSavingProfile ? 'Salvando...' : 'Salvar telefone'}</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.profileActionCard}>
-          <View style={styles.profileActionHeader}>
-            <View style={styles.profileActionIconWrap}>
-                <Feather color={VARD_COLORS.primary} name="user" size={18} />
-            </View>
-            <View style={styles.profileActionCopy}>
-                <Text style={styles.profileActionTitle}>Nome de usuário</Text>
-                <Text style={styles.profileActionDescription}>Edite o nome exibido nos módulos do app.</Text>
+              <Text style={styles.profileActionTitle}>Nome de usuário</Text>
+              <Text style={styles.profileActionDescription}>
+                Edite o nome exibido nos módulos do app.
+              </Text>
             </View>
           </View>
 
@@ -422,18 +423,12 @@ export function CameraSettingsPanel({
             onChangeText={setProfileNameDraft}
           />
 
-          <Pressable
-            accessibilityRole="button"
-            disabled={isSavingProfile || isChangingPassword || isDeletingAccount}
+          <GradientButton
+            icon="save"
+            label={isSavingProfile ? "Salvando..." : "Salvar nome"}
+            disabled={isSavingProfile || isDeletingAccount}
             onPress={handleSaveName}
-            style={({ pressed }) => [
-              styles.profileActionButton,
-              pressed && !isSavingProfile && styles.pressed,
-              (isSavingProfile || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
-            ]}
-          >
-            <Text style={styles.profileActionButtonText}>{isSavingProfile ? 'Salvando...' : 'Salvar nome'}</Text>
-          </Pressable>
+          />
         </View>
 
         <View style={styles.profileActionCard}>
@@ -443,50 +438,19 @@ export function CameraSettingsPanel({
             </View>
             <View style={styles.profileActionCopy}>
               <Text style={styles.profileActionTitle}>Senha</Text>
-              <Text style={styles.profileActionDescription}>Prepare a alteração da senha com confirmação visual.</Text>
+              <Text style={styles.profileActionDescription}>
+                Enviaremos um código para o seu e-mail para você criar uma nova
+                senha.
+              </Text>
             </View>
           </View>
 
-          <TextInput
-            autoCapitalize="none"
-            placeholder="Senha atual"
-            placeholderTextColor="#98A2B3"
-            secureTextEntry
-            style={styles.profileInput}
-            value={profileCurrentPassword}
-            onChangeText={setProfileCurrentPassword}
+          <GradientButton
+            icon="lock"
+            label={isSendingReset ? "Enviando..." : "Redefinir senha"}
+            disabled={isSendingReset || isSavingProfile || isDeletingAccount}
+            onPress={handleResetPassword}
           />
-          <TextInput
-            autoCapitalize="none"
-            placeholder="Nova senha"
-            placeholderTextColor="#98A2B3"
-            secureTextEntry
-            style={styles.profileInput}
-            value={profilePassword}
-            onChangeText={setProfilePassword}
-          />
-          <TextInput
-            autoCapitalize="none"
-            placeholder="Confirmar nova senha"
-            placeholderTextColor="#98A2B3"
-            secureTextEntry
-            style={styles.profileInput}
-            value={profilePasswordConfirmation}
-            onChangeText={setProfilePasswordConfirmation}
-          />
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={isChangingPassword || isSavingProfile || isDeletingAccount}
-            onPress={handleSavePassword}
-            style={({ pressed }) => [
-              styles.profileActionButton,
-              pressed && !isChangingPassword && styles.pressed,
-              (isSavingProfile || isChangingPassword || isDeletingAccount) && styles.profileActionDisabled,
-            ]}
-          >
-            <Text style={styles.profileActionButtonText}>{isChangingPassword ? 'Salvando...' : 'Salvar senha'}</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -513,9 +477,6 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 28,
   },
-  futureHeaderSpace: {
-    height: 56,
-  },
   title: {
     color: VARD_COLORS.primary,
     fontFamily: SETTINGS_PANEL_FONTS.extraBold,
@@ -540,8 +501,8 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   centerState: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 72,
     gap: 10,
   },
@@ -551,9 +512,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   sectionTitle: {
     color: VARD_COLORS.text,
@@ -573,34 +534,36 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   profileHeroRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 14,
   },
   profileAvatarWrap: {
     width: 84,
     height: 84,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   profileAvatar: {
     width: 84,
     height: 84,
-    borderRadius: 28,
-    backgroundColor: '#E4E7EC',
+    borderRadius: 588,
+    backgroundColor: "#E4E7EC",
+    borderWidth: 1,
+    borderColor: "#E4E7EC",
   },
   profileAvatarAction: {
-    position: 'absolute',
+    position: "absolute",
     right: -2,
     bottom: -2,
     width: 32,
     height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 999,
     backgroundColor: VARD_COLORS.primary,
     borderWidth: 2,
-    borderColor: VARD_COLORS.surface,
+    borderColor: VARD_COLORS.primary,
   },
   profileHeroCopy: {
     flex: 1,
@@ -609,7 +572,7 @@ const styles = StyleSheet.create({
     color: VARD_COLORS.primary,
     fontFamily: SETTINGS_PANEL_FONTS.semiBold,
     fontSize: 12,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
   },
   profileHeroName: {
@@ -633,21 +596,21 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   profileStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   profileStatusSuccess: {
-    backgroundColor: '#ECFDF3',
+    backgroundColor: "#ECFDF3",
   },
   profileStatusInfo: {
     backgroundColor: VARD_COLORS.secondarySoft,
   },
   profileStatusError: {
-    backgroundColor: '#FEF3F2',
+    backgroundColor: "#FEF3F2",
   },
   profileStatusText: {
     flex: 1,
@@ -656,13 +619,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   profileStatusTextSuccess: {
-    color: '#067647',
+    color: "#067647",
   },
   profileStatusTextInfo: {
     color: VARD_COLORS.secondary,
   },
   profileStatusTextError: {
-    color: '#B42318',
+    color: "#B42318",
   },
   profileActionCard: {
     borderRadius: 22,
@@ -676,15 +639,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   profileActionHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 12,
   },
   profileActionIconWrap: {
     width: 36,
     height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 12,
     backgroundColor: VARD_COLORS.primarySoft,
   },
@@ -707,27 +670,19 @@ const styles = StyleSheet.create({
     minHeight: 50,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
-    backgroundColor: '#F9FAFB',
+    borderColor: "#D0D5DD",
+    backgroundColor: "#F9FAFB",
     paddingHorizontal: 14,
     color: VARD_COLORS.text,
     fontFamily: SETTINGS_PANEL_FONTS.regular,
     fontSize: 14,
-  },
-  profileActionButton: {
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    backgroundColor: VARD_COLORS.primary,
-    paddingHorizontal: 16,
   },
   profileActionDisabled: {
     opacity: 0.65,
   },
   profileActionButtonText: {
     color: VARD_COLORS.surface,
-    fontFamily: SETTINGS_PANEL_FONTS.bold,
+    fontFamily: SETTINGS_PANEL_FONTS.semiBold,
     fontSize: 14,
   },
   pressed: {
@@ -737,39 +692,51 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingTop: 18,
     borderTopWidth: 1,
-    borderTopColor: '#EAECF0',
+    borderTopColor: "#EAECF0",
   },
   logoutButton: {
     minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#FDA29B',
+    borderColor: "#FDA29B",
     backgroundColor: VARD_COLORS.surface,
   },
   logoutButtonText: {
-    color: '#B42318',
+    color: "#B42318",
     fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 14,
   },
+  profileActionButton: {
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  profileActionGradient: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+  },
   deleteAccountButton: {
     minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#FDA29B',
-    backgroundColor: '#FFF5F5',
+    borderColor: "#FDA29B",
+    backgroundColor: "#FFF5F5",
     paddingHorizontal: 16,
   },
   deleteAccountButtonDisabled: {
     opacity: 0.7,
   },
   deleteAccountButtonText: {
-    color: '#B42318',
+    color: "#B42318",
     fontFamily: SETTINGS_PANEL_FONTS.bold,
     fontSize: 14,
   },

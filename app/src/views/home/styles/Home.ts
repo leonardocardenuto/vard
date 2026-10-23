@@ -1,3 +1,4 @@
+import { black } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
 import { VARD_COLORS } from '../../../theme/vardTheme';
 import { StyleSheet } from "react-native";
 
@@ -21,10 +22,6 @@ export const styles = StyleSheet.create({
     flexGrow: 1,
     paddingTop: 30,
     paddingInline: 30,
-    paddingBottom: 30,
-  },
-  section: {
-    marginTop: 40,
   },
   sectionTitle: {
     color: "#000000",
@@ -366,6 +363,166 @@ export const styles = StyleSheet.create({
     padding: 12,
     fontFamily: HOME_FONTS.semiBold,
     fontSize: 18,
-    color: "#00B9BB",
+    color: "#006496",
   },
+});
+
+
+const MUTED = "#6B7280";
+const CARD_BORDER = "#E3EDFB";
+
+export const ui = StyleSheet.create({
+  // ---------- Saudação ----------
+  greetingBlock: { marginBottom: 14 },
+  greetingTitle: { fontSize: 20, fontWeight: "700", color: "#000000" },
+  greetingBrand: { color: "#006496" },
+  greetingSubtitle: { fontSize: 11, color: MUTED, marginTop: 2 },
+
+  // ---------- Resumo (3 cards) ----------
+  summaryRow: { flexDirection: "row", gap: 10, marginBottom: 26 },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderColor: CARD_BORDER,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  summaryIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  summaryLabel: { fontSize: 10, color: MUTED },
+  summaryValue: { fontSize: 19, fontWeight: "800", color: "#006496" },
+
+  // ---------- Últimos alertas ----------
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0A0A0A",
+    marginBottom: 14,
+  },
+  alertList: { gap: 14 },
+  alertCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: "#0B1F5C",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  alertAccent: { width: 6 },
+  alertBody: { flex: 1, paddingHorizontal: 14, paddingVertical: 14 },
+  alertTop: { flexDirection: "row", gap: 10 },
+  alertIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  alertTitle: { fontSize: 14, fontWeight: "700" },
+  alertTag: {
+    fontSize: 8,
+    fontWeight: "600",
+    letterSpacing: 1.2,
+    color: "#111827",
+    marginTop: 3,
+  },
+  alertDescription: {
+    fontSize: 12,
+    color: "#555B66",
+    lineHeight: 16,
+    marginTop: 8,
+  },
+  alertFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 14,
+  },
+  alertDate: { fontSize: 10, color: MUTED },
+  clipButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minWidth: 96,
+    height: 24,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#9CA3AF",
+    backgroundColor: "#FFFFFF",
+  },
+  clipButtonText: { fontSize: 9, fontWeight: "600", color: "#111827" },
+  moreLink: { alignSelf: "flex-end", marginTop: 12, paddingVertical: 4 },
+  moreLinkText: { fontSize: 11, fontWeight: "700", color: "#111827" },
+
+  // ---------- Estados (carregando / erro / vazio) ----------
+  feedbackCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    gap: 10,
+  },
+  feedbackText: { fontSize: 13, color: MUTED, textAlign: "center" },
+  retryButton: {
+    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#9CA3AF",
+  },
+  retryText: { fontSize: 12, fontWeight: "600", color: "#111827" },
+  clipError: { fontSize: 12, color: "#C9181F", marginTop: 8 },
+
+  // ---------- Monitoramento em tempo real ----------
+  monitoringLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 1.4,
+    color: "#111827",
+    marginTop: 26,
+    marginBottom: 16,
+  },
+  statusCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 26,
+    shadowColor: "#0B1F5C",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  statusAccent: { width: 8, alignSelf: "stretch" },
+  statusIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 14,
+  },
+  statusTextBlock: { flex: 1, paddingVertical: 16, paddingHorizontal: 12 },
+  statusTitle: { fontSize: 14, fontWeight: "700" },
+  statusText: { fontSize: 12, color: "#555B66", lineHeight: 16, marginTop: 2 },
+  statusChevron: { marginRight: 16 },
 });
