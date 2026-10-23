@@ -1,5 +1,11 @@
 # Janela de controle de inferências
 
+Na branch `experiment/fall-angle-crop-gui`, a secao **Quedas - YOLO auxiliar**
+permite selecionar recorte, modo de pose (desligada/observar/assistir JEPA), peso
+maximo de 0 a 10% e checkpoint de pose. Os valores sao aplicados ao iniciar ou
+reiniciar Quedas; Confrontos continua independente. Consulte
+[o experimento de pose](person_crop_experiment.md) para limites e validacao.
+
 No macOS, dê dois cliques em `Iniciar Inferencias.command` na raiz do projeto.
 Alternativamente, execute na raiz:
 

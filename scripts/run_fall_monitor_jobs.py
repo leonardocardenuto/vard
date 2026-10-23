@@ -47,6 +47,10 @@ def parse_args():
                          help="Oculta o vídeo, mesmo quando habilitado no .env.")
     parser.add_argument("--person-crop-model", default="yolo11n-pose.pt",
                         help="Checkpoint YOLO local para o controle Recorte pessoa da GUI; sem download automatico.")
+    parser.add_argument("--person-crop", action="store_true", help="Inicia com recorte pessoa ativado.")
+    parser.add_argument("--pose-mode", choices=("off", "observe", "assist"), default="off")
+    parser.add_argument("--pose-weight", type=float, default=0.1,
+                        help="Ajuste maximo no score JEPA pela pose, entre 0 e 0.10.")
     parser.add_argument("--log-file", default="var/logs/camera_monitor.log",
                         help="Arquivo de diagnóstico com resultados, limiares, atrasos e erros dos detectores.")
     parser.add_argument(
@@ -63,7 +67,10 @@ def parse_args():
     parser.add_argument("--demo-password", default=DEFAULT_DEMO_PASSWORD, help="Senha da conta de demonstração.")
     parser.add_argument("--demo-workspace", default="Demonstração Webcam", help="Nome do workspace de demonstração.")
     parser.add_argument("--webcam-source", default="0", help="Índice ou origem OpenCV da webcam usada somente no modo demo.")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not 0 <= args.pose_weight <= 0.1:
+        parser.error("--pose-weight deve estar entre 0 e 0.10")
+    return args
 
 
 def configure_logging(log_file):
@@ -102,6 +109,8 @@ def main():
         show_preview=args.show_preview,
         detectors=set(args.detector) if args.detector else None,
         person_crop_model=args.person_crop_model,
+        person_crop_enabled=args.person_crop,
+        pose_mode=args.pose_mode, pose_weight=args.pose_weight,
     )
 
     def _stop(*_):

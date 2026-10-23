@@ -21,7 +21,8 @@ from api.services.notifications import (
 )
 from fall_detection import CameraWorker, FallDetectionConfig, FrameBuffer, TemporalSmoother
 from fall_detection.clip_exporter import ClipExporter
-from fall_detection.person_crop import PersonWindowCropper
+from fall_detection.person_crop import PersonWindowCropper, crop_window
+from fall_detection.pose_assistance import assess_pose, assist_jepa
 from api.services.native_preview import NativePreview
 
 LOGGER = logging.getLogger(__name__)
@@ -126,7 +127,8 @@ class FallClassifierProvider:
 
 class CameraMonitorJob:
     def __init__(self, spec: CameraMonitorSpec, classifier_provider: FallClassifierProvider,
-                 *, person_crop_model: str = "yolo11n-pose.pt"):
+                 *, person_crop_model: str = "yolo11n-pose.pt", person_crop_enabled=False,
+                 pose_mode="off", pose_weight=0.1):
         self.spec = spec
         self.classifier_provider = classifier_provider
         self._stop_event = threading.Event()
@@ -141,7 +143,9 @@ class CameraMonitorJob:
         self._latest_frame = None
         self._latest_frame_at = None
         self.failed_at: float | None = None
-        self._person_crop_enabled = False
+        self._person_crop_enabled = person_crop_enabled
+        self._pose_mode, self._pose_weight = pose_mode, pose_weight
+        self._pose_info = None
         self._crop_revision = 0
         self._crop_info = None
         self._cropper = PersonWindowCropper(person_crop_model, device=spec.config.device)
@@ -152,6 +156,7 @@ class CameraMonitorJob:
         self._person_crop_enabled = enabled
         self._crop_revision += 1
         self._crop_info = None
+        self._pose_info = None
         for layer in layers:
             if layer.kind == "fall":
                 layer.smoother.reset()
@@ -161,17 +166,31 @@ class CameraMonitorJob:
         LOGGER.info("Recorte pessoa alterado: camera_id=%s enabled=%s revision=%s",
                     self.spec.camera_id, enabled, self._crop_revision)
 
-    def _predict_frames(self, frames, *, crop_enabled=False, **kwargs):
+    def _predict_frames(self, frames, *, crop_enabled=False, threshold=0.85, **kwargs):
         info = {"enabled": crop_enabled, "box": None, "error": None}
-        if crop_enabled:
+        pose, points = None, None
+        use_pose = kwargs.get("detector") == "fall" and self._pose_mode != "off"
+        if crop_enabled or use_pose:
             try:
-                frames, info["box"] = self._cropper.apply(frames)
+                if use_pose:
+                    boxes, poses = self._cropper.analyze(frames)
+                    pose = assess_pose(poses, kwargs.get("sample_fps") or self.spec.config.sample_fps)
+                    points = poses[-1] if poses and pose["reliable"] else None
+                    if crop_enabled:
+                        frames, info["box"] = crop_window(frames, boxes)
+                else:
+                    frames, info["box"] = self._cropper.apply(frames)
             except Exception as exc:
                 info["error"] = str(exc)
-                LOGGER.exception("Recorte indisponivel; usando frame original: camera_id=%s", self.spec.camera_id)
+                LOGGER.exception("YOLO indisponivel; usando JEPA original: camera_id=%s", self.spec.camera_id)
+                pose = {"reliable": False, "reason": "erro no YOLO", "evidence": None}
         prediction = self.classifier_provider.predict_frames(frames, **kwargs)
         if kwargs.get("detector") == "fall":
             prediction = {**prediction, "person_crop": info}
+            if use_pose:
+                prediction["pose_assistance"] = assist_jepa(prediction["fall_probability"], pose,
+                    threshold=threshold, mode=self._pose_mode, weight=self._pose_weight)
+                prediction["pose_assistance"]["keypoints"] = points
         return prediction
 
     def start(self):
@@ -236,7 +255,8 @@ class CameraMonitorJob:
         preview = None
         if self.spec.show_preview:
             try:
-                preview = NativePreview(self.spec.name, crop_control=self.spec.fall_enabled)
+                preview = NativePreview(self.spec.name, crop_control=self.spec.fall_enabled,
+                                        crop_enabled=self._person_crop_enabled)
             except Exception:
                 LOGGER.exception("Preview indisponivel: camera_id=%s", self.spec.camera_id)
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="camera-inference")
@@ -275,6 +295,7 @@ class CameraMonitorJob:
                         display = _render_preview_frame(frame, layers)
                         if self.spec.fall_enabled:
                             display = _render_person_crop(display, self._person_crop_enabled, self._crop_info)
+                            display = _render_pose_assistance(display, self._pose_mode, self._pose_info)
                         preview.submit(display)
                     else:
                         preview.close()
@@ -339,6 +360,7 @@ class CameraMonitorJob:
                       detector=layer.kind, sample_fps=config.sample_fps)
         layer.crop_revision = self._crop_revision
         kwargs["crop_enabled"] = layer.kind == "fall" and self._person_crop_enabled
+        kwargs["threshold"] = config.threshold
         frames = [item.frame for item in buffered_window]
         if executor is not None:
             layer.future = executor.submit(self._predict_frames, frames, **kwargs)
@@ -351,8 +373,14 @@ class CameraMonitorJob:
         layer.last_error = None
         if layer.kind == "fall":
             self._crop_info = prediction.get("person_crop")
+            self._pose_info = prediction.get("pose_assistance")
+            if self._pose_info:
+                LOGGER.info("Pose auxiliar: camera_id=%s info=%s", self.spec.camera_id,
+                            {k: v for k, v in self._pose_info.items() if k != "keypoints"})
             LOGGER.info("Recorte pessoa resultado: camera_id=%s info=%s", self.spec.camera_id, self._crop_info)
         probability = float(prediction[layer.probability_key])
+        if layer.kind == "fall" and self._pose_info:
+            probability = self._pose_info["decision_score"]
         smoothing = layer.smoother.update(probability)
         layer.prediction, layer.smoothing = prediction, smoothing
         LOGGER.info("Resultado camera_id=%s detector=%s inferencia=%s classe=%s prob=%.4f media=%.4f hits=%s alerta=%s limiar=%.3f atraso=%.2fs",
@@ -416,6 +444,8 @@ class CameraMonitorJob:
         }
         if layer.kind == "fall":
             payload["person_crop"] = prediction.get("person_crop", {"enabled": False})
+            payload["pose_assistance"] = {k: v for k, v in prediction.get("pose_assistance", {}).items()
+                                          if k != "keypoints"}
         create_notification, event_description = {
             "fall": (create_fall_detected_notification, "Uma possivel queda foi detectada"),
             "armed": (create_armed_person_detected_notification, "Uma possivel pessoa armada foi detectada"),
@@ -465,11 +495,14 @@ class CameraMonitorJob:
 class CameraMonitorSupervisor:
     def __init__(self, settings: Settings | None = None, *, camera_ids: set[uuid.UUID] | None = None,
                  show_preview: bool | None = None, detectors: set[str] | None = None,
-                 person_crop_model: str = "yolo11n-pose.pt"):
+                 person_crop_model: str = "yolo11n-pose.pt", person_crop_enabled=False,
+                 pose_mode="off", pose_weight=0.1):
         self.camera_ids = camera_ids
         self.show_preview = show_preview
         self.detectors = detectors
         self.person_crop_model = person_crop_model
+        self.person_crop_enabled = person_crop_enabled
+        self.pose_mode, self.pose_weight = pose_mode, pose_weight
         self.settings = settings or get_settings()
         self.classifier_provider = FallClassifierProvider(
             checkpoint=self.settings.fall_monitor_checkpoint,
@@ -514,7 +547,8 @@ class CameraMonitorSupervisor:
             for camera_id, spec in specs.items():
                 if camera_id in self._jobs:
                     continue
-                job = CameraMonitorJob(spec, self.classifier_provider, person_crop_model=self.person_crop_model)
+                job = CameraMonitorJob(spec, self.classifier_provider, person_crop_model=self.person_crop_model,
+                    person_crop_enabled=self.person_crop_enabled, pose_mode=self.pose_mode, pose_weight=self.pose_weight)
                 self._jobs[camera_id] = job
                 job.start()
 
@@ -689,3 +723,30 @@ def _render_person_crop(frame_bgr, enabled, info):
     cv2.putText(frame_bgr, text, (12, max(15, height - 12)), cv2.FONT_HERSHEY_SIMPLEX,
                 min(0.5, max(0.15, width / 1300)), color, 1, cv2.LINE_AA)
     return frame_bgr
+
+
+def _render_pose_assistance(frame, mode, info):
+    if mode == "off":
+        return frame
+    height, width = frame.shape[:2]
+    if info and info.get("keypoints"):
+        points = info["keypoints"]
+        for a, b in ((5, 6), (5, 11), (6, 12), (11, 12), (11, 13), (13, 15), (12, 14), (14, 16)):
+            if points[a][2] >= 0.5 and points[b][2] >= 0.5:
+                cv2.line(frame, tuple(map(round, points[a][:2])), tuple(map(round, points[b][:2])), (100, 255, 120), 2)
+        for x, y, confidence in points:
+            if confidence >= 0.5:
+                cv2.circle(frame, (round(x), round(y)), 3, (100, 255, 120), -1)
+    lines = [f"Pose {mode}: aguardando janela"]
+    if info:
+        lines = [f"Pose {mode} | JEPA={info['jepa_probability']:.3f} score={info['decision_score']:.3f}"]
+        if info.get("reliable"):
+            lines.append(f"quadril={info['hip_drop']:.2f} vel={info['hip_speed']:.2f}/s tronco={info['trunk_change_degrees']:.0f} graus")
+        else:
+            lines.append(f"JEPA sem ajuste: {info['reason']}")
+    top = max(0, height - 100)
+    cv2.rectangle(frame, (0, top), (width, max(top, height - 37)), (20, 20, 20), -1)
+    for index, line in enumerate(lines):
+        cv2.putText(frame, line, (12, top + 20 + index * 24), cv2.FONT_HERSHEY_SIMPLEX,
+                    min(0.5, max(0.15, width / 1300)), (100, 255, 120), 1, cv2.LINE_AA)
+    return frame

@@ -53,18 +53,33 @@ class PersonWindowCropper:
         self._model = None
 
     def apply(self, frames):
+        boxes, _ = self.analyze(frames, include_pose=False)
+        return crop_window(frames, boxes)
+
+    def analyze(self, frames, *, include_pose=True):
         if self._model is None:
             if not self.checkpoint.is_file():
                 raise FileNotFoundError(f"Modelo de recorte ausente: {self.checkpoint}. Use --person-crop-model.")
             from ultralytics import YOLO
 
             self._model = YOLO(str(self.checkpoint))
-        boxes = []
+        boxes, poses = [], []
+        ambiguous = False
         for frame in frames:
             # OpenCV/Ultralytics array inputs are BGR; classifier inputs are RGB.
             predictions = self._model.predict(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR),
                 classes=[0], conf=0.25, device=self.device, verbose=False)
+            frame_poses = []
+            person_count = 0
             for prediction in predictions:
                 if prediction.boxes is not None:
-                    boxes.extend(prediction.boxes.xyxy.cpu().numpy().tolist())
-        return crop_window(frames, boxes)
+                    detected = prediction.boxes.xyxy.cpu().numpy().tolist()
+                    boxes.extend(detected)
+                    person_count += len(detected)
+                keypoints = getattr(prediction, "keypoints", None) if include_pose else None
+                if keypoints is not None:
+                    frame_poses.extend(keypoints.data.cpu().numpy().tolist())
+            # Until tracking is validated, never mix different people's joints.
+            ambiguous = ambiguous or person_count > 1
+            poses.append(frame_poses[0] if person_count == 1 and len(frame_poses) == 1 else None)
+        return boxes, [None] * len(poses) if ambiguous else poses

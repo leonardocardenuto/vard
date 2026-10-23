@@ -17,6 +17,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DETECTORS = {'fall': 'Quedas', 'confrontation': 'Confrontos'}
+POSE_MODES = {'Desligada': 'off', 'Só observar': 'observe', 'Assistir JEPA': 'assist'}
 
 
 @dataclass
@@ -41,14 +42,25 @@ class InferenceProcesses:
         self.instances = {kind: Instance() for kind in DETECTORS}
         self.lock = threading.RLock()
 
-    def command(self, detector, camera_id, preview):
-        return [self.python, '-u', '-m', 'scripts.run_fall_monitor_jobs',
+    def command(self, detector, camera_id, preview, person_crop=False, pose_mode='off',
+                pose_weight=0.1, person_crop_model='var/models/yolo11n-pose.pt'):
+        if pose_mode not in POSE_MODES.values() or not 0 <= pose_weight <= 0.1:
+            raise ValueError('Peso da pose deve estar entre 0 e 10%, com modo válido.')
+        command = [self.python, '-u', '-m', 'scripts.run_fall_monitor_jobs',
                 '--camera-id', camera_id, '--detector', detector,
                 '--show-preview' if preview else '--no-preview',
                 '--log-file', str(self.repo / 'var' / 'logs' / f'gui_{detector}.log')]
+        if detector == 'fall':
+            command += ['--person-crop-model', str(person_crop_model), '--pose-mode', pose_mode,
+                        '--pose-weight', str(pose_weight)]
+            if person_crop:
+                command.append('--person-crop')
+        return command
 
-    def start(self, detector, camera_id, preview=True):
+    def start(self, detector, camera_id, preview=True, person_crop=False, pose_mode='off',
+              pose_weight=0.1, person_crop_model='var/models/yolo11n-pose.pt'):
         camera_id = str(uuid.UUID(camera_id.strip()))
+        command = self.command(detector, camera_id, preview, person_crop, pose_mode, pose_weight, person_crop_model)
         with self.lock:
             state = self.instances[detector]
             if state.stopping:
@@ -68,7 +80,7 @@ class InferenceProcesses:
             logs = self.repo / 'var' / 'logs'
             logs.mkdir(parents=True, exist_ok=True)
             with (logs / f'gui_{detector}_console.log').open('ab', buffering=0) as output:
-                process = subprocess.Popen(self.command(detector, camera_id, preview), cwd=self.repo,
+                process = subprocess.Popen(command, cwd=self.repo,
                                            env=env, stdin=subprocess.DEVNULL, stdout=output,
                                            stderr=subprocess.STDOUT, start_new_session=True)
             state.process = process
@@ -76,6 +88,8 @@ class InferenceProcesses:
             state.last_pid = process.pid
             state.last_exit = None
             self.emit(f'{DETECTORS[detector]} iniciado: PID {process.pid} | camera {camera_id}.')
+            if detector == 'fall':
+                self.emit(f'Quedas: recorte={person_crop} pose={pose_mode} peso={pose_weight:.0%}.')
             return process.pid
 
     def _clean_group(self, pid):
@@ -155,11 +169,13 @@ class InferenceProcesses:
             with self.lock:
                 state.stopping = False
 
-    def restart(self, detector, camera_id, preview=True):
+    def restart(self, detector, camera_id, preview=True, person_crop=False, pose_mode='off',
+                pose_weight=0.1, person_crop_model='var/models/yolo11n-pose.pt'):
         # Validate before stopping a working instance.
         camera_id = str(uuid.UUID(camera_id.strip()))
+        self.command(detector, camera_id, preview, person_crop, pose_mode, pose_weight, person_crop_model)
         self.stop(detector)
-        return self.start(detector, camera_id, preview)
+        return self.start(detector, camera_id, preview, person_crop, pose_mode, pose_weight, person_crop_model)
 
     def snapshot(self):
         with self.lock:
@@ -187,19 +203,24 @@ class LauncherWindow:
             previous = {}
         self.camera = tk.StringVar(value=previous.get('camera_id', '221eacf3-8e94-4cb2-926c-03349d99f4b8'))
         self.preview = tk.BooleanVar(value=previous.get('preview', True))
+        self.person_crop = tk.BooleanVar(value=previous.get('person_crop', False))
+        self.pose_mode = tk.StringVar(value=next((label for label, mode in POSE_MODES.items()
+            if mode == previous.get('pose_mode')), 'Desligada'))
+        self.pose_weight = tk.StringVar(value=str(previous.get('pose_weight_percent', 10)))
+        self.person_model = tk.StringVar(value=previous.get('person_model', str(REPO_ROOT / 'var/models/yolo11n-pose.pt')))
         self.busy = False
         self.closing = False
         self.close_requested = False
         self.exits_seen = set()
         self.buttons = []
         root.title('VARD · Inferências')
-        root.geometry('780x570')
-        root.minsize(680, 520)
+        root.geometry('820x740')
+        root.minsize(780, 700)
         root.protocol('WM_DELETE_WINDOW', self.close)
         frame = ttk.Frame(root, padding=18)
         frame.pack(fill='both', expand=True)
         ttk.Label(frame, text='Controle de inferências', font=('Helvetica', 19, 'bold')).pack(anchor='w')
-        ttk.Label(frame, text='Parâmetros do .env são carregados a cada início ou reinício.').pack(anchor='w', pady=(5, 14))
+        ttk.Label(frame, text='Configuração aplicada ao iniciar ou reiniciar.').pack(anchor='w', pady=(5, 14))
         selection = ttk.Frame(frame)
         selection.pack(fill='x')
         ttk.Label(selection, text='Câmera / camera-id').pack(anchor='w')
@@ -211,6 +232,20 @@ class LauncherWindow:
         self.refresh_button.pack(side='left', padx=(8, 0))
         self.preview_box = ttk.Checkbutton(selection, text='Mostrar vídeo das inferências', variable=self.preview)
         self.preview_box.pack(anchor='w', pady=(0, 14))
+        assist = ttk.LabelFrame(frame, text='Quedas · YOLO auxiliar', padding=10)
+        assist.pack(fill='x', pady=(0, 10))
+        self.crop_box = ttk.Checkbutton(assist, text='Recortar pessoas', variable=self.person_crop)
+        self.crop_box.grid(row=0, column=0, sticky='w', padx=(0, 12))
+        ttk.Label(assist, text='Pose').grid(row=0, column=1, padx=(0, 5))
+        self.pose_box = ttk.Combobox(assist, textvariable=self.pose_mode, values=list(POSE_MODES), state='readonly', width=16)
+        self.pose_box.grid(row=0, column=2, sticky='w')
+        ttk.Label(assist, text='Peso máximo (%)').grid(row=0, column=3, padx=(12, 5))
+        self.weight_box = ttk.Spinbox(assist, from_=0, to=10, increment=1, textvariable=self.pose_weight, width=4)
+        self.weight_box.grid(row=0, column=4)
+        ttk.Label(assist, text='Modelo YOLO pose').grid(row=1, column=0, sticky='w', pady=(10, 0))
+        self.model_box = ttk.Entry(assist, textvariable=self.person_model)
+        self.model_box.grid(row=1, column=1, columnspan=4, sticky='ew', pady=(10, 0))
+        assist.columnconfigure(2, weight=1)
         self.status_labels = {}
         for kind, title in DETECTORS.items():
             section = ttk.LabelFrame(frame, text=title, padding=10)
@@ -247,8 +282,9 @@ class LauncherWindow:
     def set_busy(self, busy):
         self.busy = busy
         state = 'disabled' if busy else 'normal'
-        for widget in self.buttons + [self.camera_box, self.preview_box]:
+        for widget in self.buttons + [self.camera_box, self.preview_box, self.crop_box, self.weight_box, self.model_box]:
             widget.configure(state=state)
+        self.pose_box.configure(state='disabled' if busy else 'readonly')
 
     def action(self, action, detectors):
         if self.busy or self.closing:
@@ -256,14 +292,26 @@ class LauncherWindow:
         if action != 'stop':
             try:
                 camera_id = self.camera_id()
-            except ValueError:
-                self.write('Informe um camera-id UUID válido ou selecione uma câmera em Buscar câmeras.')
+                pose_mode = POSE_MODES[self.pose_mode.get()]
+                pose_weight = float(self.pose_weight.get()) / 100
+                if not 0 <= pose_weight <= 0.1:
+                    raise ValueError('Peso inválido')
+                model_path = Path(self.person_model.get()).expanduser()
+                if 'fall' in detectors and (self.person_crop.get() or pose_mode != 'off') and not model_path.is_file():
+                    self.write('Modelo YOLO não encontrado. Selecione um checkpoint de pose local.')
+                    return
+            except (ValueError, KeyError):
+                self.write('Confira o UUID da câmera e o peso da pose (0 a 10%).')
                 return
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            self.config_path.write_text(json.dumps({'camera_id': camera_id, 'preview': self.preview.get()}))
+            self.config_path.write_text(json.dumps({'camera_id': camera_id, 'preview': self.preview.get(),
+                'person_crop': self.person_crop.get(), 'pose_mode': pose_mode,
+                'pose_weight_percent': float(self.pose_weight.get()), 'person_model': str(model_path)}))
         else:
             camera_id = ''
         preview = self.preview.get()
+        options = (self.person_crop.get(), POSE_MODES[self.pose_mode.get()],
+                   float(self.pose_weight.get()) / 100, str(model_path)) if action != 'stop' else ()
         self.set_busy(True)
         self.activity.set('Executando ação… aguarde.')
         def work():
@@ -271,7 +319,7 @@ class LauncherWindow:
                 for detector in detectors:
                     try:
                         method = getattr(self.manager, action)
-                        method(detector) if action == 'stop' else method(detector, camera_id, preview)
+                        method(detector) if action == 'stop' else method(detector, camera_id, preview, *options)
                     except Exception as exc:
                         self.events.put(('log', f'Erro em {DETECTORS[detector]}: {exc}'))
             finally:

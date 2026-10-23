@@ -124,6 +124,29 @@ class InferenceLauncherTests(unittest.TestCase):
             with patch.object(sys, 'argv', ['monitor', *options]):
                 self.assertIs(parse_args().show_preview, expected)
 
+    def test_pose_controls_apply_only_to_fall_process(self):
+        manager = InferenceProcesses(repo=self.tmp.name, python=sys.executable)
+        command = manager.command('fall', CAMERA, True, True, 'assist', 0.06, '/tmp/pose model.pt')
+        self.assertIn('--person-crop', command)
+        self.assertEqual(command[command.index('--pose-mode') + 1], 'assist')
+        self.assertEqual(command[command.index('--pose-weight') + 1], '0.06')
+        self.assertIn('/tmp/pose model.pt', command)
+        confrontation = manager.command('confrontation', CAMERA, True, True, 'assist', 0.06)
+        self.assertNotIn('--pose-mode', confrontation)
+        self.assertNotIn('--person-crop', confrontation)
+        with self.assertRaises(ValueError):
+            manager.command('fall', CAMERA, True, pose_weight=0.5)
+
+    def test_pose_cli_validation(self):
+        from scripts.run_fall_monitor_jobs import parse_args
+        with patch.object(sys, 'argv', ['monitor', '--person-crop', '--pose-mode', 'observe', '--pose-weight', '0.05']):
+            args = parse_args()
+            self.assertTrue(args.person_crop)
+            self.assertEqual(args.pose_mode, 'observe')
+            self.assertEqual(args.pose_weight, 0.05)
+        with patch.object(sys, 'argv', ['monitor', '--pose-weight', '0.5']), self.assertRaises(SystemExit):
+            parse_args()
+
 
 if __name__ == '__main__':
     unittest.main()

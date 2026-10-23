@@ -85,6 +85,37 @@ class DetectionPipelineTests(unittest.TestCase):
         assert layer.pending_alert["end"] == 4
         assert layer.resume_at == 20
 
+    def test_pose_and_crop_share_yolo_and_keep_raw_jepa_probability(self):
+        from tests.test_pose_assistance import sequence
+        frames = [np.zeros((200, 240, 3), dtype=np.uint8) for _ in range(16)]
+        self.job._pose_mode = 'assist'
+        self.job._cropper = MagicMock()
+        self.job._cropper.analyze.return_value = ([(60, 20, 180, 180)], sequence())
+        self.provider.predict_frames.side_effect = None
+        self.provider.predict_frames.return_value = {'fall_probability': 0.82, 'predicted_class': 'queda'}
+        result = self.job._predict_frames(frames, detector='fall', sample_fps=6, threshold=0.85, crop_enabled=True)
+        self.job._cropper.analyze.assert_called_once_with(frames)
+        self.job._cropper.apply.assert_not_called()
+        assert self.provider.predict_frames.call_args.args[0][0].shape == (256, 256, 3)
+        assert result['fall_probability'] == 0.82
+        assert result['pose_assistance']['decision_score'] > 0.85
+        layer = self.job._detection_layers()[0]
+        with patch.object(self.job, '_finish_alert'):
+            self.job._accept_prediction(layer, result, self.buffer, 1, 1)
+        assert layer.smoothing.moving_average == result['pose_assistance']['decision_score']
+
+    def test_pose_failure_preserves_jepa_and_other_detectors_skip_yolo(self):
+        self.job._pose_mode = 'assist'
+        self.job._cropper = MagicMock()
+        self.job._cropper.analyze.side_effect = RuntimeError('pose unavailable')
+        frames = [np.zeros((200, 240, 3), dtype=np.uint8) for _ in range(16)]
+        result = self.job._predict_frames(frames, detector='fall')
+        assert result['pose_assistance']['decision_score'] == result['fall_probability']
+        assert not result['pose_assistance']['reliable']
+        self.job._cropper.reset_mock()
+        self.job._predict_frames(frames, detector='armed')
+        self.job._cropper.analyze.assert_not_called()
+
     def setUp(self):
         self.config = FallDetectionConfig(Path("fall.pt"), num_frames=2, sample_fps=1,
                                          smoothing_window=5, min_consecutive_hits=2)

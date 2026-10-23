@@ -29,11 +29,11 @@ def _publish_crop(control_queue, value):
             pass
 
 
-def _preview_process(frame_queue, window_name: str, control_queue=None) -> None:
+def _preview_process(frame_queue, window_name: str, control_queue=None, crop_enabled=False) -> None:
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window_name, 960, 540)
     if control_queue is not None:
-        cv2.createTrackbar("Recorte pessoa", window_name, 0, 1,
+        cv2.createTrackbar("Recorte pessoa", window_name, int(crop_enabled), 1,
                           lambda value: _publish_crop(control_queue, value))
     try:
         while True:
@@ -61,13 +61,13 @@ def _preview_process(frame_queue, window_name: str, control_queue=None) -> None:
 class NativePreview:
     """Non-blocking frame sender for the separate desktop preview window."""
 
-    def __init__(self, camera_name: str, *, crop_control: bool = False):
+    def __init__(self, camera_name: str, *, crop_control: bool = False, crop_enabled=False):
         context = mp.get_context("spawn")
         self._queue = context.Queue(maxsize=1)
         self._controls = context.Queue(maxsize=4) if crop_control else None
         self._process = context.Process(
             target=_preview_process,
-            args=(self._queue, f"VARD Fall Monitor - {camera_name}", self._controls),
+            args=(self._queue, f"VARD Fall Monitor - {camera_name}", self._controls, crop_enabled),
             name="vard-fall-preview",
             daemon=True,
         )
