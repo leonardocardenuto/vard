@@ -42,6 +42,8 @@ def parse_args():
                         help="Executa somente este detector habilitado; pode ser repetido. Por padrao executa todos os habilitados.")
     parser.add_argument("--show-preview", action="store_true", default=None,
                         help="Abre o vídeo das câmeras selecionadas sem deixar de registrar ocorrências no app.")
+    parser.add_argument("--person-crop-model", default="yolo11n-pose.pt",
+                        help="Checkpoint YOLO local para o controle Recorte pessoa da GUI; sem download automatico.")
     parser.add_argument("--log-file", default="var/logs/camera_monitor.log",
                         help="Arquivo de diagnóstico com resultados, limiares, atrasos e erros dos detectores.")
     parser.add_argument(
@@ -96,6 +98,7 @@ def main():
         get_settings(), camera_ids=set(args.camera_id) if args.camera_id else None,
         show_preview=args.show_preview,
         detectors=set(args.detector) if args.detector else None,
+        person_crop_model=args.person_crop_model,
     )
 
     def _stop(*_):

@@ -36,6 +36,55 @@ class ImmediateExecutor:
 
 
 class DetectionPipelineTests(unittest.TestCase):
+    def test_crop_only_changes_fall_input_and_does_not_mutate_originals(self):
+        frames = [np.zeros((100, 200, 3), dtype=np.uint8) for _ in range(2)]
+        cropped = [np.ones((256, 256, 3), dtype=np.uint8) for _ in range(2)]
+        self.job._cropper = MagicMock()
+        self.job._cropper.apply.return_value = (cropped, (10, 10, 80, 90))
+        layers = self.job._detection_layers()
+        self.job._set_person_crop(True, layers)
+        for layer in layers:
+            self.job._predict_frames(frames, detector=layer.kind,
+                crop_enabled=layer.kind == "fall" and self.job._person_crop_enabled)
+        assert self.provider.predict_frames.call_args_list[0].args[0] is cropped
+        assert self.provider.predict_frames.call_args_list[1].args[0] is frames
+        assert layers[0].resume_at == -float("inf")
+        assert self.spec.freeze_seconds == 300
+        assert frames[0].shape == (100, 200, 3)
+
+    def test_toggle_discards_inflight_prediction_from_old_crop_mode(self):
+        layer = self.job._detection_layers()[0]
+        layer.future = Future()
+        layer.future.set_result({"predicted_class": "queda", "fall_probability": 0.99})
+        layer.last_inference_at = 1
+        self.job._set_person_crop(True, [layer])
+        with patch.object(self.job, "_accept_prediction") as accept:
+            self.job._process_layer(layer, self.buffer, 2)
+        accept.assert_not_called()
+        assert layer.future is None
+        assert layer.prediction is None
+
+    def test_crop_error_keeps_original_inference_and_reports_fallback(self):
+        self.job._cropper = MagicMock()
+        self.job._cropper.apply.side_effect = FileNotFoundError("missing YOLO")
+        frames = [np.zeros((100, 200, 3), dtype=np.uint8)]
+        result = self.job._predict_frames(frames, detector="fall", crop_enabled=True)
+        assert self.provider.predict_frames.call_args.args[0] is frames
+        assert result["person_crop"]["error"] == "missing YOLO"
+        assert result["person_crop"]["enabled"] is True
+
+    def test_toggle_preserves_pending_clip_and_its_prediction(self):
+        layer = self.job._detection_layers()[0]
+        layer.prediction = {"fall_probability": 0.99}
+        layer.smoothing = SimpleNamespace(moving_average=0.99)
+        layer.pending_alert = {"timestamp": 1, "end": 4, "frames": []}
+        layer.resume_at = 20
+        self.job._set_person_crop(True, [layer])
+        assert layer.prediction["fall_probability"] == 0.99
+        assert layer.smoothing.moving_average == 0.99
+        assert layer.pending_alert["end"] == 4
+        assert layer.resume_at == 20
+
     def setUp(self):
         self.config = FallDetectionConfig(Path("fall.pt"), num_frames=2, sample_fps=1,
                                          smoothing_window=5, min_consecutive_hits=2)

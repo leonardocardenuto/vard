@@ -15,9 +15,26 @@ import cv2
 import numpy as np
 
 
-def _preview_process(frame_queue, window_name: str) -> None:
+def _publish_crop(control_queue, value):
+    try:
+        control_queue.put_nowait(bool(value))
+    except Full:
+        try:
+            control_queue.get_nowait()
+        except Empty:
+            pass
+        try:
+            control_queue.put_nowait(bool(value))
+        except Full:
+            pass
+
+
+def _preview_process(frame_queue, window_name: str, control_queue=None) -> None:
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window_name, 960, 540)
+    if control_queue is not None:
+        cv2.createTrackbar("Recorte pessoa", window_name, 0, 1,
+                          lambda value: _publish_crop(control_queue, value))
     try:
         while True:
             try:
@@ -44,12 +61,13 @@ def _preview_process(frame_queue, window_name: str) -> None:
 class NativePreview:
     """Non-blocking frame sender for the separate desktop preview window."""
 
-    def __init__(self, camera_name: str):
+    def __init__(self, camera_name: str, *, crop_control: bool = False):
         context = mp.get_context("spawn")
         self._queue = context.Queue(maxsize=1)
+        self._controls = context.Queue(maxsize=4) if crop_control else None
         self._process = context.Process(
             target=_preview_process,
-            args=(self._queue, f"VARD Fall Monitor - {camera_name}"),
+            args=(self._queue, f"VARD Fall Monitor - {camera_name}", self._controls),
             name="vard-fall-preview",
             daemon=True,
         )
@@ -72,6 +90,16 @@ class NativePreview:
             # slow inference to render an old preview frame.
             return
 
+    def poll_crop_enabled(self) -> bool | None:
+        latest = None
+        if self._controls is not None:
+            while True:
+                try:
+                    latest = self._controls.get_nowait()
+                except Empty:
+                    break
+        return latest
+
     def close(self) -> None:
         if self.is_alive:
             try:
@@ -83,3 +111,5 @@ class NativePreview:
             self._process.terminate()
             self._process.join(timeout=2)
         self._queue.close()
+        if self._controls is not None:
+            self._controls.close()

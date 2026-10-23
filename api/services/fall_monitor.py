@@ -21,6 +21,7 @@ from api.services.notifications import (
 )
 from fall_detection import CameraWorker, FallDetectionConfig, FrameBuffer, TemporalSmoother
 from fall_detection.clip_exporter import ClipExporter
+from fall_detection.person_crop import PersonWindowCropper
 from api.services.native_preview import NativePreview
 
 LOGGER = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ class DetectionLayer:
     result_delay_seconds: float = 0.0
     last_error: str | None = None
     inference_clip_frames: list | None = None
+    crop_revision: int = 0
 
     def __post_init__(self):
         self.smoother = TemporalSmoother(
@@ -123,7 +125,8 @@ class FallClassifierProvider:
 
 
 class CameraMonitorJob:
-    def __init__(self, spec: CameraMonitorSpec, classifier_provider: FallClassifierProvider):
+    def __init__(self, spec: CameraMonitorSpec, classifier_provider: FallClassifierProvider,
+                 *, person_crop_model: str = "yolo11n-pose.pt"):
         self.spec = spec
         self.classifier_provider = classifier_provider
         self._stop_event = threading.Event()
@@ -138,6 +141,38 @@ class CameraMonitorJob:
         self._latest_frame = None
         self._latest_frame_at = None
         self.failed_at: float | None = None
+        self._person_crop_enabled = False
+        self._crop_revision = 0
+        self._crop_info = None
+        self._cropper = PersonWindowCropper(person_crop_model, device=spec.config.device)
+
+    def _set_person_crop(self, enabled: bool, layers):
+        if enabled == self._person_crop_enabled:
+            return
+        self._person_crop_enabled = enabled
+        self._crop_revision += 1
+        self._crop_info = None
+        for layer in layers:
+            if layer.kind == "fall":
+                layer.smoother.reset()
+                if layer.pending_alert is None:
+                    layer.smoothing = None
+                    layer.prediction = None
+        LOGGER.info("Recorte pessoa alterado: camera_id=%s enabled=%s revision=%s",
+                    self.spec.camera_id, enabled, self._crop_revision)
+
+    def _predict_frames(self, frames, *, crop_enabled=False, **kwargs):
+        info = {"enabled": crop_enabled, "box": None, "error": None}
+        if crop_enabled:
+            try:
+                frames, info["box"] = self._cropper.apply(frames)
+            except Exception as exc:
+                info["error"] = str(exc)
+                LOGGER.exception("Recorte indisponivel; usando frame original: camera_id=%s", self.spec.camera_id)
+        prediction = self.classifier_provider.predict_frames(frames, **kwargs)
+        if kwargs.get("detector") == "fall":
+            prediction = {**prediction, "person_crop": info}
+        return prediction
 
     def start(self):
         LOGGER.info(
@@ -201,7 +236,7 @@ class CameraMonitorJob:
         preview = None
         if self.spec.show_preview:
             try:
-                preview = NativePreview(self.spec.name)
+                preview = NativePreview(self.spec.name, crop_control=self.spec.fall_enabled)
             except Exception:
                 LOGGER.exception("Preview indisponivel: camera_id=%s", self.spec.camera_id)
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="camera-inference")
@@ -218,6 +253,10 @@ class CameraMonitorJob:
                     has_frame = True
                     self._update_camera_status("online")
                 buffer.append(frame, timestamp)
+                if preview is not None and preview.is_alive:
+                    enabled = preview.poll_crop_enabled()
+                    if enabled is not None:
+                        self._set_person_crop(enabled, layers)
                 # Cada camada tem sua propria janela, suavizacao, cooldown e pausa.
                 # A captura continua mesmo quando uma camada esta em freeze.
                 for layer in layers:
@@ -233,7 +272,10 @@ class CameraMonitorJob:
                                          self.spec.camera_id, layer.kind)
                 if preview is not None:
                     if preview.is_alive:
-                        preview.submit(_render_preview_frame(frame, layers))
+                        display = _render_preview_frame(frame, layers)
+                        if self.spec.fall_enabled:
+                            display = _render_person_crop(display, self._person_crop_enabled, self._crop_info)
+                        preview.submit(display)
                     else:
                         preview.close()
                         preview = None
@@ -273,6 +315,9 @@ class CameraMonitorJob:
             if not layer.future.done():
                 return
             future, layer.future = layer.future, None
+            if layer.kind == "fall" and layer.crop_revision != self._crop_revision:
+                layer.inference_clip_frames = None
+                return
             prediction = future.result()
             self._accept_prediction(layer, prediction, buffer, layer.last_inference_at, timestamp)
             return
@@ -292,16 +337,21 @@ class CameraMonitorJob:
                 if timestamp - self.spec.clip_pre_seconds <= item.timestamp <= timestamp]
         kwargs = dict(checkpoint=config.checkpoint, device=config.device,
                       detector=layer.kind, sample_fps=config.sample_fps)
+        layer.crop_revision = self._crop_revision
+        kwargs["crop_enabled"] = layer.kind == "fall" and self._person_crop_enabled
         frames = [item.frame for item in buffered_window]
         if executor is not None:
-            layer.future = executor.submit(self.classifier_provider.predict_frames, frames, **kwargs)
+            layer.future = executor.submit(self._predict_frames, frames, **kwargs)
             return
-        prediction = self.classifier_provider.predict_frames(frames, **kwargs)
+        prediction = self._predict_frames(frames, **kwargs)
         self._accept_prediction(layer, prediction, buffer, timestamp, timestamp)
 
     def _accept_prediction(self, layer, prediction, buffer, timestamp, current_timestamp):
         layer.result_delay_seconds = max(0.0, current_timestamp - timestamp)
         layer.last_error = None
+        if layer.kind == "fall":
+            self._crop_info = prediction.get("person_crop")
+            LOGGER.info("Recorte pessoa resultado: camera_id=%s info=%s", self.spec.camera_id, self._crop_info)
         probability = float(prediction[layer.probability_key])
         smoothing = layer.smoother.update(probability)
         layer.prediction, layer.smoothing = prediction, smoothing
@@ -364,6 +414,8 @@ class CameraMonitorJob:
             "consecutive_hits": int(smoothing.consecutive_hits),
             "monitor_timestamp": float(timestamp),
         }
+        if layer.kind == "fall":
+            payload["person_crop"] = prediction.get("person_crop", {"enabled": False})
         create_notification, event_description = {
             "fall": (create_fall_detected_notification, "Uma possivel queda foi detectada"),
             "armed": (create_armed_person_detected_notification, "Uma possivel pessoa armada foi detectada"),
@@ -412,10 +464,12 @@ class CameraMonitorJob:
 
 class CameraMonitorSupervisor:
     def __init__(self, settings: Settings | None = None, *, camera_ids: set[uuid.UUID] | None = None,
-                 show_preview: bool | None = None, detectors: set[str] | None = None):
+                 show_preview: bool | None = None, detectors: set[str] | None = None,
+                 person_crop_model: str = "yolo11n-pose.pt"):
         self.camera_ids = camera_ids
         self.show_preview = show_preview
         self.detectors = detectors
+        self.person_crop_model = person_crop_model
         self.settings = settings or get_settings()
         self.classifier_provider = FallClassifierProvider(
             checkpoint=self.settings.fall_monitor_checkpoint,
@@ -460,7 +514,7 @@ class CameraMonitorSupervisor:
             for camera_id, spec in specs.items():
                 if camera_id in self._jobs:
                     continue
-                job = CameraMonitorJob(spec, self.classifier_provider)
+                job = CameraMonitorJob(spec, self.classifier_provider, person_crop_model=self.person_crop_model)
                 self._jobs[camera_id] = job
                 job.start()
 
@@ -614,4 +668,24 @@ def _render_preview_frame(frame_rgb, layers: list[DetectionLayer]):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
         cv2.putText(frame_bgr, status, (24, 110 + index * 88),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
+    return frame_bgr
+
+
+def _render_person_crop(frame_bgr, enabled, info):
+    box = info.get("box") if info else None
+    if enabled and box:
+        left, top, right, bottom = box
+        cv2.rectangle(frame_bgr, (left, top), (right - 1, bottom - 1), (255, 220, 0), 2)
+    text = "Recorte pessoa: OFF"
+    color = (210, 210, 210)
+    if enabled:
+        text = "Recorte pessoa: aguardando janela"
+        if info:
+            text = ("Recorte pessoa: ERRO - frame original" if info.get("error") else
+                    "Recorte pessoa: ON" if box else "Recorte pessoa: sem pessoa - frame original")
+        color = (0, 180, 255) if info and info.get("error") else (255, 220, 0)
+    height, width = frame_bgr.shape[:2]
+    cv2.rectangle(frame_bgr, (0, max(0, height - 36)), (width, height), (20, 20, 20), -1)
+    cv2.putText(frame_bgr, text, (12, max(15, height - 12)), cv2.FONT_HERSHEY_SIMPLEX,
+                min(0.5, max(0.15, width / 1300)), color, 1, cv2.LINE_AA)
     return frame_bgr
