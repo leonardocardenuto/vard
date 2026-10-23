@@ -23,14 +23,14 @@ class TemporalSmootherTests(unittest.TestCase):
         self.assertTrue(smoother.update(1).alert)
 
     def test_double_hits_threshold_is_inclusive_and_uses_unrounded_score(self):
-        for value, expected in ((.989999, 1), (.99, 2), (.9999520778656006, 2), (1.0, 2)):
+        for value, expected in ((.969999, 1), (.97, 2), (.9795, 2), (.99, 2), (.9999520778656006, 2), (1.0, 2)):
             with self.subTest(probability=value):
                 smoother = TemporalSmoother(.9, 5, 4)
                 self.assertEqual(smoother.update(value).consecutive_hits, expected)
 
     def test_double_hits_still_require_detection_threshold(self):
-        smoother = TemporalSmoother(.995, 5, 4)
-        self.assertEqual(smoother.update(.99).consecutive_hits, 0)
+        smoother = TemporalSmoother(.98, 5, 4)
+        self.assertEqual(smoother.update(.97).consecutive_hits, 0)
         self.assertEqual(smoother.update(.999).consecutive_hits, 2)
 
     def test_low_probability_and_reset_clear_weighted_hits(self):
@@ -55,7 +55,7 @@ class TemporalSmootherTests(unittest.TestCase):
         for kind in ('fall', 'confrontation', 'armed'):
             with self.subTest(kind=kind):
                 layer = DetectionLayer(kind, config, cooldown_seconds=60)
-                self.assertEqual(layer.smoother.update(.99).consecutive_hits, 2 if kind == 'fall' else 1)
+                self.assertEqual(layer.smoother.update(.97).consecutive_hits, 2 if kind == 'fall' else 1)
 
 
 if __name__ == '__main__':
