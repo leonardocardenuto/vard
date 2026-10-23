@@ -519,6 +519,7 @@ export function Insights() {
     <LayoutWithNavbar>
       <View style={styles.page}>
         <ScrollView
+          nestedScrollEnabled
           contentContainerStyle={styles.scrollContent}
           refreshControl={
             <RefreshControl
@@ -761,7 +762,14 @@ export function Insights() {
                 </View>
               ) : null}
 
-              <View style={styles.incidentList}>
+              <ScrollView
+                accessibilityLabel="Histórico de quedas"
+                nestedScrollEnabled
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled"
+                style={styles.incidentHistoryScroll}
+                contentContainerStyle={styles.incidentList}
+              >
                 {selectedData.incidentDetails.map((incident) => {
                   const event = fallEvents.find((item) => item.notification_id === incident.id);
                   return (
@@ -778,8 +786,8 @@ export function Insights() {
                     />
                   );
                 })}
-                {clipError ? <Text style={styles.availabilityError}>{clipError}</Text> : null}
-              </View>
+              </ScrollView>
+              {clipError ? <Text style={styles.availabilityError}>{clipError}</Text> : null}
             </View>
 
             <Text style={styles.availabilitySectionTitle}>Disponibilidade de câmeras</Text>

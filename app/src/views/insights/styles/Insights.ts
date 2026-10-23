@@ -396,9 +396,15 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: "center",
   },
+  incidentHistoryScroll: {
+    flexGrow: 0,
+    maxHeight: 420,
+    marginTop: 18,
+  },
   incidentList: {
     gap: 14,
-    marginTop: 18,
+    paddingRight: 6,
+    paddingBottom: 2,
   },
   incidentItem: {
     borderColor: "#E1ECF4",

@@ -40,8 +40,11 @@ def parse_args():
     parser.add_argument("--camera-id", action="append", type=uuid.UUID, help="Monitora apenas esta câmera; pode ser repetido para selecionar mais de uma.")
     parser.add_argument("--detector", action="append", choices=("fall", "confrontation", "armed"),
                         help="Executa somente este detector habilitado; pode ser repetido. Por padrao executa todos os habilitados.")
-    parser.add_argument("--show-preview", action="store_true", default=None,
-                        help="Abre o vídeo das câmeras selecionadas sem deixar de registrar ocorrências no app.")
+    preview = parser.add_mutually_exclusive_group()
+    preview.add_argument("--show-preview", action="store_true", default=None,
+                         help="Abre o vídeo das câmeras selecionadas sem deixar de registrar ocorrências no app.")
+    preview.add_argument("--no-preview", dest="show_preview", action="store_false", default=None,
+                         help="Oculta o vídeo, mesmo quando habilitado no .env.")
     parser.add_argument("--log-file", default="var/logs/camera_monitor.log",
                         help="Arquivo de diagnóstico com resultados, limiares, atrasos e erros dos detectores.")
     parser.add_argument(

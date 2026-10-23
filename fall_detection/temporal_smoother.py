@@ -36,7 +36,7 @@ class TemporalSmoother:
         self._values.append(probability)
 
         if probability >= self.threshold:
-            self._consecutive_hits += self.perfect_probability_hits if probability >= 0.99 else 1
+            self._consecutive_hits += self.perfect_probability_hits if probability >= 0.97 else 1
         else:
             self._consecutive_hits = 0
 

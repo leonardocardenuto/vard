@@ -31,6 +31,7 @@ class LatestInferenceState:
     consecutive_hits: int | None = None
     alert: bool = False
     inference_count: int = 0
+    fall_count: int = 0
     window_end_timestamp: float | None = None
     window_frames: list | None = None
     freeze_until_monotonic: float | None = None
@@ -60,16 +61,20 @@ class RuntimeState:
         window_frames: list,
     ):
         with self._lock:
+            new_fall = alert and not self._latest_inference.alert
+            fall_count = self._latest_inference.fall_count + int(new_fall)
             self._latest_inference = LatestInferenceState(
                 prediction=prediction,
                 moving_average=moving_average,
                 consecutive_hits=consecutive_hits,
                 alert=alert,
                 inference_count=inference_count,
+                fall_count=fall_count,
                 window_end_timestamp=window_end_timestamp,
                 window_frames=window_frames,
                 freeze_until_monotonic=self._freeze_until_monotonic,
             )
+            return new_fall
 
     def start_freeze(self, freeze_until_monotonic: float):
         with self._lock:
@@ -210,10 +215,11 @@ def _draw_preview(
     consecutive_hits: int | None,
     alert: bool,
     freeze_remaining_seconds: float | None = None,
+    fall_count: int = 0,
 ):
     frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
     overlay = frame_bgr.copy()
-    cv2.rectangle(overlay, (12, 12), (620, 148), (20, 20, 20), -1)
+    cv2.rectangle(overlay, (12, 12), (620, 178), (20, 20, 20), -1)
     frame_bgr = cv2.addWeighted(overlay, 0.45, frame_bgr, 0.55, 0)
 
     if freeze_remaining_seconds is not None and freeze_remaining_seconds > 0:
@@ -267,6 +273,16 @@ def _draw_preview(
             cv2.LINE_AA,
         )
 
+    cv2.putText(
+        frame_bgr,
+        f"Quedas nesta instancia: {fall_count}",
+        (24, 162),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.62,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA,
+    )
     return frame_bgr
 
 
@@ -301,6 +317,7 @@ def _show_preview(
     consecutive_hits,
     alert: bool,
     freeze_remaining_seconds: float | None = None,
+    fall_count: int = 0,
 ) -> bool:
     preview_frame = _draw_preview(
         frame_rgb,
@@ -309,6 +326,7 @@ def _show_preview(
         consecutive_hits,
         alert,
         freeze_remaining_seconds=freeze_remaining_seconds,
+        fall_count=fall_count,
     )
     cv2.imshow(window_name, preview_frame)
     key = cv2.waitKey(1) & 0xFF
@@ -327,6 +345,7 @@ def _show_window_preview(window_name: str, frame_rgb, inference_state: LatestInf
         inference_state.consecutive_hits,
         inference_state.alert,
         freeze_remaining_seconds=freeze_remaining_seconds,
+        fall_count=inference_state.fall_count,
     )
     cv2.putText(
         preview_frame,
@@ -427,7 +446,7 @@ def _inference_loop(
             break
 
         smoothing = smoother.update(prediction["fall_probability"])
-        runtime.update_inference(
+        new_fall = runtime.update_inference(
             prediction=prediction,
             moving_average=smoothing.moving_average,
             consecutive_hits=smoothing.consecutive_hits,
@@ -436,16 +455,21 @@ def _inference_loop(
             window_end_timestamp=latest_timestamp,
             window_frames=list(window),
         )
+        fall_count = runtime.snapshot()[1].fall_count
 
         logger.info(
-            "Resultado #%s: classe=%s queda=%.4f media=%.4f hits=%s probs=%s",
+            "Resultado #%s: classe=%s queda=%.4f media=%.4f hits=%s probs=%s quedas_instancia=%s",
             inference_count,
             prediction["predicted_class"],
             prediction["fall_probability"],
             smoothing.moving_average,
             smoothing.consecutive_hits,
             prediction["probabilities"],
+            fall_count,
         )
+
+        if new_fall:
+            logger.warning("QUEDA_CONTABILIZADA total_instancia=%s", fall_count)
 
         if smoothing.alert:
             logger.warning(
@@ -634,6 +658,7 @@ def main():
                         latest_inference.consecutive_hits,
                         latest_inference.alert,
                         freeze_remaining_seconds=freeze_remaining_seconds,
+                        fall_count=latest_inference.fall_count,
                     )
                 if should_exit:
                     logger.info("Encerrando por comando do usuario na janela de preview.")
@@ -650,9 +675,10 @@ def main():
         inference_thread.join(timeout=5.0)
 
     logger.info(
-        "Pipeline encerrado. Frames capturados=%s inferencias=%s",
+        "Pipeline encerrado. Frames capturados=%s inferencias=%s quedas_detectadas=%s",
         worker.captured_frames,
         runtime.snapshot()[1].inference_count,
+        runtime.snapshot()[1].fall_count,
     )
     if args.show_preview:
         cv2.destroyAllWindows()
