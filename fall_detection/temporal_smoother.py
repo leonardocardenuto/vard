@@ -13,25 +13,30 @@ class SmoothingResult:
 
 
 class TemporalSmoother:
-    def __init__(self, threshold: float, window_size: int, min_consecutive_hits: int = 2):
+    def __init__(self, threshold: float, window_size: int, min_consecutive_hits: int = 2,
+                 perfect_probability_hits: int = 2):
         if not 0 <= threshold <= 1:
             raise ValueError("threshold deve estar entre 0 e 1.")
         if window_size <= 0:
             raise ValueError("window_size deve ser maior que zero.")
         if min_consecutive_hits <= 0:
             raise ValueError("min_consecutive_hits deve ser maior que zero.")
+        if perfect_probability_hits < 1:
+            raise ValueError("perfect_probability_hits deve ser maior que zero.")
 
         self.threshold = threshold
         self.min_consecutive_hits = min_consecutive_hits
+        self.perfect_probability_hits = perfect_probability_hits
         self._values: Deque[float] = deque(maxlen=window_size)
         self._consecutive_hits = 0
 
     def update(self, fall_probability: float) -> SmoothingResult:
-        probability = max(0.0, min(1.0, float(fall_probability)))
+        raw_probability = float(fall_probability)
+        probability = max(0.0, min(1.0, raw_probability))
         self._values.append(probability)
 
         if probability >= self.threshold:
-            self._consecutive_hits += 1
+            self._consecutive_hits += self.perfect_probability_hits if probability >= 0.99 else 1
         else:
             self._consecutive_hits = 0
 

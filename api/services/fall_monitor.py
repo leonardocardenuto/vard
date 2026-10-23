@@ -69,6 +69,7 @@ class DetectionLayer:
         self.smoother = TemporalSmoother(
             threshold=self.config.threshold, window_size=self.config.smoothing_window,
             min_consecutive_hits=self.config.min_consecutive_hits,
+            perfect_probability_hits=2 if self.kind == "fall" else 1,
         )
 
     @property
