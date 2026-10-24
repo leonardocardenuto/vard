@@ -54,6 +54,7 @@ const CAMERA_WEBVIEW_INJECTED_JS = `
     function checkMedia() {
       var images = Array.from(document.querySelectorAll('img'));
       var videos = Array.from(document.querySelectorAll('video'));
+      videos.forEach(function(video){ video.controls=false; video.removeAttribute('controls'); });
       if (!ready && (images.some(function(image){return image.naturalWidth>0;}) || videos.some(function(video){return video.readyState>=2;}))) {
         ready=true; report('connected');
       }
@@ -272,7 +273,7 @@ export function CameraLiveViewScreen({ navigation, route }: Props) {
           ) : (
             <VideoView
               contentFit="cover"
-              nativeControls
+              nativeControls={false}
               player={player}
               style={styles.video}
             />

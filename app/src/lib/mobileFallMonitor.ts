@@ -6,6 +6,7 @@ export type MonitorStatus = {
   enabled: boolean;
   sensorAvailable: boolean;
   sensorActive: boolean;
+  locationReady: boolean;
   workspaceId: string | null;
   pendingDeadline: number;
   rearmDeadline: number;
@@ -32,6 +33,12 @@ export async function startMobileFallMonitor(accessToken: string, workspaceId: s
   }
   const status: MonitorStatus = await native.status();
   if (!status.sensorAvailable) throw new Error('Este aparelho não possui acelerômetro.');
+  // Both permissions must be requested together for Android's approximate option.
+  // A refusal must never prevent a fall alert from being sent.
+  await PermissionsAndroid.requestMultiple([
+    PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+  ]);
   const device = await registerMobileMonitor(accessToken, workspaceId);
   await native.start(mobileMonitorBaseUrl(), device.device_token, workspaceId);
 }

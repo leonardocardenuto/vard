@@ -38,6 +38,7 @@ export type WorkspaceMemberResponse = {
   user_id: string;
   email: string;
   full_name: string | null;
+  avatar_url?: string | null;
   role: 'admin' | 'member' | 'caregiver' | 'viewer' | 'elderly';
   status: string;
   joined_at: string | null;

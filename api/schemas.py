@@ -104,6 +104,7 @@ class WorkspaceMemberResponse(BaseModel):
     user_id: uuid.UUID
     email: EmailStr
     full_name: str | None
+    avatar_url: str | None = None
     role: str
     status: str
     joined_at: datetime | None

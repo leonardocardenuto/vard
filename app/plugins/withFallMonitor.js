@@ -6,7 +6,7 @@ module.exports = function withFallMonitor(config) {
   config = withAndroidManifest(config, (config) => {
     const manifest = config.modResults.manifest;
     manifest['uses-permission'] ??= [];
-    for (const name of ['FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_SPECIAL_USE', 'WAKE_LOCK', 'RECEIVE_BOOT_COMPLETED', 'POST_NOTIFICATIONS', 'VIBRATE']) {
+    for (const name of ['FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_SPECIAL_USE', 'FOREGROUND_SERVICE_LOCATION', 'ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'WAKE_LOCK', 'RECEIVE_BOOT_COMPLETED', 'POST_NOTIFICATIONS', 'VIBRATE']) {
       const permission = `android.permission.${name}`;
       if (!manifest['uses-permission'].some((item) => item.$['android:name'] === permission)) {
         manifest['uses-permission'].push({ $: { 'android:name': permission } });
@@ -17,7 +17,7 @@ module.exports = function withFallMonitor(config) {
     app.service = app.service.filter((item) => item.$['android:name'] !== 'com.vard.app.fallmonitor.FallMonitorService');
     app.service.push({ $: {
       'android:name': 'com.vard.app.fallmonitor.FallMonitorService', 'android:exported': 'false',
-      'android:foregroundServiceType': 'specialUse', 'android:stopWithTask': 'false',
+      'android:foregroundServiceType': 'specialUse|location', 'android:stopWithTask': 'false',
     }, property: [{ $: {
       'android:name': 'android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE',
       'android:value': 'User-enabled continuous on-device accelerometer monitoring for possible falls, with visible status and cancellation before notifying family.',
@@ -60,7 +60,9 @@ module.exports = function withFallMonitor(config) {
     }
     const testsDestination = path.join(config.modRequest.platformProjectRoot, 'app/src/test/java/com/vard/app/fallmonitor');
     fs.mkdirSync(testsDestination, { recursive: true });
-    fs.copyFileSync(path.join(__dirname, '../native/tests/FallDetectorTest.kt'), path.join(testsDestination, 'FallDetectorTest.kt'));
+    for (const file of fs.readdirSync(path.join(__dirname, '../native/tests'))) {
+      if (file.endsWith('.kt')) fs.copyFileSync(path.join(__dirname, '../native/tests', file), path.join(testsDestination, file));
+    }
     return config;
   }]);
 };

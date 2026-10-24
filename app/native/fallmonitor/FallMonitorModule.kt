@@ -16,7 +16,8 @@ class FallMonitorModule(private val context: ReactApplicationContext) : ReactCon
     @ReactMethod fun status(promise: Promise) {
         val prefs = MonitorStore(context).prefs
         promise.resolve(Arguments.createMap().apply {
-            putBoolean("running", FallMonitorService.running)
+            putBoolean("running", FallMonitorService.running || FallMonitorService.starting)
+            putBoolean("locationReady", FallMonitorService.locationReady)
             putBoolean("enabled", prefs.getBoolean("enabled", false))
             putBoolean("sensorAvailable", (context.getSystemService(Context.SENSOR_SERVICE) as SensorManager)
                 .getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null)
@@ -33,11 +34,11 @@ class FallMonitorModule(private val context: ReactApplicationContext) : ReactCon
     @ReactMethod fun start(baseUrl: String, token: String, workspaceId: String, promise: Promise) {
         try {
             val store = MonitorStore(context)
-            if (FallMonitorService.running) throw IllegalStateException("Pare o monitoramento antes de trocar de espaço.")
+            if (FallMonitorService.running || FallMonitorService.starting) throw IllegalStateException("Pare o monitoramento antes de trocar de espaço.")
             store.saveToken(token)
             store.prefs.edit().putString("baseUrl", baseUrl.trimEnd('/')).putString("workspaceId", workspaceId)
                 .putBoolean("enabled", true).commit()
-            val intent = Intent(context, FallMonitorService::class.java)
+            val intent = Intent(context, FallMonitorService::class.java).putExtra("fromVisibleApp", true)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
             promise.resolve(null)
         } catch (e: Exception) {
@@ -46,10 +47,16 @@ class FallMonitorModule(private val context: ReactApplicationContext) : ReactCon
         }
     }
     @ReactMethod fun cancel(promise: Promise) {
-        try {
-            context.startService(Intent(context, FallMonitorService::class.java).setAction(FallMonitorService.CANCEL))
-            promise.resolve(null)
-        } catch (e: Exception) { promise.reject("CANCEL_FAILED", e.message, e) }
+        // Serialize with sensor callbacks and the timeout tick. Resolve only after
+        // the pending event and location capture have actually been discarded.
+        UiThreadUtil.runOnUiThread {
+            try {
+                val service = FallMonitorService.instance
+                if (service != null) service.cancelPending()
+                else MonitorStore(context).prefs.edit().remove("pendingDeadline").remove("pendingEvent").commit()
+                promise.resolve(null)
+            } catch (e: Exception) { promise.reject("CANCEL_FAILED", e.message, e) }
+        }
     }
     @ReactMethod fun stop(promise: Promise) {
         val store = MonitorStore(context)

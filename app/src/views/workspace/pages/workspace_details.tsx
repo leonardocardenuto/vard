@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Clipboard,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -52,6 +53,8 @@ type CameraOccurrencesProps = NativeStackScreenProps<WorkspaceStackParamList, 'C
 type FamilyMember = {
   id: string;
   contact: string;
+  name: string | null;
+  avatarUri: string | null;
   role: 'admin' | 'member' | 'caregiver' | 'viewer' | 'elderly';
 };
 
@@ -126,6 +129,8 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
       setFamilyMembers(workspaceMembers.map((member) => ({
         id: member.user_id,
         contact: member.email,
+        name: member.full_name?.trim() || null,
+        avatarUri: member.avatar_url || null,
         role: member.role,
       })));
     } catch (error) {
@@ -413,6 +418,8 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
         {
           id: `member-${Date.now()}`,
           contact: trimmedEmail,
+          name: null,
+          avatarUri: null,
           role: newMemberRole,
         },
         ...current,
@@ -608,13 +615,12 @@ export default function WorkspaceDetailsScreen({ navigation, route }: Props) {
                 key={member.id}
                 accessibilityRole="button"
                 onPress={() => openMemberActions(member)}
-                style={({ pressed }) => [styles.memberRow, pressed && styles.pressed]}
+                accessibilityLabel={`${getMemberLabel(member)}, ${formatMemberRole(member.role)}`}
+                style={({ pressed }) => [styles.memberCard, pressed && styles.pressed]}
               >
-                <View style={styles.memberAvatarPlaceholder}>
-                  <Feather color="#003984" name="mail" size={19} />
-                </View>
+                <MemberAvatar member={member} />
                 <View style={styles.memberInfo}>
-                  <Text numberOfLines={1} style={styles.personName}>{member.contact}</Text>
+                  <Text numberOfLines={2} style={styles.personName}>{getMemberLabel(member)}</Text>
                 </View>
                 <Text style={styles.memberRole}>{formatMemberRole(member.role)}</Text>
               </Pressable>
@@ -1078,8 +1084,21 @@ function formatOccurrenceDate(value: string) {
   });
 }
 
+function MemberAvatar({ member }: { member: FamilyMember }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [member.avatarUri]);
+  const names = member.name?.trim().split(/\s+/) ?? [];
+  const initials = names.length ? `${names[0][0]}${names.length > 1 ? names[names.length - 1][0] : ''}`.toUpperCase() : '';
+  return <View style={styles.memberAvatarPlaceholder}>
+    {member.avatarUri && !failed ? <Image source={{ uri: member.avatarUri }} style={styles.memberAvatar}
+      resizeMode="cover" onError={() => setFailed(true)} accessible={false} />
+      : initials ? <Text style={styles.memberInitials}>{initials}</Text>
+      : <Feather color="#003984" name="user" size={28} />}
+  </View>;
+}
+
 function getMemberLabel(member: FamilyMember) {
-  return member.contact;
+  return member.name || (member.id.startsWith('member-') ? 'Convite pendente' : 'Membro');
 }
 
 function formatMemberRole(role: MemberRole) {

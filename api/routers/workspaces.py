@@ -83,6 +83,7 @@ def list_workspace_members(
             "user_id": membership.user_id,
             "email": user.email,
             "full_name": user.full_name,
+            "avatar_url": user.avatar_url,
             "role": membership.role,
             "status": membership.status,
             "joined_at": membership.joined_at,

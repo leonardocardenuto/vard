@@ -46,6 +46,15 @@ export function ElderlyMonitorScreen({ accessToken, profile, onLogout }: {
     finally { setBusy(false); }
   }
 
+  async function confirmSafe() {
+    setBusy(true); setError('');
+    try {
+      await cancelMobileFall();
+      setStatus(await monitorStatus());
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível cancelar o alerta.'); }
+    finally { setBusy(false); }
+  }
+
   const pending = Boolean(status?.pendingDeadline && status.pendingDeadline > now);
   const seconds = Math.max(0, Math.ceil(((status?.pendingDeadline ?? 0) - now) / 1000));
   const active = status?.running && status.sensorActive;
@@ -70,6 +79,8 @@ export function ElderlyMonitorScreen({ accessToken, profile, onLogout }: {
           <Feather name={active ? 'shield' : 'pause-circle'} size={56} color={active ? '#00A6AD' : '#667085'} />
           <Text accessibilityLiveRegion="polite" style={styles.cardTitle}>{rearmSeconds > 0 ? `Retomando detecção em ${rearmSeconds}s` : active ? 'Monitoramento ativo' : status?.running ? 'Iniciando sensor…' : 'Monitoramento pausado'}</Text>
           <Text style={styles.body}>{active ? 'O celular está acompanhando seus movimentos, inclusive com a tela bloqueada.' : 'Ative a proteção para acompanhar possíveis quedas.'}</Text>
+          <Text style={styles.note}>Ao detectar uma possível queda, buscamos a localização do celular para ajudar seu espaço a encontrar você. Permita a localização e mantenha o GPS ligado.</Text>
+          {status?.running && !status.locationReady ? <Text style={styles.note}>Localização indisponível. Os alertas continuam ativos. Para incluir o local, pause e ative a proteção com a localização permitida e ligada.</Text> : null}
           {!monitorAvailable() ? <Text style={styles.error}>O monitoramento contínuo está disponível na versão Android do VARD.</Text> : null}
           <Pressable accessibilityRole="button" disabled={busy || !monitorAvailable() || !workspaceId}
             onPress={() => void toggle()} style={[styles.button, status?.running && styles.outline, busy && styles.disabled]}>
@@ -82,7 +93,7 @@ export function ElderlyMonitorScreen({ accessToken, profile, onLogout }: {
         {pending ? <View accessibilityLiveRegion="assertive" style={[styles.card, styles.warning]}>
           <Text style={styles.cardTitle}>Você está bem?</Text>
           <Text style={styles.body}>Detectamos uma possível queda. Seu espaço será avisado em {seconds} segundos.</Text>
-          <Pressable accessibilityRole="button" onPress={() => void cancelMobileFall()} style={styles.button}>
+          <Pressable accessibilityRole="button" disabled={busy} onPress={() => void confirmSafe()} style={styles.button}>
             <Text style={styles.buttonText}>Estou bem!</Text>
           </Pressable>
         </View> : null}
