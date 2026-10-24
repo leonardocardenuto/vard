@@ -6,6 +6,9 @@ import kotlin.math.*
  * Initial heuristics, not a validated medical classifier. */
 class FallDetector {
     companion object {
+        // Initial sensitivity for testing with the phone carried at the waist/in a pocket.
+        // An impact alone is insufficient: the confirmation checks below still apply.
+        const val IMPACT_THRESHOLD_G = 2.0
         const val REARM_DELAY_MILLIS = 10000L
     }
     private var gravity = doubleArrayOf(0.0, 9.81, 0.0)
@@ -37,7 +40,7 @@ class FallDetector {
             return null
         }
         if (magnitude < 0.6) lowAt = now
-        if (impactAt < 0 && magnitude >= 2.5) {
+        if (impactAt < 0 && magnitude >= IMPACT_THRESHOLD_G) {
             before = gravity.copyOf()
             impactAt = now
             peak = magnitude

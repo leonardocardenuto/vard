@@ -331,7 +331,11 @@ class NotificationTests(unittest.TestCase):
                                    (create_fall_detected_notification, "fall_detected"),
                                    (create_confrontation_detected_notification, "confrontation_detected")):
             db = MagicMock()
-            db.scalars.return_value.all.return_value = ["subscription-1"]
+            member_id = uuid.uuid4()
+            subscriptions, users = MagicMock(), MagicMock()
+            subscriptions.all.return_value = ["subscription-1"]
+            users.all.return_value = [member_id]
+            db.scalars.side_effect = [subscriptions, users]
             db.refresh.side_effect = lambda notification: setattr(notification, "id", uuid.uuid4())
             workspace_id, camera_id = uuid.uuid4(), uuid.uuid4()
             notification = create(db, workspace_id=workspace_id, camera_id=camera_id, payload={"confidence": 95})
@@ -339,6 +343,7 @@ class NotificationTests(unittest.TestCase):
             self.assertEqual(notification.notification_type, event_type)
             self.assertEqual(notification.severity, "critical")
             self.assertEqual(push.call_args.args[0], ["subscription-1"])
+            self.assertEqual(push.call_args.kwargs["external_user_ids"], [str(member_id)])
             self.assertEqual(push.call_args.kwargs["data"]["notification_type"], event_type)
             self.assertEqual(push.call_args.kwargs["data"]["workspace_id"], str(workspace_id))
             query = db.scalars.call_args.args[0].compile(compile_kwargs={"literal_binds": True})

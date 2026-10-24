@@ -14,6 +14,7 @@ def send_push_to_subscription_ids(
     title: str,
     body: str,
     data: dict | None = None,
+    external_user_ids: list[str] | None = None,
 ) -> None:
     settings = get_settings()
     if not settings.onesignal_app_id or not settings.onesignal_api_key:
@@ -22,17 +23,23 @@ def send_push_to_subscription_ids(
         )
         return
 
-    if not subscription_ids:
+    user_ids = list(dict.fromkeys(external_user_ids or []))
+    if not subscription_ids and not user_ids:
         return
 
     payload = {
         "app_id": settings.onesignal_app_id,
         "target_channel": "push",
-        "include_subscription_ids": subscription_ids[:20000],
         "headings": {"en": title},
         "contents": {"en": body},
         "data": data or {},
     }
+    # login(user.id) links every device to the same OneSignal user. A single
+    # stored subscription can be replaced by a later login on an emulator.
+    if user_ids:
+        payload["include_aliases"] = {"external_id": user_ids[:20000]}
+    else:
+        payload["include_subscription_ids"] = list(dict.fromkeys(subscription_ids))[:20000]
     request = Request(
         "https://api.onesignal.com/notifications",
         data=json.dumps(payload).encode("utf-8"),
@@ -45,7 +52,11 @@ def send_push_to_subscription_ids(
 
     try:
         with urlopen(request, timeout=10) as response:
-            response.read()
+            result = json.loads(response.read())
+            if result.get("errors"):
+                logger.warning("OneSignal did not accept all push recipients: %s", result["errors"])
+            logger.info("OneSignal push request accepted: notification_id=%s targets=%s",
+                        result.get("id"), len(user_ids or subscription_ids))
     except HTTPError as exc:
         logger.warning(
             "OneSignal push failed with HTTP %s: %s",

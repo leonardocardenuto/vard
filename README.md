@@ -115,25 +115,55 @@ Swagger:
 
 [http://localhost:8000/docs](http://localhost:8000/docs)
 
-## Rodar Postgres e Redis com Docker Compose
+## Rodar API, Postgres e Redis com Docker Compose
 
-Suba Postgres e Redis:
-
-```bash
-docker compose up -d
-```
-
-Com os containers ativos, rode as migrations e a API localmente:
+No macOS, inicie o Docker Desktop ou o runtime Colima instalado nesta maquina:
 
 ```bash
-python -m scripts.migrate
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+colima start
 ```
 
-- API: [http://localhost:8000](http://localhost:8000)
-- Swagger: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Postgres: `localhost:5432` (`vard` / `vard` / `vard`)
-- Redis: `localhost:6379`
+Com o `.env` configurado, suba os servicos:
+
+```bash
+docker compose up -d --build
+```
+
+A API aplica automaticamente os scripts de `sql/` antes de iniciar. O banco
+local comeca vazio: usuarios, cameras e ocorrencias do Neon nao sao importados.
+Os dados persistem no volume `postgres_data`. Nao use `docker compose down -v`
+se quiser preservar o banco.
+
+- API e Swagger: `http://localhost:8000/docs`
+- PostgreSQL: `127.0.0.1:5432`, banco/usuario/senha locais `vard`
+- Redis: `127.0.0.1:6379`
+
+O Compose usa `postgres:5432` dentro do container; processos Python no Mac usam
+`DATABASE_URL=postgresql+psycopg2://vard:vard@127.0.0.1:5432/vard` no `.env`.
+A API nativa deve estar parada para liberar a porta 8000. O APK continua usando
+o mesmo endereco de rede do computador; nao e necessario gerar outro APK.
+O volume `./var:/app/var` preserva clips e arquivos servidos pela API.
+
+As inferencias permanecem no Mac para usar a GPU Apple/MPS e a janela de preview.
+Depois de cadastrar as cameras no banco local, selecione os novos IDs no controle.
+O cache Redis da API fica desabilitado por padrao para refletir imediatamente
+os eventos gravados por inferencias que rodam com `REDIS_URL=''`.
+
+```bash
+docker compose ps
+docker compose logs -f api
+docker compose stop
+```
+
+Para copiar um banco Neon acessivel para um arquivo local (nao altera a origem):
+
+```bash
+.venv/bin/python -m scripts.backup_neon --env-file CAMINHO_DO_ENV_COM_NEON
+```
+
+O backup requer que a cota do Neon permita conexoes. Um banco reconstruido apenas
+pelas migracoes nao contem os dados do Neon nem eventuais alteracoes manuais que
+nao foram adicionadas aos scripts SQL do projeto.
 
 ### Cache de resposta
 

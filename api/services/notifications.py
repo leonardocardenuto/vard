@@ -89,6 +89,10 @@ def _create_detection_notification(
     )
     send_push_to_subscription_ids(
         subscription_ids,
+        external_user_ids=[str(user_id) for user_id in db.scalars(
+            select(AppUser.id).join(WorkspaceMember, WorkspaceMember.user_id == AppUser.id)
+            .where(WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.status == "active")
+        ).all()],
         title=notification.title,
         body=notification.body,
         data={

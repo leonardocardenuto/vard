@@ -4,6 +4,38 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class FallDetectorTest {
+    @Test fun detectsModerateImpactAfterFreeFallAndStability() {
+        val detector = FallDetector()
+        for (t in 100000L..101000L step 20) detector.sample(0.0, 9.80665, 0.0, t)
+        detector.sample(0.0, 0.0, 0.0, 101020)
+        detector.sample(0.0, 2.0 * 9.80665, 0.0, 101320)
+        val results = (101340L..105000L step 20).mapNotNull {
+            detector.sample(0.0, 9.80665, 0.0, it)
+        }
+        assertEquals(1, results.size)
+        assertEquals(2.0, results.single(), 0.000001)
+    }
+
+    @Test fun ignoresSubthresholdImpactEvenWithFreeFallAndPostureChange() {
+        val detector = FallDetector()
+        for (t in 100000L..101000L step 20) detector.sample(0.0, 9.80665, 0.0, t)
+        detector.sample(0.0, 0.0, 0.0, 101020)
+        assertNull(detector.sample(0.0, 0.0, 1.99 * 9.80665, 101320))
+        for (t in 101340L..111000L step 20) {
+            assertNull(detector.sample(0.0, 0.0, 9.80665, t))
+        }
+    }
+
+    @Test fun moderateImpactStillRequiresStability() {
+        val detector = FallDetector()
+        for (t in 100000L..101000L step 20) detector.sample(0.0, 9.80665, 0.0, t)
+        detector.sample(0.0, 0.0, 0.0, 101020)
+        detector.sample(0.0, 0.0, 2.1 * 9.80665, 101320)
+        for (t in 101340L..111000L step 20) {
+            assertNull(detector.sample(0.0, 0.0, 1.3 * 9.80665, t))
+        }
+    }
+
     private fun fall(detector: FallDetector, start: Long): List<Double> {
         for (t in start..start + 1000 step 20) detector.sample(0.0, 9.81, 0.0, t)
         detector.sample(0.0, 0.0, 0.0, start + 1020)

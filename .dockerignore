@@ -1,0 +1,11 @@
+*
+!Dockerfile
+!requirements-api.txt
+!api/
+!api/**
+!scripts/
+!scripts/**
+!sql/
+!sql/**
+**/__pycache__
+**/*.pyc

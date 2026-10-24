@@ -1,4 +1,29 @@
 services:
+  api:
+    build: .
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://vard:vard@postgres:5432/vard
+      # Native inference jobs may run without Redis; avoid stale cached alerts.
+      REDIS_URL: "${VARD_API_REDIS_URL:-}"
+      CAMERA_MONITOR_AUTOSTART: "false"
+    ports:
+      - "${VARD_API_PORT:-8000}:8000"
+    volumes:
+      - ./var:/app/var
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     environment:
