@@ -38,6 +38,12 @@ module.exports = function withFallMonitor(config) {
     return config;
   });
   config = withMainApplication(config, (config) => {
+    if (!config.modResults.contents.includes('FallNotificationSound.register(this)')) {
+      config.modResults.contents = config.modResults.contents.replace(
+        'super.onCreate()',
+        'super.onCreate()\n    com.vard.app.fallmonitor.FallNotificationSound.register(this)',
+      );
+    }
     if (!config.modResults.contents.includes('add(com.vard.app.fallmonitor.FallMonitorPackage())')) {
       config.modResults.contents = config.modResults.contents.replace(
         'PackageList(this).packages.apply {',
@@ -53,6 +59,9 @@ module.exports = function withFallMonitor(config) {
     return config;
   });
   return withDangerousMod(config, ['android', async (config) => {
+    const raw = path.join(config.modRequest.platformProjectRoot, 'app/src/main/res/raw');
+    fs.mkdirSync(raw, { recursive: true });
+    fs.copyFileSync(path.join(__dirname, '../assets/sounds/vard_fall_alert.wav'), path.join(raw, 'vard_fall_alert.wav'));
     const destination = path.join(config.modRequest.platformProjectRoot, 'app/src/main/java/com/vard/app/fallmonitor');
     fs.mkdirSync(destination, { recursive: true });
     for (const file of fs.readdirSync(path.join(__dirname, '../native/fallmonitor'))) {

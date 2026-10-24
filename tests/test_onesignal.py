@@ -18,6 +18,8 @@ class OneSignalTests(unittest.TestCase):
         payload = json.loads(request.data)
         self.assertEqual(payload["data"], data)
         self.assertNotIn("custom_data", payload)
+        self.assertNotIn("existing_android_channel_id", payload)
+        self.assertNotIn("android_sound", payload)
         self.assertEqual(payload["include_subscription_ids"], ["subscription-id"])
 
     @patch("api.services.onesignal.urlopen")
@@ -47,6 +49,18 @@ class OneSignalTests(unittest.TestCase):
         settings.return_value = SimpleNamespace(onesignal_app_id="test-app", onesignal_api_key="test-key")
         send_push_to_subscription_ids([], external_user_ids=[], title="Queda", body="Camera")
         urlopen.assert_not_called()
+
+    @patch("api.services.onesignal.urlopen")
+    @patch("api.services.onesignal.get_settings")
+    def test_fall_push_uses_bundled_sound_channel(self, settings, urlopen):
+        settings.return_value = SimpleNamespace(onesignal_app_id="test-app", onesignal_api_key="test-key")
+        urlopen.return_value.__enter__.return_value.read.return_value = b'{"id":"push-id"}'
+        data = {"notification_type": "fall_detected", "notification_id": "fall-id"}
+        send_push_to_subscription_ids(["subscription-id"], title="Queda", body="Sala", data=data)
+        payload = json.loads(urlopen.call_args.args[0].data)
+        self.assertEqual(payload["existing_android_channel_id"], "vard-fall-sound-v1")
+        self.assertEqual(payload["android_sound"], "vard_fall_alert")
+        self.assertEqual(payload["data"], data)
 
     @patch("api.services.onesignal.urlopen", side_effect=TimeoutError("timeout"))
     @patch("api.services.onesignal.get_settings")

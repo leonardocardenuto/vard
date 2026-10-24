@@ -40,6 +40,9 @@ def send_push_to_subscription_ids(
         payload["include_aliases"] = {"external_id": user_ids[:20000]}
     else:
         payload["include_subscription_ids"] = list(dict.fromkeys(subscription_ids))[:20000]
+    if (data or {}).get("notification_type") == "fall_detected":
+        payload["existing_android_channel_id"] = "vard-fall-sound-v1"
+        payload["android_sound"] = "vard_fall_alert"  # Android < 8; newer versions use the channel.
     request = Request(
         "https://api.onesignal.com/notifications",
         data=json.dumps(payload).encode("utf-8"),
