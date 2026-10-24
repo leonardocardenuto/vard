@@ -1,4 +1,4 @@
-import { NativeModules, Platform, TurboModuleRegistry } from 'react-native';
+import { AppState, NativeModules, Platform, TurboModuleRegistry } from 'react-native';
 import { pushFallId } from './fallAlertQueue';
 
 let isInitialized = false;
@@ -52,8 +52,17 @@ async function initializeOneSignalSdk() {
   }
 
   oneSignalModule.OneSignal.initialize(appId);
-  // Remote in-app campaigns are not part of Vard's UI; keep push alerts enabled.
-  oneSignalModule.OneSignal.InAppMessages.setPaused(true);
+  // Remote campaigns (including the default "Heading" template) are not Vard UI.
+  // Reassert the pause for cached campaigns already entering the display lifecycle
+  // and when the OS resumes the app. Push notifications remain independent.
+  const messages = oneSignalModule.OneSignal.InAppMessages;
+  const pauseCampaigns = () => messages.setPaused(true);
+  messages.addEventListener('willDisplay', pauseCampaigns);
+  messages.addEventListener('didDisplay', pauseCampaigns);
+  pauseCampaigns();
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') pauseCampaigns();
+  });
   void oneSignalModule.OneSignal.Notifications.requestPermission(true);
   isInitialized = true;
 }

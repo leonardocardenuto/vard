@@ -67,4 +67,14 @@ class FallDetectorTest {
         val results = (112020L..116000L step 20).mapNotNull { detector.sample(0.0, 0.0, 9.81, it) }
         assertEquals(1, results.size)
     }
+    @Test fun configuredImpactThresholdChangesDetection() {
+        assertEquals(1, fall(FallDetector(FallDetectorConfig(impactG = 2.5)), 100000).size)
+        assertTrue(fall(FallDetector(FallDetectorConfig(impactG = 4.0)), 100000).isEmpty())
+    }
+
+    @Test fun configuredRearmAndStillnessAreApplied() {
+        val detector = FallDetector(FallDetectorConfig(rearmDelayMs = 15000, stillnessDurationMs = 5000))
+        assertTrue(fall(detector, 100000).isEmpty())
+        assertEquals(135000L, detector.reset(120000))
+    }
 }

@@ -1,17 +1,19 @@
 import hashlib
+import logging
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from api.db import get_db
+from api.mobile_monitor_config import MobileMonitorConfig
 from api.deps import get_current_user, require_workspace_membership
-from api.models import AppUser, MobileMonitorDevice, Notification, Workspace, WorkspaceMember
+from api.models import AppUser, MobileMonitorDevice, MobileMonitorSettings, Notification, Workspace, WorkspaceMember
 from api.services.onesignal import send_push_to_subscription_ids
 
 router = APIRouter(prefix="/mobile-monitor", tags=["mobile-monitor"])
@@ -21,10 +23,19 @@ class Registration(BaseModel):
     workspace_id: uuid.UUID
 
 
+class FallLocation(BaseModel):
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
+    accuracy_m: float = Field(ge=0, allow_inf_nan=False)
+    captured_at: datetime
+    address: str | None = Field(default=None, min_length=1, max_length=500)
+
+
 class MobileFall(BaseModel):
     event_id: uuid.UUID
     occurred_at: datetime
     peak_g: float = Field(ge=0, le=100)
+    coordinates: FallLocation | None = None
 
 
 @router.get("/profile")
@@ -68,6 +79,22 @@ def current_device(authorization: str = Header(...), db: Session = Depends(get_d
     return device
 
 
+@router.get("/configuration", response_model=MobileMonitorConfig)
+def configuration(db: Session = Depends(get_db), device: MobileMonitorDevice = Depends(current_device)):
+    # The migration seeds the row. Lazy seeding also supports a fresh create_all database.
+    db.execute(insert(MobileMonitorSettings).values(
+        id=1, parameters=MobileMonitorConfig().model_dump()
+    ).on_conflict_do_nothing(index_elements=[MobileMonitorSettings.id]))
+    stored = db.get(MobileMonitorSettings, 1, populate_existing=True)
+    try:
+        config = MobileMonitorConfig.model_validate(stored.parameters)
+    except ValidationError:
+        logging.getLogger(__name__).error("Invalid mobile monitor configuration in database")
+        raise HTTPException(503, "Configuração de proteção inválida. Contate o responsável.")
+    db.commit()
+    return config
+
+
 @router.get("/devices/current")
 def heartbeat(db: Session = Depends(get_db), device: MobileMonitorDevice = Depends(current_device)):
     device.last_seen_at = datetime.now(UTC)
@@ -93,6 +120,12 @@ def report_fall(payload: MobileFall, tasks: BackgroundTasks, db: Session = Depen
                 device: MobileMonitorDevice = Depends(current_device)):
     if payload.occurred_at.tzinfo is None or payload.occurred_at > datetime.now(UTC) + timedelta(minutes=5):
         raise HTTPException(422, "Horário da ocorrência inválido.")
+    if payload.coordinates:
+        captured_at = payload.coordinates.captured_at
+        if (captured_at.tzinfo is None
+                or abs((captured_at - payload.occurred_at).total_seconds()) > 30
+                or captured_at > datetime.now(UTC) + timedelta(minutes=5)):
+            raise HTTPException(422, "Horário da localização inválido.")
     # Serialize reports per device; UUID idempotency prevents offline retries
     # from generating another notification or push.
     db.refresh(device, with_for_update=True)
@@ -109,9 +142,12 @@ def report_fall(payload: MobileFall, tasks: BackgroundTasks, db: Session = Depen
     values = dict(id=payload.event_id, workspace_id=device.workspace_id, camera_id=None,
                   notification_type="fall_detected", severity="critical", title=title, body=body,
                   created_by="mobile_fall_monitor", payload={
-                      "source": "accelerometer", "location": "Celular", "device_id": str(device.id),
+                      "source": "accelerometer",
+                      "location": (payload.coordinates.address.strip() if payload.coordinates and payload.coordinates.address else "Celular") or "Celular", "device_id": str(device.id),
                       "user_id": str(device.user_id), "occurred_at": payload.occurred_at.isoformat(),
                       "peak_g": payload.peak_g, "confirmation": "timeout",
+                      **({"coordinates": payload.coordinates.model_dump(mode="json", exclude_none=True)}
+                         if payload.coordinates else {}),
                   })
     inserted = db.execute(insert(Notification).values(**values).on_conflict_do_nothing(
         index_elements=[Notification.id]).returning(Notification.id)).scalar()

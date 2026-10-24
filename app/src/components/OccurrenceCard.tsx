@@ -1,3 +1,4 @@
+import { MobileFallLocation } from './MobileFallLocation';
 import { Feather } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -66,6 +67,7 @@ export function OccurrenceCard({ notification, workspaceName, accessToken, canOp
           <Text style={styles.title}>{title}</Text>
           {workspaceName ? <Text style={styles.workspace}>{workspaceName}</Text> : null}
           <Text style={styles.body}>{notification.body}</Text>
+          <MobileFallLocation payload={payload} />
           <View style={styles.footer}>
             <Text style={styles.date}>{new Date(notification.created_at).toLocaleString('pt-BR', {
               day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',

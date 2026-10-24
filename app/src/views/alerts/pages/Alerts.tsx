@@ -1,3 +1,4 @@
+import { MobileFallLocation } from '../../../components/MobileFallLocation';
 import {
   Feather,
   FontAwesome5,
@@ -228,8 +229,7 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
                 alert: notificationToAlert(notification, new Map()), openedFrom: 'alerts' });
             }} />) : alerts.map((alert) => (
             <Pressable
-              accessibilityRole={alert.payload.source === 'accelerometer' ? undefined : 'button'}
-              disabled={alert.payload.source === 'accelerometer'}
+              accessibilityRole="button"
               key={alert.id}
               onPress={() =>
                 navigation.navigate("AlertDetails", {
@@ -251,6 +251,7 @@ function AlertsListScreen({ navigation, route }: AlertsListProps) {
                 <Text numberOfLines={1} style={styles.alertMeta}>
                   {"\u2022"} {alert.room} - Horário: {alert.time}
                 </Text>
+                <MobileFallLocation payload={alert.payload} />
               </View>
               {alert.payload.source !== 'accelerometer' ? <Feather color="#757B80" name="chevron-right" size={25} /> : null}
             </Pressable>
@@ -384,6 +385,7 @@ function AlertDetailsScreen({ navigation, route }: AlertDetailsProps) {
             </View>
 
             <Bullet label="Local" value={alert.room} />
+            <MobileFallLocation payload={alert.payload} />
             <Bullet label="Horário" value={alert.time} />
             {alert.precision > 0 ? <Bullet label="Nível de precisão" value={`${alert.precision}%`} /> : null}
 

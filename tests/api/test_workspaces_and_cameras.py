@@ -159,3 +159,25 @@ def test_camera_auto_configuration_detects_and_persists_connection(client, monke
         "protocol": "rtsp-auto",
         "username": "camera-user",
     }
+
+
+def test_workspace_members_include_profile_name_and_photo_only_for_members(client, db_session):
+    owner = register_user(client, 'cards-owner@example.com')
+    token = register_user(client, 'cards-member@example.com', full_name='Maria Silva')
+    outsider = register_user(client, 'cards-outsider@example.com')
+    workspace = create_workspace(client, owner, slug='member-cards')
+    user = db_session.get(AppUser, _user_id(client, token))
+    user.avatar_url = 'https://example.com/maria.jpg'
+    db_session.add(WorkspaceMember(workspace_id=uuid.UUID(workspace['id']), user_id=user.id,
+                                   role='member', status='active'))
+    db_session.commit()
+    response = client.get(f"/workspaces/{workspace['id']}/members", headers=auth_headers(owner))
+    assert response.status_code == 200, response.text
+    assert len(response.json()) == 1
+    assert response.json()[0]['full_name'] == 'Maria Silva'
+    assert response.json()[0]['avatar_url'] == user.avatar_url
+    assert client.get(f"/workspaces/{workspace['id']}/members", headers=auth_headers(outsider)).status_code == 403
+    user.avatar_url = None
+    db_session.commit()
+    response = client.get(f"/workspaces/{workspace['id']}/members", headers=auth_headers(owner))
+    assert response.json()[0]['avatar_url'] is None
