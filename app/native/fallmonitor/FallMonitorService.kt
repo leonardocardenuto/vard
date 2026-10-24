@@ -71,9 +71,7 @@ class FallMonitorService : Service(), SensorEventListener {
         notifications = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26) {
             notifications.createNotificationChannel(NotificationChannel("vard-monitor", "Monitoramento de quedas", NotificationManager.IMPORTANCE_LOW))
-            notifications.createNotificationChannel(NotificationChannel("vard-fall", "Possível queda", NotificationManager.IMPORTANCE_HIGH).apply {
-                enableVibration(true); description = "Confirme se você está bem após uma possível queda"
-            })
+            FallNotificationSound.register(this)
         }
     }
 
@@ -172,7 +170,8 @@ class FallMonitorService : Service(), SensorEventListener {
 
     private fun showPending() {
         val seconds = ((pendingDeadline - System.currentTimeMillis()) / 1000 + 1).coerceAtLeast(0)
-        notifications.notify(711, NotificationCompat.Builder(this, "vard-fall")
+        notifications.notify(711, NotificationCompat.Builder(this, FallNotificationSound.CHANNEL_ID)
+            .setSound(FallNotificationSound.uri(this))
             .setSmallIcon(android.R.drawable.ic_dialog_alert).setContentTitle("Você está bem?")
             .setContentText("Possível queda. Avisaremos seu espaço em ${seconds}s.")
             .setContentIntent(launchIntent()).setOngoing(true).setOnlyAlertOnce(true)
